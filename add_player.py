@@ -19,7 +19,7 @@ def main(league_id, player_to_add, player_to_drop):
     headers = { 'cookie': COOKIE }
 
     team_response  = requests.get('https://hockey.fantasysports.yahoo.com/hockey/28012/1', headers=headers)
-    if ("Andrew Shaw" not in team_response.text) or ("Joel Armia" in team_response.text):
+    if (f'"{player_to_drop}"' not in team_response.text) or (f'"{player_to_add}"' in team_response.text):
         print("Already added player")
         return
 
