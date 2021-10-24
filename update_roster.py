@@ -22,12 +22,11 @@ from typing import List
 
 from docopt import docopt
 
-from headers import COOKIE
+from headers import COOKIE, CRUMB
 
 
 YAHOO_FANTASY_URL = 'https://hockey.fantasysports.yahoo.com/hockey'
 PROJECT_DIR = Path(__file__).parent.absolute()
-CRUMB="qOM0LqGpJSr"
 
 class RosterController:
     
@@ -38,7 +37,6 @@ class RosterController:
 
         self.session = requests.Session()
         self.session.headers.update({ 'cookie': COOKIE })
-        import ipdb; ipdb.set_trace()
 
     def check_current_auth(self):
         resp = self.session.get(self.team_url)
@@ -47,14 +45,21 @@ class RosterController:
     
     def on_roster(self, player_id):
         team_response = self.session.get(self.team_url)
-        return player_id in team_response.text
+        return f"players/{player_id}" in team_response.text
+
+    def on_waivers(self, player_id):
+        add_response = self.session.get(f"{self.team_url}/addplayer?apid={player_id}")
+        return "Claim Player From Waivers" in add_response.text
 
     def add_player(self, add_id: str, drop_id: str = None):
         if self.on_roster(add_player_id):
-            return "Already added player!"
+            print("Already added player!")
+            return
+        if self.on_waivers(add_id):
+            raise RuntimeError(f"Player {add_id} is on waivers!")
         data = {
             'stage': '3',
-            'crumb': f'{CRUMB}',
+            'crumb': CRUMB,
             'stat1': 'S',
             'stat2': 'D',
             'apid': add_id,
@@ -67,7 +72,7 @@ class RosterController:
         if "You have reached the weekly limit" in add_response.text:
             raise RuntimeError("Already reached max adds for the week!")
         if not self.on_roster(add_player_id):
-            raise RuntimeError(f"Something went wrong - player {add_id} was not added to roster!")
+            raise RuntimeError(f"Something went wrong - player {add_id} was not added to roster!  Check CRUMB value.")
         return add_response
 
     def edit_lineup(self, roster_filename: str):
