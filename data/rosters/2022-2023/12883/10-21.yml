@@ -1,0 +1,27 @@
+---
+# https://sports.yahoo.com/nhl/players/<player-id>/
+7134: C   # Thompson
+3801: C   # Oshie
+7264: LW   # Hagel
+9268: LW   # Kuzmenko
+4974: LW   # Schwartz
+6753: RW   # Crouse
+6035: RW   # Lehkonen
+7066: RW   # Marchment
+6424: D    # Montour
+6760: D    # Chabot
+5370: D    # Hamilton
+3614: D    # Giordano
+5405: Util # Jenner
+6039: G    # Comrie
+4589: G    # Allen
+7902: BN   # Tkachuk
+7516: BN   # Hischier
+4684: BN   # Kane
+8643: BN   # Stuetzle
+5986: BN   # Nurse
+6746: BN   # Marner
+3341: BN   # Fleury
+7122: IR   # McAvoy
+4351: IR+  # Marchand
+5774: IR+  # Murray

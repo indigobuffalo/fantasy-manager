@@ -165,7 +165,7 @@ class RosterDay:
 
 if __name__ == '__main__':
     project_dir = Path(__file__).parent
-    rosters = Path(project_dir, 'config/rosters')
+    rosters = Path(project_dir, 'data/rosters')
     roster = Path(rosters, '2020-02-28_complete.yml')
     with open(roster) as f:
         roster_data = yaml.safe_load(f)

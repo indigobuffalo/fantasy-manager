@@ -3,40 +3,40 @@
 """Make a change to your roster.
 
 Usage:
-  update_roster.py waivers --league=<league_id> --locked=<locked_players> --add=<player_id> [--drop=<player_id>]
-  update_roster.py lineup --league=<league_id> --locked=<locked_players> --roster-file=<path_to_roster_file>
-  update_roster.py check --league=<league_id> --locked=<locked_players> --check=<players_to_check>
+  update_roster.py waivers --league-id=<league_id> --league-number=<league_number> --locked=<locked_players> --add=<player_id> [--drop=<player_id>]
+  update_roster.py lineup --league-id=<league_id> --league-number=<league_number> --locked=<locked_players> --roster-file=<path_to_roster_file> [--start=<start_date>] [--end=<end_date>]
+  update_roster.py check --league-id=<league_id> --league-number=<league_number> --locked=<locked_players> --check=<players_to_check>
 
 Options:
   --drop=<player_id>    Id of player to drop.
 
 """
 
-import os
-import json
 import requests
 import yaml
-from datetime import datetime
+from datetime import datetime, date
 from pathlib import Path
 from typing import List
 
 from docopt import docopt
 
 from headers import COOKIE, CRUMB
-
+from util.dates import date_range, current_season_years
 
 YAHOO_FANTASY_URL = 'https://hockey.fantasysports.yahoo.com/hockey'
 PROJECT_DIR = Path(__file__).parent.absolute()
 
 class RosterController:
     
-    def __init__(self, league_id: str, locked_players: List):
-        self.team_url = f'{YAHOO_FANTASY_URL}/{league_id}/1'
+    def __init__(self, league_id: str, league_number: str, locked_players: List):
+        self.team_url = f'{YAHOO_FANTASY_URL}/{league_id}/{league_number}'
         self.locked_players = locked_players
-        self.rosters_dir = PROJECT_DIR / 'rosters'
+
+        yr_one, yr_two = current_season_years()
+        self.rosters_dir = PROJECT_DIR / 'data' / 'rosters' / f"{yr_one}-{yr_two}" / league_id
 
         self.session = requests.Session()
-        self.session.headers.update({ 'cookie': COOKIE })
+        self.session.headers.update({'cookie': COOKIE})
 
     def check_current_auth(self):
         resp = self.session.get(self.team_url)
@@ -75,26 +75,28 @@ class RosterController:
             raise RuntimeError(f"Something went wrong - player {add_id} was not added to roster!  Check CRUMB value.")
         return add_response
 
-    def edit_lineup(self, roster_filename: str):
+    def edit_lineup(self, roster_filename: str, game_date: date):
         data = {
-            "date": datetime.strftime(datetime.now(), '%Y-%m-%d'),
-            "stat1": "S",
-            "stat2": "D",
-            'crumb': f'{CRUMB}',
-            "ret": "swap"
+            'ret': 'swap',
+            'date': datetime.strftime(game_date, '%Y-%m-%d'),
+            'stat1': 'S',
+            'stat2': 'D',
+            'crumb': CRUMB,
         }
-        with open(self.rosters_dir / f'{roster_filename}.yml') as roster_file:
+        with open(self.rosters_dir / roster_filename) as roster_file:
             roster = yaml.safe_load(roster_file)
         data.update(roster)
+
         return self.session.post(f'{self.team_url}/editroster', data=data)
 
 
 if __name__ == '__main__':
     args = docopt(__doc__)
-    league_id = args['--league']
+    league_id = args['--league-id']
+    league_number = args['--league-number']
     locked_players = args['--locked'].split(',')
 
-    controller = RosterController(league_id, locked_players)
+    controller = RosterController(league_id, league_number, locked_players)
     controller.check_current_auth()
 
     if args['check']:
@@ -103,8 +105,16 @@ if __name__ == '__main__':
             if not controller.on_roster(player):
                 raise RuntimeError(f"Player '{player}' has not been added!")
         print(f'All players on roster - {players_to_check}')
+
     if args['lineup']:
-        resp = controller.edit_lineup(args['--roster-file'])
+        start, end = args['--start'], args['--end']
+
+        start_date = datetime.strptime(start, '%Y-%m-%d') if start is not None else date.today()
+        end_date = datetime.strptime(end, '%Y-%m-%d') if end is not None else start
+
+        for game_date in date_range(start_date, end_date):
+            resp = controller.edit_lineup(args['--roster-file'], game_date)
+
     if args['waivers']:
         add_player_id = args['--add']
         controller.add_player(add_player_id, args['--drop'])
