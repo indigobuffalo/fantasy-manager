@@ -25,7 +25,7 @@ from docopt import docopt
 from headers import COOKIE, CRUMB
 from util.dates import date_range, current_season_years, num_days_until
 from util.exceptions import AlreadyAddedError, AlreadyPlayedError, MaxAddsError, FantasyAuthError, OnWaiversError, \
-    FantasyUnknownError
+    FantasyUnknownError, YahooFantasyError
 
 YAHOO_FANTASY_URL = 'https://hockey.fantasysports.yahoo.com/hockey'
 PROJECT_DIR = Path(__file__).parent.absolute()
@@ -125,7 +125,7 @@ class RosterController:
                 add_response = self.session.post(f'{self.team_url}/addplayer?apid={add_id}', data=data)
                 self._check_add_response(add_id, add_response)
                 return add_response
-            except (AlreadyAddedError, MaxAddsError, AlreadyPlayedError, FantasyUnknownError) as err:
+            except YahooFantasyError as err:
                 sleep(0.1)
                 print(f'The time is {datetime.now()}')
                 continue
