@@ -3,7 +3,8 @@
 """Make a change to your roster.
 
 Usage:
-  update_roster.py waivers --league-id=<league_id> --league-number=<league_number> --locked=<locked_players> --add=<player_id> [--drop=<player_id>]
+  update_roster.py waivers --league-id=<league_id> --league-number=<league_number>
+      --locked=<locked_players> --add=<player_id> [--drop=<player_id>] [--start=<start_date>]
   update_roster.py lineup --league-id=<league_id> --league-number=<league_number> --locked=<locked_players> [--roster-file=<path_to_roster_file>] [--start=<start_date>] [--end=<end_date>]
   update_roster.py check --league-id=<league_id> --league-number=<league_number> --locked=<locked_players> --check=<players_to_check>
 
@@ -11,6 +12,7 @@ Options:
   --drop=<player_id>    Id of player to drop.
 
 """
+from time import sleep
 
 import requests
 import yaml
@@ -29,7 +31,8 @@ YAHOO_FANTASY_URL = 'https://hockey.fantasysports.yahoo.com/hockey'
 PROJECT_DIR = Path(__file__).parent.absolute()
 
 ALREADY_PLAYED_MESSAGE = 'player has already played and is no longer'
-WEEKLY_LIMIt_MESSAGE = 'You have reached the weekly limit'
+WEEKLY_LIMIT_MESSAGE = 'You have reached the weekly limit'
+
 
 class RosterController:
     
@@ -57,7 +60,15 @@ class RosterController:
         add_response = self.session.get(f"{self.team_url}/addplayer?apid={player_id}")
         return "Claim Player From Waivers" in add_response.text
 
-    def add_player(self, add_id: str, drop_id: str = None):
+    def _check_add_response(self, add_id, resp):
+        if ALREADY_PLAYED_MESSAGE in resp.text:
+            raise AlreadyPlayedError(add_id)
+        if WEEKLY_LIMIT_MESSAGE in resp.text:
+            raise MaxAddsError("Already reached max adds for the week!")
+        if not self.on_roster(add_id):
+            raise FantasyUnknownError(f"Error - player '{add_id}' not added.")
+
+    def add_player(self, add_id: str, add_date: date, drop_id: str = None):
         if self.on_roster(add_player_id):
             raise AlreadyAddedError(add_id)
         if self.on_waivers(add_id):
@@ -72,16 +83,46 @@ class RosterController:
         }
         if drop_id is not None:
             data['dpid'] = drop_id
-        add_response = self.session.post(f'{self.team_url}/addplayer?apid={add_id}', data=data)
 
-        if ALREADY_PLAYED_MESSAGE in add_response.text:
-            raise AlreadyPlayedError(add_id)
-        if WEEKLY_LIMIt_MESSAGE in add_response.text:
-            raise MaxAddsError("Already reached max adds for the week!")
-        if not self.on_roster(add_player_id):
-            raise FantasyUnknownError(f"Error - player '{add_id}' not added.")
+        midnight = datetime.combine(add_date, datetime.strptime('00:00', '%H:%M').time())
+        while True:
+            if datetime.now() < midnight:
+                seconds_until_midnight = (midnight - datetime.now()).seconds
+                minutes_until_midnight = seconds_until_midnight / 60
 
-        return add_response
+                if minutes_until_midnight >= 30:
+                    print(f"There are '{minutes_until_midnight}' minutes until midnight.  Sleeping 15 minutes.")
+                    sleep(900)
+                    continue
+                elif minutes_until_midnight >= 10:
+                    print(f"There are '{minutes_until_midnight}' minutes until midnight.  Sleeping 5 minutes.")
+                    sleep(300)
+                    continue
+                elif minutes_until_midnight >= 2:
+                    print(f"There are '{minutes_until_midnight}' minutes until midnight.  Sleeping 1 minutes.")
+                    sleep(60)
+                    continue
+                elif minutes_until_midnight > 1:
+                    sleep(15)
+                    continue
+                elif minutes_until_midnight > 0:
+                    if seconds_until_midnight > 45:
+                        sleep(5)
+                        continue
+                    elif seconds_until_midnight > 5:
+                        sleep(1)
+                        continue
+                    else:
+                        sleep(0.2)
+                        continue
+            try:
+                add_response = self.session.post(f'{self.team_url}/addplayer?apid={add_id}', data=data)
+                self._check_add_response(add_id, add_response)
+                return add_response
+            except (AlreadyAddedError, MaxAddsError, FantasyUnknownError) as err:
+                sleep(0.3)
+                print(f'The time is {datetime.now()}')
+                continue
 
     def edit_lineup(self, roster_filename: str, game_date: date):
         data = {
@@ -132,6 +173,16 @@ if __name__ == '__main__':
             resp = controller.edit_lineup(roster_file, game_date)
 
     if args['waivers']:
-        add_player_id = args['--add']
-        controller.add_player(add_player_id, args['--drop'])
-        
+        start = args['--start']
+
+        if start is not None:
+            add_date = datetime.strptime(start, '%Y-%m-%d')
+        else:
+            add_date = date.today() + timedelta(days=1)
+
+        try:
+            add_player_id = args['--add']
+            controller.add_player(add_player_id, add_date, args['--drop'])
+        except AlreadyAddedError:
+            print(f"Player '{add_player_id}' is on roster, all set!")
+            pass
