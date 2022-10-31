@@ -107,10 +107,16 @@ class RosterController:
                     continue
                 elif minutes_until_midnight > 0:
                     if seconds_until_midnight > 45:
+                        print(f"There are '{seconds_until_midnight}' seconds until midnight.  Sleeping 5 seconds.")
                         sleep(5)
                         continue
                     elif seconds_until_midnight > 5:
+                        print(f"There are '{seconds_until_midnight}' seconds until midnight.  Sleeping 1 second.")
                         sleep(1)
+                        continue
+                    elif seconds_until_midnight >= 1.5:
+                        print(f"There are '{seconds_until_midnight}' seconds until midnight.  Sleeping 0.5 second.")
+                        sleep(0.5)
                         continue
                     else:
                         sleep(0.2)
@@ -119,8 +125,8 @@ class RosterController:
                 add_response = self.session.post(f'{self.team_url}/addplayer?apid={add_id}', data=data)
                 self._check_add_response(add_id, add_response)
                 return add_response
-            except (AlreadyAddedError, MaxAddsError, FantasyUnknownError) as err:
-                sleep(0.3)
+            except (AlreadyAddedError, MaxAddsError, AlreadyPlayedError, FantasyUnknownError) as err:
+                sleep(0.1)
                 print(f'The time is {datetime.now()}')
                 continue
 
