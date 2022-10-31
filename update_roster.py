@@ -22,9 +22,14 @@ from docopt import docopt
 
 from headers import COOKIE, CRUMB
 from util.dates import date_range, current_season_years, num_days_until
+from util.exceptions import AlreadyAddedError, AlreadyPlayedError, MaxAddsError, FantasyAuthError, OnWaiversError, \
+    FantasyUnknownError
 
 YAHOO_FANTASY_URL = 'https://hockey.fantasysports.yahoo.com/hockey'
 PROJECT_DIR = Path(__file__).parent.absolute()
+
+ALREADY_PLAYED_MESSAGE = 'player has already played and is no longer'
+WEEKLY_LIMIt_MESSAGE = 'You have reached the weekly limit'
 
 class RosterController:
     
@@ -40,23 +45,24 @@ class RosterController:
 
     def check_current_auth(self):
         resp = self.session.get(self.team_url)
-        if not all (player in resp.text for player in self.locked_players):
-            raise RuntimeError('Not logged in!')
+        if not all(player in resp.text for player in self.locked_players):
+            raise FantasyAuthError('Not logged in!')
     
     def on_roster(self, player_id):
         team_response = self.session.get(self.team_url)
         return f"players/{player_id}" in team_response.text
 
+    # TODO: FIX THIS on_waivers method
     def on_waivers(self, player_id):
         add_response = self.session.get(f"{self.team_url}/addplayer?apid={player_id}")
         return "Claim Player From Waivers" in add_response.text
 
     def add_player(self, add_id: str, drop_id: str = None):
         if self.on_roster(add_player_id):
-            print("Already added player!")
-            return
+            raise AlreadyAddedError(add_id)
         if self.on_waivers(add_id):
-            raise RuntimeError(f"Player {add_id} is on waivers!")
+            raise OnWaiversError(f"Player {add_id} is on waivers!")
+
         data = {
             'stage': '3',
             'crumb': CRUMB,
@@ -67,12 +73,14 @@ class RosterController:
         if drop_id is not None:
             data['dpid'] = drop_id
         add_response = self.session.post(f'{self.team_url}/addplayer?apid={add_id}', data=data)
-        if "player has already played and is no longer" in add_response.text:
-            raise ValueError("Player to drop has played today - try tomorrow!")
-        if "You have reached the weekly limit" in add_response.text:
-            raise RuntimeError("Already reached max adds for the week!")
+
+        if ALREADY_PLAYED_MESSAGE in add_response.text:
+            raise AlreadyPlayedError(add_id)
+        if WEEKLY_LIMIt_MESSAGE in add_response.text:
+            raise MaxAddsError("Already reached max adds for the week!")
         if not self.on_roster(add_player_id):
-            raise RuntimeError(f"Something went wrong - player {add_id} was not added to roster!  Check CRUMB value.")
+            raise FantasyUnknownError(f"Error - player '{add_id}' not added.")
+
         return add_response
 
     def edit_lineup(self, roster_filename: str, game_date: date):
