@@ -4,7 +4,7 @@
 
 Usage:
   update_roster.py waivers --league-id=<league_id> --league-number=<league_number> --locked=<locked_players> --add=<player_id> [--drop=<player_id>]
-  update_roster.py lineup --league-id=<league_id> --league-number=<league_number> --locked=<locked_players> --roster-file=<path_to_roster_file> [--start=<start_date>] [--end=<end_date>]
+  update_roster.py lineup --league-id=<league_id> --league-number=<league_number> --locked=<locked_players> [--roster-file=<path_to_roster_file>] [--start=<start_date>] [--end=<end_date>]
   update_roster.py check --league-id=<league_id> --league-number=<league_number> --locked=<locked_players> --check=<players_to_check>
 
 Options:
@@ -14,14 +14,14 @@ Options:
 
 import requests
 import yaml
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 from pathlib import Path
 from typing import List
 
 from docopt import docopt
 
 from headers import COOKIE, CRUMB
-from util.dates import date_range, current_season_years
+from util.dates import date_range, current_season_years, num_days_until
 
 YAHOO_FANTASY_URL = 'https://hockey.fantasysports.yahoo.com/hockey'
 PROJECT_DIR = Path(__file__).parent.absolute()
@@ -109,11 +109,19 @@ if __name__ == '__main__':
     if args['lineup']:
         start, end = args['--start'], args['--end']
 
-        start_date = datetime.strptime(start, '%Y-%m-%d') if start is not None else date.today()
-        end_date = datetime.strptime(end, '%Y-%m-%d') if end is not None else start
+        if start is not None:
+            start_date = datetime.strptime(start, '%Y-%m-%d')
+        else:
+            start_date = date.today() + timedelta(days=1)
+        if end is not None:
+            end_date = datetime.strptime(end, '%Y-%m-%d')
+        else:
+            days_until_sunday = num_days_until("Sunday", start_date)
+            end_date = start_date + timedelta(days=days_until_sunday)
 
+        roster_file = args['--roster-file'] if args['--roster-file'] is not None else 'roster.yml'
         for game_date in date_range(start_date, end_date):
-            resp = controller.edit_lineup(args['--roster-file'], game_date)
+            resp = controller.edit_lineup(roster_file, game_date)
 
     if args['waivers']:
         add_player_id = args['--add']
