@@ -68,6 +68,15 @@ class RosterController:
         if not self.on_roster(add_id):
             raise FantasyUnknownError(f"Error - player '{add_id}' not added.")
 
+    @staticmethod
+    def _sleep_until_midnight():
+        midnight = datetime.combine(add_date, datetime.strptime('00:00', '%H:%M').time())
+        if datetime.now() < midnight:
+            seconds_until_midnight = (midnight - datetime.now()).seconds
+            sleep_secs = (seconds_until_midnight - 0.3)
+            print(f"There are '{seconds_until_midnight}' seconds until midnight.  Sleeping {sleep_secs} seconds.")
+            sleep(sleep_secs)
+
     def add_player(self, add_id: str, add_date: date, drop_id: str = None):
         if self.on_roster(add_player_id):
             raise AlreadyAddedError(add_id)
@@ -84,50 +93,26 @@ class RosterController:
         if drop_id is not None:
             data['dpid'] = drop_id
 
-        midnight = datetime.combine(add_date, datetime.strptime('00:00', '%H:%M').time())
+        self._sleep_until_midnight()
         while True:
-            if datetime.now() < midnight:
-                seconds_until_midnight = (midnight - datetime.now()).seconds
-                minutes_until_midnight = seconds_until_midnight / 60
-
-                if minutes_until_midnight >= 30:
-                    print(f"There are '{minutes_until_midnight}' minutes until midnight.  Sleeping 15 minutes.")
-                    sleep(900)
-                    continue
-                elif minutes_until_midnight >= 10:
-                    print(f"There are '{minutes_until_midnight}' minutes until midnight.  Sleeping 5 minutes.")
-                    sleep(300)
-                    continue
-                elif minutes_until_midnight >= 2:
-                    print(f"There are '{minutes_until_midnight}' minutes until midnight.  Sleeping 1 minutes.")
-                    sleep(60)
-                    continue
-                elif minutes_until_midnight > 1:
-                    sleep(15)
-                    continue
-                elif minutes_until_midnight > 0:
-                    if seconds_until_midnight > 45:
-                        print(f"There are '{seconds_until_midnight}' seconds until midnight.  Sleeping 5 seconds.")
-                        sleep(5)
-                        continue
-                    elif seconds_until_midnight > 5:
-                        print(f"There are '{seconds_until_midnight}' seconds until midnight.  Sleeping 1 second.")
-                        sleep(1)
-                        continue
-                    elif seconds_until_midnight >= 1.5:
-                        print(f"There are '{seconds_until_midnight}' seconds until midnight.  Sleeping 0.5 second.")
-                        sleep(0.5)
-                        continue
-                    else:
-                        sleep(0.2)
-                        continue
             try:
                 add_response = self.session.post(f'{self.team_url}/addplayer?apid={add_id}', data=data)
                 self._check_add_response(add_id, add_response)
-                return add_response
+                print(f"Success!  Player {add_id} is now on roster.")
+                return
             except YahooFantasyError as err:
-                sleep(0.1)
-                print(f'The time is {datetime.now()}')
+                now = datetime.now()
+                print(f'The time is {now}')
+                # shorter sleeps at first, then gradually back off
+                if now.hour > 3:
+                    print("Already past 3 AM.  Exiting.")
+                    break
+                elif now.hour > 1 or now.minute > 15:
+                    sleep(5)
+                elif now.minute > 5:
+                    sleep(2)
+                else:
+                    sleep(0.1)
                 continue
 
     def edit_lineup(self, roster_filename: str, game_date: date):
@@ -186,8 +171,8 @@ if __name__ == '__main__':
         else:
             add_date = date.today() + timedelta(days=1)
 
+        add_player_id = args['--add']
         try:
-            add_player_id = args['--add']
             controller.add_player(add_player_id, add_date, args['--drop'])
         except AlreadyAddedError:
             print(f"Player '{add_player_id}' is on roster, all set!")

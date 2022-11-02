@@ -1,23 +1,22 @@
 ---
 # League: KKUPFL
 # https://sports.yahoo.com/nhl/players/<player-id>/
-8658: C    # Mercer
+6655: C    # Gaudreau
 5405: C    # Jenner
-8290: LW   # Boldy
-6169: LW   # Kubalik
+5639: LW   # Smith
+6480: LW   # Arvidsson
 6890: RW   # Terry
-5639: RW   # Smith
+6169: RW   # Kubalik
 7117: D    # Sergachev
-7950: D    # Durzi
 7161: D    # Hronek
-7908: D   # Bouchard
-6760: Util # Chabot
-4248: Util # Couture
+6760: D    # Chabot
+7908: D    # Bouchard
+8290: Util # Boldy
+4699: Util # Kreider
 6039: G    # Comrie
 6024: G    # Jarry
-6057: IR+  # Guentzel
-7110: BN  # Laine
-6060: IR+  # Duclair
+6057: BN   # Guentzel
 6743: BN   # McDavid
 4976: BN   # Tarasenko
-4699: BN   # Kreider
+7110: BN   # Laine
+6060: IR+  # Duclair
