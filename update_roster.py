@@ -152,7 +152,7 @@ if __name__ == '__main__':
             days_until_sunday = num_days_until("Sunday", start_date)
             end_date = start_date + timedelta(days=days_until_sunday)
 
-        roster_file = args['--roster-file'] if args['--roster-file'] is not None else 'roster.yml'
+        roster_file = args['--roster-file'] if args['--roster-file'] else 'default.yml'
         for game_date in date_range(start_date, end_date):
             resp = controller.edit_lineup(roster_file, game_date)
 
