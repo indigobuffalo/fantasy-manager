@@ -3,10 +3,9 @@
 """Make a change to your roster.
 
 Usage:
-  update_roster.py waivers --league-id=<league_id> --league-number=<league_number>
-      --locked=<locked_players> --add=<player_id> [--drop=<player_id>] [--start=<start_date>]
-  update_roster.py lineup --league-id=<league_id> --league-number=<league_number> --locked=<locked_players> [--roster-file=<path_to_roster_file>] [--start=<start_date>] [--end=<end_date>]
-  update_roster.py check --league-id=<league_id> --league-number=<league_number> --locked=<locked_players> --check=<players_to_check>
+  update_roster.py waivers --league=<league_id> --locked=<locked_players> --add=<player_id> [--drop=<player_id>] [--start=<start_date>]
+  update_roster.py lineup --league=<league_id> --locked=<locked_players> [--roster-file=<path_to_roster_file>] [--start=<start_date>] [--end=<end_date>]
+  update_roster.py check --league=<league_id> --locked=<locked_players> --check=<players_to_check>
 
 Options:
   --drop=<player_id>    Id of player to drop.
@@ -23,9 +22,9 @@ from typing import List
 from docopt import docopt
 
 from headers import COOKIE, CRUMB
-from util.dates import date_range, current_season_years, num_days_until
+from util.time import date_range, current_season_years, num_days_until, upcoming_midnight, sleep_until
 from util.exceptions import AlreadyAddedError, AlreadyPlayedError, MaxAddsError, FantasyAuthError, OnWaiversError, \
-    FantasyUnknownError, YahooFantasyError
+    FantasyUnknownError, YahooFantasyError, InvalidLeagueError
 
 YAHOO_FANTASY_URL = 'https://hockey.fantasysports.yahoo.com/hockey'
 PROJECT_DIR = Path(__file__).parent.absolute()
@@ -33,10 +32,21 @@ PROJECT_DIR = Path(__file__).parent.absolute()
 ALREADY_PLAYED_MESSAGE = 'player has already played and is no longer'
 WEEKLY_LIMIT_MESSAGE = 'You have reached the weekly limit'
 
+LEAGUES = {
+    '12883': 1,  # Puckin' Around
+    '75985': 2   # KKUPFL
+}
+
+
+def get_leauge_number(leage_id: str) -> int:
+    if leage_id not in LEAGUES:
+        raise InvalidLeagueError(league_id)
+    return LEAGUES[leage_id]
+
 
 class RosterController:
     
-    def __init__(self, league_id: str, league_number: str, locked_players: List):
+    def __init__(self, league_id: str, league_number: int, locked_players: List):
         self.team_url = f'{YAHOO_FANTASY_URL}/{league_id}/{league_number}'
         self.locked_players = locked_players
 
@@ -68,16 +78,8 @@ class RosterController:
         if not self.on_roster(add_id):
             raise FantasyUnknownError(f"Error - player '{add_id}' not added.")
 
-    @staticmethod
-    def _sleep_until_midnight():
-        midnight = datetime.combine(add_date, datetime.strptime('00:00', '%H:%M').time())
-        if datetime.now() < midnight:
-            seconds_until_midnight = (midnight - datetime.now()).seconds
-            sleep_secs = (seconds_until_midnight - 0.3)
-            print(f"There are '{seconds_until_midnight}' seconds until midnight.  Sleeping {sleep_secs} seconds.")
-            sleep(sleep_secs)
-
-    def add_player(self, add_id: str, add_date: date, drop_id: str = None):
+    def add_player(self, add_id: str, add_datetime: datetime, drop_id: str = None):
+        print(f"Adding {add_id} and dropping {drop_id}")
         if self.on_roster(add_player_id):
             raise AlreadyAddedError(add_id)
         if self.on_waivers(add_id):
@@ -93,7 +95,7 @@ class RosterController:
         if drop_id is not None:
             data['dpid'] = drop_id
 
-        self._sleep_until_midnight()
+        sleep_until(add_datetime)
         while True:
             try:
                 add_response = self.session.post(f'{self.team_url}/addplayer?apid={add_id}', data=data)
@@ -102,17 +104,8 @@ class RosterController:
                 return
             except YahooFantasyError as err:
                 now = datetime.now()
-                print(f'The time is {now}')
-                # shorter sleeps at first, then gradually back off
-                if now.hour > 3:
-                    print("Already past 3 AM.  Exiting.")
-                    break
-                elif now.hour > 1 or now.minute > 15:
-                    sleep(5)
-                elif now.minute > 5:
-                    sleep(2)
-                else:
-                    sleep(0.1)
+                print(f'The time is {now}. Sleeping 0.1 seconds.')
+                sleep(0.1)
                 continue
 
     def edit_lineup(self, roster_filename: str, game_date: date):
@@ -132,9 +125,9 @@ class RosterController:
 
 if __name__ == '__main__':
     args = docopt(__doc__)
-    league_id = args['--league-id']
-    league_number = args['--league-number']
+    league_id = args['--league']
     locked_players = args['--locked'].split(',')
+    league_number = get_leauge_number(league_id)
 
     controller = RosterController(league_id, league_number, locked_players)
     controller.check_current_auth()
@@ -165,15 +158,10 @@ if __name__ == '__main__':
 
     if args['waivers']:
         start = args['--start']
-
-        if start is not None:
-            add_date = datetime.strptime(start, '%Y-%m-%d')
-        else:
-            add_date = date.today() + timedelta(days=1)
-
         add_player_id = args['--add']
+        add_datetime = datetime.fromisoformat(start) if start else upcoming_midnight()
         try:
-            controller.add_player(add_player_id, add_date, args['--drop'])
+            controller.add_player(add_player_id, add_datetime, args['--drop'])
         except AlreadyAddedError:
             print(f"Player '{add_player_id}' is on roster, all set!")
             pass

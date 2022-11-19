@@ -53,3 +53,10 @@ class FantasyUnknownError(YahooFantasyError):
         self.player = player
         self.message = message
         super().__init__(self.message)
+
+
+class InvalidLeagueError(YahooFantasyError):
+
+    def __init__(self, league_id: str):
+        self.league_id = league_id
+        super().__init__(f"Unknown league: {self.league_id}")

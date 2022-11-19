@@ -1,28 +1,28 @@
 ---
-# League: Puckin' Around
+# League: Puckin' Around  # 12883
 # https://sports.yahoo.com/nhl/players/<player-id>/
 7134: C    # Thompson
 5405: C    # Jenner
-6585: LW   # Sheary
+6726: LW   # Rodrigues
 8643: LW   # Stuetzle
 6753: LW   # Crouse
-6549: RW   # Olofsson
+8281: RW   # Dach
 6035: RW   # Lehkonen
 7066: RW   # Marchment
 6424: D    # Montour
-7927: D    # Sandin
-7851: D    # Whitecloud
+6785: D    # Cernak
+5370: D    # Hamilton
 6760: D    # Chabot
-5370: Util # Hamilton
+9268: Util # Kuzmenko
 6039: G    # Comrie
 4589: G    # Allen
 6746: BN   # Marner
-4684: BN   # Kane
 4351: BN   # Marchand
 7902: BN   # Tkachuk
 7516: BN   # Hischier
 5986: BN   # Nurse
 3341: BN   # Fleury
-7122: IR   # McAvoy
+7122: BN   # McAvoy
+4684: IR   # Kane
 3801: IR+  # Oshie
 5774: IR+  # Murray
