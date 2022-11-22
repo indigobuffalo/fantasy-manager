@@ -24,7 +24,7 @@ from docopt import docopt
 from headers import COOKIE, CRUMB
 from util.time import date_range, current_season_years, num_days_until, upcoming_midnight, sleep_until
 from util.exceptions import AlreadyAddedError, AlreadyPlayedError, MaxAddsError, FantasyAuthError, OnWaiversError, \
-    FantasyUnknownError, YahooFantasyError, InvalidLeagueError
+    FantasyUnknownError, YahooFantasyError, InvalidLeagueError, NotOnRosterError
 
 YAHOO_FANTASY_URL = 'https://hockey.fantasysports.yahoo.com/hockey'
 PROJECT_DIR = Path(__file__).parent.absolute()
@@ -82,6 +82,8 @@ class RosterController:
         print(f"Adding {add_id} and dropping {drop_id}")
         if self.on_roster(add_player_id):
             raise AlreadyAddedError(add_id)
+        if drop_id is not None and not self.on_roster(drop_id):
+            raise NotOnRosterError(drop_id)
         if self.on_waivers(add_id):
             raise OnWaiversError(f"Player {add_id} is on waivers!")
 
@@ -97,14 +99,17 @@ class RosterController:
 
         sleep_until(add_datetime)
         while True:
+            print(f'The time is {datetime.now()}.')
+            if drop_id is not None and not self.on_roster(drop_id):
+                print("Player to drop has already been dropped.")
+                return
             try:
                 add_response = self.session.post(f'{self.team_url}/addplayer?apid={add_id}', data=data)
                 self._check_add_response(add_id, add_response)
                 print(f"Success!  Player {add_id} is now on roster.")
                 return
             except YahooFantasyError as err:
-                now = datetime.now()
-                print(f'The time is {now}. Sleeping 0.1 seconds.')
+                print(f'Got {err}. Sleeping 0.1 seconds.')
                 sleep(0.1)
                 continue
 

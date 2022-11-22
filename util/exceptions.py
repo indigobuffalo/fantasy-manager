@@ -5,6 +5,13 @@ class YahooFantasyError(Exception):
     pass
 
 
+class NotOnRosterError(YahooFantasyError):
+    def __init__(self, player: str, message: str = "Player to drop not on roster"):
+        self.player = player
+        self.message = message
+        super().__init__(self.message)
+
+
 class AlreadyAddedError(YahooFantasyError):
     def __init__(self, player: str, message: str = "Already added player"):
         self.player = player
