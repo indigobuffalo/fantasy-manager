@@ -24,16 +24,17 @@ from docopt import docopt
 from headers import COOKIE, CRUMB
 from util.time import date_range, current_season_years, num_days_until, upcoming_midnight, sleep_until
 from util.exceptions import AlreadyAddedError, AlreadyPlayedError, MaxAddsError, FantasyAuthError, OnWaiversError, \
-    FantasyUnknownError, YahooFantasyError, InvalidLeagueError, NotOnRosterError
+    FantasyUnknownError, YahooFantasyError, InvalidLeagueError, NotOnRosterError, UnintendedWaiverAddError
 
 YAHOO_FANTASY_URL = 'https://hockey.fantasysports.yahoo.com/hockey'
 PROJECT_DIR = Path(__file__).parent.absolute()
 
 ALREADY_PLAYED_MESSAGE = 'player has already played and is no longer'
 WEEKLY_LIMIT_MESSAGE = 'You have reached the weekly limit'
+WAIVER_CLAIM_PLACED = 'created%2520a%2520waiver%2520claim%2520for'
 
 LEAGUES = {
-    '12883': 1,  # Puckin' Around
+    '19540': 1,  # Puckin' Around
     '75985': 2   # KKUPFL
 }
 
@@ -75,8 +76,26 @@ class RosterController:
             raise AlreadyPlayedError(add_id)
         if WEEKLY_LIMIT_MESSAGE in resp.text:
             raise MaxAddsError("Already reached max adds for the week!")
+        if WAIVER_CLAIM_PLACED in resp.text:
+            raise UnintendedWaiverAddError("Accidentally added player from waivers.")
         if not self.on_roster(add_id):
             raise FantasyUnknownError(f"Error - player '{add_id}' not added.")
+
+    def cancel_waiver_claim(self, player_id: str):
+        data = {
+            'stage': '2',
+            'crumb': CRUMB,
+            'claim_id': f'1_{player_id}_0',
+            'mode': 'edit',
+            'apid': player_id,
+            's': 'Cancel Waiver'
+        }
+        cancel_response = self.session.post(f'{self.team_url}/editwaiver', data=data)
+        if cancel_response.status_code == 200:
+            print("Successfully canceled waiver claim")
+        else:
+            import ipdb; ipdb.set_trace()
+        return
 
     def add_player(self, add_id: str, add_datetime: datetime, drop_id: str = None):
         print(f"Adding {add_id} and dropping {drop_id}")
@@ -84,14 +103,15 @@ class RosterController:
             raise AlreadyAddedError(add_id)
         if drop_id is not None and not self.on_roster(drop_id):
             raise NotOnRosterError(drop_id)
-        if self.on_waivers(add_id):
-            raise OnWaiversError(f"Player {add_id} is on waivers!")
+        # TODO: determine how to handle waivers
+        # if self.on_waivers(add_id):
+        #     raise OnWaiversError(f"Player {add_id} is on waivers!")
 
         data = {
             'stage': '3',
             'crumb': CRUMB,
             'stat1': 'S',
-            'stat2': 'D',
+            'stat2': 'S_2022',
             'apid': add_id,
         }
         if drop_id is not None:
@@ -104,10 +124,18 @@ class RosterController:
                 print("Player to drop has already been dropped.")
                 return
             try:
-                add_response = self.session.post(f'{self.team_url}/addplayer?apid={add_id}', data=data)
+                add_response = self.session.post(f'{self.team_url}/addplayer', data=data)
                 self._check_add_response(add_id, add_response)
                 print(f"Success!  Player {add_id} is now on roster.")
                 return
+            except UnintendedWaiverAddError:
+                waiver_wait_min = 30
+                print('Accidentally added player to waivers, canceling now.')
+                self.cancel_waiver_claim(add_id)
+                print(f"Waiting {waiver_wait_min} minutes for waivers to clear "
+                      f"before trying to add player {add_id} from FA again.")
+                sleep(waiver_wait_min * 60)
+                continue
             except YahooFantasyError as err:
                 print(f'Got {err}. Sleeping 0.1 seconds.')
                 sleep(0.1)

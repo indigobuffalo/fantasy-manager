@@ -33,8 +33,13 @@ class AlreadyPlayedError(YahooFantasyError):
 
 
 class MaxAddsError(YahooFantasyError):
-
     def __init__(self, message: str = "All weekly adds have been used."):
+        self.message = message
+        super().__init__(self.message)
+
+
+class UnintendedWaiverAddError(YahooFantasyError):
+    def __init__(self, message: str = "Accidentally submitted waiver claim."):
         self.message = message
         super().__init__(self.message)
 
