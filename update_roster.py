@@ -3,9 +3,9 @@
 """Make a change to your roster.
 
 Usage:
-  update_roster.py waivers --league=<league_id> --locked=<locked_players> --add=<player_id> [--drop=<player_id>] [--start=<start_date>]
-  update_roster.py lineup --league=<league_id> --locked=<locked_players> [--roster-file=<path_to_roster_file>] [--start=<start_date>] [--end=<end_date>]
-  update_roster.py check --league=<league_id> --locked=<locked_players> --check=<players_to_check>
+  update_roster.py waivers --league=<league_name> --add=<player_id> [--drop=<player_id>] [--start=<start_date>]
+  update_roster.py lineup --league=<league_name> [--roster-file=<path_to_roster_file>] [--start=<start_date>] [--end=<end_date>]
+  update_roster.py check --league=<league_name> --check=<players_to_check>
 
 Options:
   --drop=<player_id>    Id of player to drop.
@@ -13,6 +13,7 @@ Options:
 """
 from time import sleep
 
+import re
 import requests
 import yaml
 from datetime import datetime, date, timedelta
@@ -34,15 +35,51 @@ WEEKLY_LIMIT_MESSAGE = 'You have reached the weekly limit'
 WAIVER_CLAIM_PLACED = 'created%2520a%2520waiver%2520claim%2520for'
 
 LEAGUES = {
-    '19540': 1,  # Puckin' Around
-    '75985': 2   # KKUPFL
+    # Puckin' Around
+    "pa": {
+        "league_id": "31175",
+        "team_id": 1,
+        "locked_players": ["6744", "6751", "6877"] # Eichel, Meier, Kaprizov
+        },
+    # KKUPFL
+    "kkupfl": {
+        "league_id": "88127",
+        "team_id": 7,
+        "locked_players": ["5425", "6758", "8290"] # Kucherov, Barzal, Boldy
+    }
 }
 
 
-def get_leauge_number(leage_id: str) -> int:
-    if leage_id not in LEAGUES:
+def get_league_id(leage_name: str) -> int:
+    if leage_name not in LEAGUES:
         raise InvalidLeagueError(league_id)
-    return LEAGUES[leage_id]
+    return LEAGUES[leage_name]["league_id"]
+
+
+def get_team_id(leage_name: str) -> int:
+    if leage_name not in LEAGUES:
+        raise InvalidLeagueError(league_id)
+    return LEAGUES[leage_name]["team_id"]
+
+
+def get_locked_player_ids(leage_name: str) -> list[int]:
+    if leage_name not in LEAGUES:
+        raise InvalidLeagueError(league_id)
+    return LEAGUES[leage_name]["locked_players"]
+
+def get_player_name(player_id: str) -> str:
+    """Parses the dom of yahoo player page to get the players name
+
+    Args:
+        player_id (str): The yahoo player id.
+
+    Returns:
+        str: The player's name
+    """
+    if not player_id:
+       return "nobody"
+    response = requests.get(f"http://sports.yahoo.com/nhl/players/{player_id}/")
+    return response.text.split("title>")[1].split("(")[0].strip()
 
 
 class RosterController:
@@ -63,8 +100,9 @@ class RosterController:
             raise FantasyAuthError('Not logged in!')
     
     def on_roster(self, player_id):
+        pattern = f"varPRCurrTeamPlayers.*{player_id}.*"
         team_response = self.session.get(self.team_url)
-        return f"players/{player_id}" in team_response.text
+        return re.search(pattern, team_response.text)
 
     # TODO: FIX THIS on_waivers method
     def on_waivers(self, player_id):
@@ -98,7 +136,7 @@ class RosterController:
         return
 
     def add_player(self, add_id: str, add_datetime: datetime, drop_id: str = None):
-        print(f"Adding {add_id} and dropping {drop_id}")
+        print(f"Adding {get_player_name(add_id)} and dropping {get_player_name(drop_id)}")
         if self.on_roster(add_player_id):
             raise AlreadyAddedError(add_id)
         if drop_id is not None and not self.on_roster(drop_id):
@@ -107,11 +145,13 @@ class RosterController:
         # if self.on_waivers(add_id):
         #     raise OnWaiversError(f"Player {add_id} is on waivers!")
 
+        # NEED TO ALLOW REDIRECTS?
+        headers = {"Content-Type": "application/x-www-form-urlencoded"}
         data = {
             'stage': '3',
             'crumb': CRUMB,
-            'stat1': 'S',
-            'stat2': 'S_2022',
+            'stat1': 'P',
+            'stat2': 'P',
             'apid': add_id,
         }
         if drop_id is not None:
@@ -137,7 +177,7 @@ class RosterController:
                 sleep(waiver_wait_min * 60)
                 continue
             except YahooFantasyError as err:
-                print(f'Got {err}. Sleeping 0.1 seconds.')
+                print(f'Error:{err}\nSleeping 0.1 seconds.')
                 sleep(0.1)
                 continue
 
@@ -158,13 +198,15 @@ class RosterController:
 
 if __name__ == '__main__':
     args = docopt(__doc__)
-    league_id = args['--league']
-    locked_players = args['--locked'].split(',')
-    league_number = get_leauge_number(league_id)
+    league_name = args['--league']
+    league_id = get_league_id(league_name)
+    league_number = get_team_id(league_name)
+    locked_players = get_locked_player_ids(league_name)
 
     controller = RosterController(league_id, league_number, locked_players)
     controller.check_current_auth()
 
+    print(f"Transaction for league: '{league_name.upper()}'")
     if args['check']:
         players_to_check = args['--check'].split(',')
         for player in players_to_check:
