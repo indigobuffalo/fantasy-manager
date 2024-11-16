@@ -5,6 +5,12 @@ class YahooFantasyError(Exception):
     pass
 
 
+class UserAbortError(YahooFantasyError):
+    def __init__(self, message: str = "Aborting per user input"):
+        self.message = message
+        super().__init__(self.message)
+
+
 class NotOnRosterError(YahooFantasyError):
     def __init__(self, player: str, message: str = "Player to drop not on roster"):
         self.player = player

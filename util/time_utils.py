@@ -29,7 +29,7 @@ def current_season_years() -> Set[int]:
         return {year, year + 1}
 
 
-def num_days_until(until_day: str, from_date: date = date.today()) -> int:
+def days_until(until_day: str, from_date: date = date.today()) -> int:
     days_until = 0
     end_date = from_date
     while end_date.weekday() != DAYS_OF_WEEK[until_day]:
