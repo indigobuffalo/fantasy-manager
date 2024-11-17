@@ -4,7 +4,7 @@ from model.league_data import LeagueData
 
 
 LEAGUES = {
-    League.PUCKIN_AROUND: LeagueData(
+    'PUCKIN_AROUND': LeagueData(
         id="31175",
         name="PUCKIN' AROUND",
         platform=Platform.YAHOO,
@@ -12,7 +12,7 @@ LEAGUES = {
         team_name="Larkin Up the Wrong Tree",
         locked_players=["6744", "6751", "6877"] # Eichel, Meier, Kaprizov
     ),
-    League.KKUPFL: LeagueData(
+    'KKUPFL': LeagueData(
        id="88127",
        name="KKUPFL - T2 SAN JOSE",
        platform=Platform.YAHOO,
