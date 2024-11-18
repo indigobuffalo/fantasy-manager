@@ -1,9 +1,9 @@
 #!/Users/Akerson/.local/share/virtualenvs/yahoo-fantasy-1EuG-xYP/bin/python
-from time import sleep
-
 import re
+from time import sleep
+from typing import Optional
+
 import requests
-import yaml
 from datetime import datetime, date
 from pathlib import Path
 
@@ -11,7 +11,8 @@ from config.config import FantasyConfig
 from headers import COOKIE, CRUMB
 from exceptions import AlreadyAddedError, AlreadyPlayedError, MaxAddsError, FantasyAuthError, \
     FantasyUnknownError, UserAbortError, YahooFantasyError, NotOnRosterError, UnintendedWaiverAddError
-from util.time_utils import current_season_years, sleep_until, upcoming_midnight
+from model.enums.platform_url import PlatformUrl
+from util.time_utils import sleep_until, upcoming_midnight
 
 
 PROJECT_DIR = Path(__file__).parent.absolute()
@@ -38,11 +39,10 @@ def get_player_name(player_id: str) -> str:
 class RosterController:
     
     def __init__(self, league_name: str):
-        self.league = FantasyConfig.get_league_data(league_name)
-        self.team_url = f'{FantasyConfig.get_base_url(self.league.platform)}/{self.league.id}/{self.league.team_id}'
-
-        yr_one, yr_two = current_season_years()
-        self.rosters_dir = PROJECT_DIR / 'data' / 'rosters' / f"{yr_one}-{yr_two}" / self.league.id
+        self.cfg = FantasyConfig
+        self.league = self.cfg.get_league_data(league_name)
+        self.cfg.get_all_urls(self.league.platform) # TODO: remeoveu
+        self.team_url = f"{self.cfg.get_url(self.league.platform, PlatformUrl.FANTASY)}/{self.league.id}/{self.league.team_id}"
 
         self.session = requests.Session()
         self.session.headers.update({'cookie': COOKIE})
@@ -103,7 +103,11 @@ class RosterController:
         else:
             raise UserAbortError
 
-    # def log_inputs(add_id: str, drop_id: str = None, )
+    def log_inputs(self, add_id: str, drop_id: str = None, faab: Optional[int] = None) -> None:
+        print(f"League: {self.league.name}")
+        print(f"Adding {get_player_name(add_id)} and dropping {get_player_name(drop_id)}")
+        if faab is not None:
+            print(f"FAAB bid: ${faab}")
     
     def add_player_with_delay(self, add_id: str, drop_id: str = None, start: str = None, faab: int = None):
         add_dt = datetime.fromisoformat(start) if start else upcoming_midnight()
@@ -113,10 +117,8 @@ class RosterController:
         self.add_player(add_id=add_id, drop_id=drop_id, faab=faab)
 
     def add_player(self, add_id: str, drop_id: str = None, faab: int = None):
-        print(f"Adding {get_player_name(add_id)} and dropping {get_player_name(drop_id)}")
+        self.log_inputs(add_id=add_id, drop_id=drop_id, faab=faab)
 
-        if faab is not None:
-            print(f"FAAB bid: ${faab}")
         if self.is_rostered(add_id):
             raise AlreadyAddedError(add_id)
         if drop_id is not None and not self.is_rostered(drop_id):
@@ -169,8 +171,6 @@ class RosterController:
             'stat2': 'D',
             'crumb': CRUMB,
         }
-        with open(self.rosters_dir / roster_filename) as roster_file:
-            roster = yaml.safe_load(roster_file)
-        data.update(roster)
-
+        roster_data = self.cfg.get_roster_data(self.league.name_abbr)
+        data.update(roster_data)
         return self.session.post(f'{self.team_url}/editroster', data=data)
