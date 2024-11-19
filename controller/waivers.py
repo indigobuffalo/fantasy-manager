@@ -7,10 +7,10 @@ import requests
 from datetime import datetime, date
 from pathlib import Path
 
+from client.factory import ClientFactory
 from config.config import FantasyConfig
-from headers import COOKIE, CRUMB
 from exceptions import AlreadyAddedError, AlreadyPlayedError, MaxAddsError, FantasyAuthError, \
-    FantasyUnknownError, UserAbortError, YahooFantasyError, NotOnRosterError, UnintendedWaiverAddError
+    FantasyUnknownError, UserAbortError, NotOnRosterError, UnintendedWaiverAddError
 from model.enums.platform_url import PlatformUrl
 from util.time_utils import sleep_until, upcoming_midnight
 
@@ -21,37 +21,14 @@ ALREADY_PLAYED_MESSAGE = 'player has already played and is no longer'
 WEEKLY_LIMIT_MESSAGE = 'You have reached the weekly limit'
 WAIVER_CLAIM_PLACED = 'created%2520a%2520waiver%2520claim%2520for'
 
-def get_player_name(player_id: str) -> str:
-    """Parses the dom of yahoo player page to get the players name
-
-    Args:
-        player_id (str): The yahoo player id.
-
-    Returns:
-        str: The player's name
-    """
-    if not player_id:
-       return "nobody"
-    response = requests.get(f"http://sports.yahoo.com/nhl/players/{player_id}/")
-    return response.text.split("title>")[1].split("(")[0].strip()
-
 
 class RosterController:
     
     def __init__(self, league_name: str):
-        self.cfg = FantasyConfig
-        self.league = self.cfg.get_league_data(league_name)
-        self.cfg.get_all_urls(self.league.platform) # TODO: remeoveu
-        self.team_url = f"{self.cfg.get_url(self.league.platform, PlatformUrl.FANTASY)}/{self.league.id}/{self.league.team_id}"
+        self.config = FantasyConfig
+        self.league = self.config.get_league_data(league_name)
+        self.client = ClientFactory.get_client(platform=self.league.platform, league=self.league, config=self.config)
 
-        self.session = requests.Session()
-        self.session.headers.update({'cookie': COOKIE})
-
-    def check_current_auth(self):
-        resp = self.session.get(self.team_url)
-        if not all(player in resp.text for player in self.league.locked_players):
-            raise FantasyAuthError('Not logged in!')
-    
     def are_rostered(self, player_ids: list[str]) -> list[str]:
         unrostered = list()
         for player_id in player_ids:
@@ -61,8 +38,7 @@ class RosterController:
 
     def is_rostered(self, player_id: str) -> bool:
         pattern = f"varPRCurrTeamPlayers.*{player_id}.*"
-        team_response = self.session.get(self.team_url)
-        return re.search(pattern, team_response.text)
+        return re.search(pattern, self.client.get_team_response().text)
 
     # TODO: FIX THIS on_waivers method
     def on_waivers(self, player_id):
@@ -80,15 +56,7 @@ class RosterController:
             raise FantasyUnknownError(f"Error - player '{add_id}' not added.")
 
     def cancel_waiver_claim(self, player_id: str):
-        data = {
-            'stage': '2',
-            'crumb': CRUMB,
-            'claim_id': f'1_{player_id}_0',
-            'mode': 'edit',
-            'apid': player_id,
-            's': 'Cancel Waiver'
-        }
-        cancel_response = self.session.post(f'{self.team_url}/editwaiver', data=data)
+        cancel_response = self.client.cancel_waiver_claim(player_id)
         if cancel_response.status_code == 200:
             print("Successfully canceled waiver claim")
         else:
@@ -97,7 +65,7 @@ class RosterController:
 
     @staticmethod
     def confirm_proceed():
-        answer = input("Continue?\n")
+        answer = input("Continue? [ y | n ]\n")
         if answer.upper() in ["Y","YES"]:
             return
         else:
@@ -105,20 +73,16 @@ class RosterController:
 
     def log_inputs(self, add_id: str, drop_id: str = None, faab: Optional[int] = None) -> None:
         print(f"League: {self.league.name}")
-        print(f"Adding {get_player_name(add_id)} and dropping {get_player_name(drop_id)}")
+        print(f"Adding {self.client.get_player_name(add_id)} and dropping {self.client.get_player_name(drop_id)}")
         if faab is not None:
             print(f"FAAB bid: ${faab}")
     
     def add_player_with_delay(self, add_id: str, drop_id: str = None, start: str = None, faab: int = None):
         add_dt = datetime.fromisoformat(start) if start else upcoming_midnight()
-        if add_dt <= datetime.now():
-            self.confirm_proceed()
         sleep_until(add_dt)
         self.add_player(add_id=add_id, drop_id=drop_id, faab=faab)
 
     def add_player(self, add_id: str, drop_id: str = None, faab: int = None):
-        self.log_inputs(add_id=add_id, drop_id=drop_id, faab=faab)
-
         if self.is_rostered(add_id):
             raise AlreadyAddedError(add_id)
         if drop_id is not None and not self.is_rostered(drop_id):
@@ -128,25 +92,15 @@ class RosterController:
         # if self.on_waivers(add_id):
         #     raise OnWaiversError(f"Player {add_id} is on waivers!")
 
-        data = {
-            'stage': '3',
-            'crumb': CRUMB,
-            'stat1': 'P',
-            'stat2': 'P',
-            'apid': add_id,
-        }
-        if drop_id is not None:
-            data['dpid'] = drop_id
-        if faab is not None:
-            data['faab'] = faab
-
         while True:
             print(f'The time is {datetime.now()}.')
             if drop_id is not None and not self.is_rostered(drop_id):
                 print("Player to drop has already been dropped.")
                 return
             try:
-                add_response = self.session.post(f'{self.team_url}/addplayer', data=data)
+                # TODO: break out waiver claims into separate method
+                # add_response = self.client.add_player(add_id=add_id, drop_id=drop_id, faab=faab)
+                add_response = self.client.add_player(add_id=add_id, drop_id=drop_id)
                 self._check_add_response(add_id, add_response)
                 print(f"Success!  Player {add_id} is now on roster.")
                 return
@@ -158,7 +112,7 @@ class RosterController:
                       f"before trying to add player {add_id} from FA again.")
                 sleep(waiver_wait_min * 60)
                 continue
-            except YahooFantasyError as err:
+            except FantasyUnknownError as err:
                 print(f'Error:{err}\nSleeping 0.1 seconds.')
                 sleep(0.1)
                 continue
@@ -169,8 +123,8 @@ class RosterController:
             'date': datetime.strftime(game_date, '%Y-%m-%d'),
             'stat1': 'S',
             'stat2': 'D',
-            'crumb': CRUMB,
+            'crumb': self.config.get_crumb(self.league.platform),
         }
-        roster_data = self.cfg.get_roster_data(self.league.name_abbr)
+        roster_data = self.config.get_roster_data(self.league.name_abbr)
         data.update(roster_data)
         return self.session.post(f'{self.team_url}/editroster', data=data)

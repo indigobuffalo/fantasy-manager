@@ -2,3 +2,5 @@ __pycache__/
 headers.py
 .vscode
 
+.env
+

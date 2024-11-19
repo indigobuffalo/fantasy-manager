@@ -24,11 +24,15 @@ def add_player(args) -> None:
     start, run_now = args['--start'], args['--now']
     faab = args['--faab']
 
+    # TODO: call place_waiver_claim() for waiver claims
+
+    controller.log_inputs(add_id=add_id, drop_id=drop_id, faab=faab)
     if controller.is_rostered(add_id):
         print(f"Player '{add_id}' is on roster, all set!")
         return
 
     if run_now:
+        controller.confirm_proceed()
         return controller.add_player(add_id=add_id, drop_id=drop_id, faab=faab)
     
     return controller.add_player_with_delay(add_id=add_id, drop_id=drop_id, start=start, faab=faab)
@@ -46,7 +50,7 @@ if __name__ == '__main__':
 
     # controller = RosterController(league_name=league_name, season=season)
     controller = RosterController(league_name=league_name)
-    controller.check_current_auth()
+    controller.client.check_current_auth()
 
     if args['check']:
         player_ids = set(args['--check'].split(','))
