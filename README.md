@@ -16,3 +16,7 @@ cd config/data/leagues
 ln -sf 2025_2026.py _current_leagues.py
 ```
 
+
+## TODO
+
+Update client to use Yahoo Api

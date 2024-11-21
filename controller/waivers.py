@@ -3,13 +3,12 @@ import re
 from time import sleep
 from typing import Optional
 
-import requests
 from datetime import datetime, date
 from pathlib import Path
 
 from client.factory import ClientFactory
 from config.config import FantasyConfig
-from exceptions import AlreadyAddedError, AlreadyPlayedError, MaxAddsError, FantasyAuthError, \
+from exceptions import AlreadyAddedError, AlreadyPlayedError, MaxAddsError, \
     FantasyUnknownError, UserAbortError, NotOnRosterError, UnintendedWaiverAddError
 from model.enums.platform_url import PlatformUrl
 from util.time_utils import sleep_until, upcoming_midnight
@@ -37,8 +36,8 @@ class RosterController:
         return unrostered
 
     def is_rostered(self, player_id: str) -> bool:
-        pattern = f"varPRCurrTeamPlayers.*{player_id}.*"
-        return re.search(pattern, self.client.get_team_response().text)
+        team = self.client.get_team()
+        return player_id in team.players
 
     # TODO: FIX THIS on_waivers method
     def on_waivers(self, player_id):
@@ -73,7 +72,8 @@ class RosterController:
 
     def log_inputs(self, add_id: str, drop_id: str = None, faab: Optional[int] = None) -> None:
         print(f"League: {self.league.name}")
-        print(f"Adding {self.client.get_player_name(add_id)} and dropping {self.client.get_player_name(drop_id)}")
+        print(f"Add: {self.client.get_player_name(add_id)}")
+        print(f"Drop: {self.client.get_player_name(drop_id)}")
         if faab is not None:
             print(f"FAAB bid: ${faab}")
     
