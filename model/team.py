@@ -1,7 +1,7 @@
 from __future__ import annotations
 from dataclasses import dataclass
 
-from model.league_data import LeagueData
+from model.league import League
 
 
 @dataclass(frozen=True)
@@ -13,5 +13,5 @@ class Team:
     @classmethod
     def from_dict(cls, data: dict) -> Team:
         """Convert a dictionary to a Team instance."""
-        data['players'] = [str(player_id) for player_id in data['players']]
+        data["players"] = [str(player_id) for player_id in data["players"]]
         return cls(**data)

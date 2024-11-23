@@ -4,13 +4,12 @@ import requests
 from requests import Response
 
 from config.config import FantasyConfig
-from model.league_data import LeagueData
+from model.league import League
 from model.team import Team
 
 
 class BaseClient(ABC):
-
-    def __init__(self, league: LeagueData, config: FantasyConfig):
+    def __init__(self, league: League, config: FantasyConfig):
         self.config = config
         self.session = requests.Session()
         self.league = league
@@ -18,20 +17,17 @@ class BaseClient(ABC):
     @property
     @abstractmethod
     def team_url(self):
-        """The url to the fantasy team page.
-        """
+        """The url to the fantasy team page."""
         pass
 
     @abstractmethod
     def get_team(self) -> Team:
-        """Fetch team response.
-        """
+        """Fetch team response."""
         pass
 
     @abstractmethod
     def check_current_auth(self):
-        """Ensure the current session is authenticated.
-        """
+        """Ensure the current session is authenticated."""
         pass
 
     @abstractmethod
@@ -48,7 +44,9 @@ class BaseClient(ABC):
         pass
 
     @abstractmethod
-    def place_waiver_claim(self, add_id: str, drop_id: str = None, faab: int = None) -> Response:
+    def place_waiver_claim(
+        self, add_id: str, drop_id: str = None, faab: int = None
+    ) -> Response:
         """Place a waiver caim.
 
         Args:
@@ -73,9 +71,9 @@ class BaseClient(ABC):
         """
         pass
 
-    # TODO: convert this into a get_player_data method that returns model of all player data 
+    # TODO: convert this into a get_player_data method that returns model of all player data
     @abstractmethod
-    def get_player_name(self, player_id: str) -> str:
+    def get_player(self, player_id: str) -> str:
         """Translate a player id into a player name.
 
         Args:

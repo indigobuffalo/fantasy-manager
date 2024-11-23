@@ -6,7 +6,7 @@ import yaml
 
 from dotenv import load_dotenv
 
-from model.league_data import LeagueData
+from model.league import League
 from model.enums.platform import Platform
 from model.enums.platform_url import PlatformUrl
 
@@ -30,7 +30,7 @@ class FantasyConfig:
         Platform.YAHOO: {
             PlatformUrl.FANTASY_HOCKEY: "https://hockey.fantasysports.yahoo.com/hockey",
             PlatformUrl.NHL: "https://sports.yahoo.com/nhl",
-        }
+        },
     }
 
     # Load the season from environment variables or default to "2024_2025"
@@ -42,7 +42,9 @@ class FantasyConfig:
         platform_urls = cls.PLATFORM_URLS.get(platform, {})
         url = platform_urls.get(key)
         if not url:
-            raise KeyError(f"No URL found for key '{key}' in platform '{platform.name}'.")
+            raise KeyError(
+                f"No URL found for key '{key}' in platform '{platform.name}'."
+            )
         return url
 
     @staticmethod
@@ -51,7 +53,9 @@ class FantasyConfig:
         cookie_env_var = f"{platform.name}_COOKIE"
         cookie = os.getenv(cookie_env_var)
         if not cookie:
-            raise ValueError(f"No cookie set for platform '{platform.name}'. Expected env var: {cookie_env_var}")
+            raise ValueError(
+                f"No cookie set for platform '{platform.name}'. Expected env var: {cookie_env_var}"
+            )
         return cookie
 
     @staticmethod
@@ -60,38 +64,47 @@ class FantasyConfig:
         crumb_env_var = f"{platform.name}_CRUMB"
         crumb = os.getenv(crumb_env_var)
         if not crumb:
-            raise ValueError(f"No crumb set for platform '{platform.name}'. Expected env var: {crumb_env_var}")
+            raise ValueError(
+                f"No crumb set for platform '{platform.name}'. Expected env var: {crumb_env_var}"
+            )
         return crumb
 
     @classmethod
-    def get_league_data(cls, league_name: str) -> LeagueData:
+    def get_league(cls, league_name: str) -> League:
         """Load league-specific configuration on demand, considering the current season."""
-        league_file = CONFIG_DIR / f"data/season/{cls.SEASON}/league/{league_name.lower()}.json"
+        league_file = (
+            CONFIG_DIR / f"data/season/{cls.SEASON}/league/{league_name.lower()}.json"
+        )
 
         if not league_file.exists():
-            raise KeyError(f"No configuration file found for league: {league_name} in season {cls.SEASON}")
+            raise KeyError(
+                f"No configuration file found for league: {league_name} in season {cls.SEASON}"
+            )
 
         with open(league_file) as f:
             json_data = json.load(f)
-            return LeagueData.from_dict(json_data)
+            return League.from_dict(json_data)
 
     @classmethod
     def get_roster_data(cls, league_name: str, roster_name: str) -> dict[str, Any]:
         """
         Load league-specific roster data on demand, considering the current season.
-        
+
         Args:
             league_name (str): The name of the league.
             roster_name (str): The name of the roster.
-        
+
         Returns:
             Dict[str, Any]: The loaded roster data.
-        
+
         Raises:
             FileNotFoundError: If the roster file does not exist.
             ValueError: If the loaded data is invalid or improperly formatted.
         """
-        roster_file = CONFIG_DIR / f"data/season/{cls.SEASON}/roster/{league_name.lower()}_{roster_name}.yml"
+        roster_file = (
+            CONFIG_DIR
+            / f"data/season/{cls.SEASON}/roster/{league_name.lower()}_{roster_name}.yml"
+        )
         if not roster_file.exists():
             raise FileNotFoundError(
                 f"Roster file '{league_name.lower()}_{roster_name}.yml' not found for season '{cls.SEASON}' "
@@ -102,7 +115,9 @@ class FantasyConfig:
                 yaml_data = yaml.safe_load(f)
 
             if not isinstance(yaml_data, dict):
-                raise ValueError(f"Invalid data format in roster file: {roster_file}. Expected a dictionary.")
+                raise ValueError(
+                    f"Invalid data format in roster file: {roster_file}. Expected a dictionary."
+                )
 
             return yaml_data
         except yaml.YAMLError as e:
