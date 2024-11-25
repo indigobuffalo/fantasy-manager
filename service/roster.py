@@ -60,12 +60,22 @@ class RosterService:
             raise UserAbortError
 
     def get_player_data(self, player_id: str) -> Player:
-
         return self.client.get_player(player_id)
 
-    def add_player_with_delay(self, add_id: str, start: datetime, drop_id: str = None):
-        sleep_until(start)
-        self.add_free_agent(add_id=add_id, drop_id=drop_id)
+    def add_player_with_delay(
+        self,
+        add_id: str,
+        drop_id: str = None,
+        waiver: bool = True,
+        faab: int = None,
+        start: datetime = None,
+        run_now: bool = False,
+    ):
+        if not run_now:
+            sleep_until(start)
+        if waiver:
+            return self.place_waiver_claim(add_id=add_id, drop_id=drop_id, faab=faab)
+        return self.add_free_agent(add_id=add_id, drop_id=drop_id)
 
     def __check_add_player_inputs(self, add_id: str, drop_id: str) -> None:
         if self.is_rostered(add_id):

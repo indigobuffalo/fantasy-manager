@@ -10,12 +10,13 @@ unset ADD_ID
 unset LEAGUE
 
 # set defaults for optional args
+DROP_OPT=""
 FAAB_OPT=""
 NOW_OPT=""
-DROP_OPT=""
 START_OPT=""
+WAIVER_OPT=""
 
-while getopts "a:d:f:hl:ns:" opt; do
+while getopts "a:d:f:hl:ns:w" opt; do
   case $opt in
     a) # The id of the player to be added.
       ADD_ID="$OPTARG"
@@ -39,6 +40,9 @@ while getopts "a:d:f:hl:ns:" opt; do
     s) # ISO 8601 time stamp which sets the time to add the player.
       START_OPT="--start $OPTARG"
       ;;
+    w) # Add the player immediately.
+      WAIVER_OPT="--waiver"
+      ;;
     ?) # Display help.
       usage
       exit 1
@@ -53,5 +57,5 @@ check_args(){
 check_args
 
 pushd $PROJECT_DIR
-caffeinate -is pipenv run python cli.py waivers --league $LEAGUE --add $ADD_ID $DROP_OPT $START_OPT $NOW_OPT $FAAB_OPT
+caffeinate -is pipenv run python cli.py roster --league $LEAGUE --add $ADD_ID $DROP_OPT $START_OPT $NOW_OPT $WAIVER_OPT $FAAB_OPT
 popd
