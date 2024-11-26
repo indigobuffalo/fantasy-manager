@@ -3,7 +3,7 @@
 usage() { echo "$0 usage:" && grep " .)\ #" $0; exit 0; }
 [ $# -eq 0 ] && usage
 
-PROJECT_DIR="$HOME/code/personal/yahoo-fantasy"
+PROJECT_DIR="$HOME/code/personal/fantasy-manager"
 
 # unset required args
 unset ADD_ID

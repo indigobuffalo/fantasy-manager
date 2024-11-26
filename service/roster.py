@@ -25,6 +25,7 @@ class RosterService:
         self.client = ClientFactory.get_client(
             platform=self.league.platform, league=self.league, config=self.config
         )
+        self.client.check_current_auth()
 
     def are_rostered(self, player_ids: list[str]) -> list[str]:
         unrostered = list()

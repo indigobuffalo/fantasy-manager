@@ -33,7 +33,6 @@ if __name__ == "__main__":
     league_name = args["--league"]
 
     controller = RosterController(league_name=league_name)
-    controller.service.client.check_current_auth()
 
     if args["lineup"]:
         start, end = args["--start"], args["--end"]

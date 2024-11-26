@@ -3,4 +3,4 @@ headers.py
 .vscode
 
 .env
-
+.secrets

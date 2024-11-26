@@ -11,7 +11,6 @@ from exceptions import (
     AlreadyPlayedError,
     MaxAddsError,
     UnintendedWaiverAddError,
-    FantasyUnknownError,
 )
 from model.enums.platform_url import PlatformUrl
 from model.league import League

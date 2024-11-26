@@ -33,8 +33,9 @@ class FantasyConfig:
         },
     }
 
-    # Load the season from environment variables or default to "2024_2025"
     SEASON = os.getenv("FANTASY_SEASON", "2024_2025")
+
+    YAHOO_CREDS_FILE = os.getenv("YAHOO_OAUTH_CREDS_FILE")
 
     @classmethod
     def get_platform_url(cls, platform: Platform, key: PlatformUrl) -> str:
