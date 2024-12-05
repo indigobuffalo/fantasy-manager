@@ -8,7 +8,6 @@ from config.config import FantasyConfig
 from exceptions import (
     AlreadyAddedError,
     FantasyUnknownError,
-    UserAbortError,
     NotOnRosterError,
     UnintendedWaiverAddError,
 )
@@ -51,14 +50,6 @@ class RosterService:
 
             ipdb.set_trace()
         return
-
-    @staticmethod
-    def confirm_proceed():
-        answer = input("Continue? [ y | n ]\n")
-        if answer.upper() in ["Y", "YES"]:
-            return
-        else:
-            raise UserAbortError
 
     def get_player_data(self, player_id: str) -> Player:
         return self.client.get_player(player_id)

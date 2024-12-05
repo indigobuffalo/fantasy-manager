@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "0af1196013065d2c0b7857af4b0e2d1bf6a8fea0148c069a883da39ea1e0a1d2"
+            "sha256": "51ae499604e931ff76632a58147c369a1e402f9da21668f84cde78e8cbf8de74"
         },
         "pipfile-spec": 6,
         "requires": {},
@@ -224,6 +224,13 @@
             "markers": "python_version >= '3.6'",
             "version": "==3.2.2"
         },
+        "objectpath": {
+            "hashes": [
+                "sha256:461263136c79292e42431fbb85cdcaac4c6a256f6b1aa5b3ae9316e4965ad819",
+                "sha256:7ac2c507e7e5bfbf245701044453edc8e4073ded01d53349237d918124d7ca87"
+            ],
+            "version": "==0.6.1"
+        },
         "parso": {
             "hashes": [
                 "sha256:a418670a20291dacd2dddc80c377c5c3791378ee1e8d12bffc35420643d43f18",
@@ -286,6 +293,13 @@
             "index": "pypi",
             "markers": "python_version >= '3.8'",
             "version": "==1.0.1"
+        },
+        "pytz": {
+            "hashes": [
+                "sha256:2aa355083c50a0f93fa581709deac0c9ad65cca8a9e9beac660adcbd493c798a",
+                "sha256:31c7c1817eb7fae7ca4b8c7ee50c72f93aa2dd863de768e1ef4245d426aa0725"
+            ],
+            "version": "==2024.2"
         },
         "pyyaml": {
             "hashes": [
@@ -373,11 +387,11 @@
         },
         "six": {
             "hashes": [
-                "sha256:1e61c37477a1626458e36f7b1d82aa5c9b094fa4802892072e49de9c60c4c926",
-                "sha256:8abb2f1d86890a2dfb989f9a77cfcfd3e47c2a354b01111771326f8aa26e0254"
+                "sha256:4721f391ed90541fddacab5acf947aa0d3dc7d27b2e1e8eda2be8970586c3274",
+                "sha256:ff70335d468e7eb6ec65b95b99d3a2836546063f63acc5171de367e834932a81"
             ],
             "markers": "python_version >= '2.7' and python_version not in '3.0, 3.1, 3.2'",
-            "version": "==1.16.0"
+            "version": "==1.17.0"
         },
         "stack-data": {
             "hashes": [
@@ -408,6 +422,14 @@
                 "sha256:72ea0c06399eb286d978fdedb6923a9eb47e1c486ce63e9b4e64fc18303972b5"
             ],
             "version": "==0.2.13"
+        },
+        "yahoo-fantasy-api": {
+            "hashes": [
+                "sha256:b1ce0fbb4597cf5b1acda93acfd109156fc2db753e984b7b27d4d333cf4279f4"
+            ],
+            "index": "pypi",
+            "markers": "python_version >= '3'",
+            "version": "==2.9.1"
         },
         "yahoo-oauth": {
             "hashes": [

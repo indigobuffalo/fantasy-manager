@@ -1,8 +1,12 @@
+from doctest import OutputChecker
 import json
 import re
 from typing import Any
 
+import oauthlib
+import yahoo_fantasy_api as yfa
 from requests import Response
+from yahoo_oauth import OAuth2
 
 from client.base import BaseClient
 from config.config import FantasyConfig
@@ -39,6 +43,13 @@ class YahooClient(BaseClient):
             {"cookie": self.config.get_cookie(self.league.platform)}
         )
         self.crumb = self.config.get_crumb(self.league.platform)
+
+        session_context = OAuth2(None, None, from_file=self.config.YAHOO_CREDS_FILE)
+        self.yfa_league = yfa.Game(session_context, "nhl").to_league(self.league.key)
+        import ipdb
+
+        ipdb.set_trace()
+        self.yfa_league.standings()
 
     @property
     def team_url(self):

@@ -8,6 +8,7 @@ from model.enums.platform import Platform
 @dataclass(frozen=True)
 class League:
     id: str
+    key: str
     locked_players: tuple
     name: str
     name_abbr: str

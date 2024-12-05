@@ -34,8 +34,9 @@ class FantasyConfig:
     }
 
     SEASON = os.getenv("FANTASY_SEASON", "2024_2025")
+    YEAR = os.getenv("YEAR", "2024")
 
-    YAHOO_CREDS_FILE = os.getenv("YAHOO_OAUTH_CREDS_FILE")
+    YAHOO_CREDS_FILE = os.getenv("YAHOO_CREDS_FILE")
 
     @classmethod
     def get_platform_url(cls, platform: Platform, key: PlatformUrl) -> str:

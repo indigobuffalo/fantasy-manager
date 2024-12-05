@@ -54,5 +54,10 @@ if __name__ == "__main__":
             start = datetime.fromisoformat(start) if start else upcoming_midnight()
 
         controller.add_player_with_delay(
-            add_id=add_id, drop_id=drop_id, start=start, waiver=waiver, faab=faab
+            add_id=add_id,
+            drop_id=drop_id,
+            start=start,
+            waiver=waiver,
+            faab=faab,
+            run_now=run_now,
         )
