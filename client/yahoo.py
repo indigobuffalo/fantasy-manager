@@ -3,7 +3,6 @@ import json
 import re
 from typing import Any
 
-import oauthlib
 import yahoo_fantasy_api as yfa
 from requests import Response
 from yahoo_oauth import OAuth2
@@ -44,12 +43,15 @@ class YahooClient(BaseClient):
         )
         self.crumb = self.config.get_crumb(self.league.platform)
 
-        session_context = OAuth2(None, None, from_file=self.config.YAHOO_CREDS_FILE)
-        self.yfa_league = yfa.Game(session_context, "nhl").to_league(self.league.key)
+        self.session_context = OAuth2(
+            None, None, from_file=self.config.YAHOO_CREDS_FILE
+        )
+        self.handle = yfa.Game(self.session_context, "nhl").to_league(self.league.key)
+
         import ipdb
 
         ipdb.set_trace()
-        self.yfa_league.standings()
+        self.get_team_yfa()
 
     @property
     def team_url(self):
@@ -58,10 +60,23 @@ class YahooClient(BaseClient):
         )
         return f"{platform_url}/{self.league.id}/{self.league.team_id}"
 
+    def refresh(self):
+        """Updates client context to ensure auth token is still valid."""
+        self.session_context = OAuth2(
+            None, None, from_file=self.config.YAHOO_CREDS_FILE
+        )
+        self.handle = yfa.Game(self.session_context, "nhl").to_league(self.league.key)
+
     def check_current_auth(self):
         resp = self.session.get(self.team_url)
         if not all(player in resp.text for player in self.league.locked_players):
             raise FantasyAuthError("Not logged in!")
+
+    def get_team_yfa(self):
+        team = self.handle.to_team(self.handle.team_key())
+        import ipdb
+
+        ipdb.set_trace()
 
     def get_team(self) -> Team:
         def parse_resp_item(resp: Response, match_str: str) -> dict[str, Any]:

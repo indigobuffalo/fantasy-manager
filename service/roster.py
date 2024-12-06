@@ -1,6 +1,6 @@
 from time import sleep
 
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 from pathlib import Path
 
 from client.factory import ClientFactory
@@ -12,7 +12,7 @@ from exceptions import (
     UnintendedWaiverAddError,
 )
 from model.player import Player
-from util.time_utils import sleep_until, upcoming_midnight
+from util.time_utils import sleep_until
 
 PROJECT_DIR = Path(__file__).parent.absolute()
 
@@ -54,6 +54,22 @@ class RosterService:
     def get_player_data(self, player_id: str) -> Player:
         return self.client.get_player(player_id)
 
+    def sleep_until_with_client_refresh(
+        self, start: datetime, client_refresh_secs: int = 30
+    ) -> None:
+        """Sleeps until the desired execution datetime.
+        Will also wake up 30 seconds before the execution time to refresh credentials if needed.
+
+        Args:
+            start (datetime): The time to execute the given action.
+            auth_check_secs(int): The number of seconds before execution time that auth should be checked (and if needed, refreshed).
+        """
+        if (start - datetime.now()).total_seconds() > client_refresh_secs:
+            auth_check_dt = start - timedelta(seconds=client_refresh_secs)
+            sleep_until(auth_check_dt)
+            self.client.refresh()
+        sleep_until(start)
+
     def add_player_with_delay(
         self,
         add_id: str,
@@ -64,7 +80,7 @@ class RosterService:
         run_now: bool = False,
     ):
         if not run_now:
-            sleep_until(start)
+            self.sleep_until_with_client_refresh(start)
         if waiver:
             return self.place_waiver_claim(add_id=add_id, drop_id=drop_id, faab=faab)
         return self.add_free_agent(add_id=add_id, drop_id=drop_id)
