@@ -1,17 +1,23 @@
 from __future__ import annotations
 from dataclasses import dataclass
 
-from model.league import League
+from model.player import Player
 
 
 @dataclass(frozen=True)
 class Team:
+    team_id: str
+    team_key: str
     name: str
-    league_name: str
-    players: list[str]
+    league_id: str
+    faab_balance: int
+    roster: list[Player]
 
     @classmethod
     def from_dict(cls, data: dict) -> Team:
         """Convert a dictionary to a Team instance."""
-        data["players"] = [str(player_id) for player_id in data["players"]]
+        data["roster"] = [Player.from_dict(player) for player in data["roster"]]
         return cls(**data)
+
+    def __str__(self):
+        return self.name

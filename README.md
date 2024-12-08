@@ -19,4 +19,4 @@ ln -sf 2025_2026.py _current_leagues.py
 
 ## TODO
 
-Update client to use Yahoo Api
+Used argparse to enforce cli arg types

@@ -34,7 +34,7 @@ class RosterService:
         return unrostered
 
     def is_rostered(self, player_id: str) -> bool:
-        return player_id in self.client.get_team().players
+        return player_id in [p.player_id for p in self.client.get_team().roster]
 
     # TODO: FIX THIS on_waivers method
     def on_waivers(self, player_id):
@@ -51,8 +51,8 @@ class RosterService:
             ipdb.set_trace()
         return
 
-    def get_player_data(self, player_id: str) -> Player:
-        return self.client.get_player(player_id)
+    def get_player_data(self, player_id: int) -> Player:
+        return self.client.get_player_by_id(player_id)
 
     def sleep_until_with_client_refresh(
         self, start: datetime, client_refresh_secs: int = 30

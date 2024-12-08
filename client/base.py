@@ -73,11 +73,11 @@ class BaseClient(ABC):
 
     # TODO: convert this into a get_player_data method that returns model of all player data
     @abstractmethod
-    def get_player(self, player_id: str) -> str:
+    def get_player_by_id(self, player_id: int) -> str:
         """Translate a player id into a player name.
 
         Args:
-            player_id (str): The id of the player.
+            player_id (int): The id of the player.
 
         Returns:
             str: The name of the player.

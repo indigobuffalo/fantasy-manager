@@ -39,7 +39,8 @@ if __name__ == "__main__":
         roster_file = args["--roster-file"]
         # resp = controller.edit_lineup(start, end roster_file, game_date)
     elif args["roster"]:
-        add_id, drop_id = args["--add"], args["--drop"]
+        add_id = int(args["--add"])
+        drop_id = int(args["--drop"]) if args["--drop"] is not None else None
         start = args["--start"]
         run_now = args["--now"]
         faab = args["--faab"]

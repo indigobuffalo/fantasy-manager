@@ -30,8 +30,8 @@ class RosterController:
         not_applicable = "-"
         labels_and_values = {
             "League": self.service.league.name,
-            "Add": self.service.get_player_data(add_id).name,
-            "Drop": self.service.get_player_data(drop_id).name
+            "Add": self.service.get_player_data(add_id).name.full,
+            "Drop": self.service.get_player_data(drop_id).name.full
             if drop_id is not None
             else not_applicable,
             "Type": "Waiver Claim" if waiver else "Free Agent",
@@ -58,11 +58,11 @@ class RosterController:
     def get_league(self) -> str:
         return self.service.league.to_json()
 
-    def get_player(self, player_id: str) -> str:
+    def get_player(self, player_id: int) -> str:
         """Gets player data and returns it as a json string
 
         Args:
-            player_id (str): The id of the player to fetch data for.
+            player_id (int): The id of the player to fetch data for.
 
         Returns:
             str: Json-serialized dict representing the player.

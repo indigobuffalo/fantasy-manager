@@ -19,6 +19,7 @@ from model.enums.platform_url import PlatformUrl
 from model.league import League
 from model.player import Player
 from model.team import Team
+from util.misc import prune_dict
 
 
 class TeamDataNotFoundError(Exception):
@@ -48,11 +49,6 @@ class YahooClient(BaseClient):
         )
         self.handle = yfa.Game(self.session_context, "nhl").to_league(self.league.key)
 
-        import ipdb
-
-        ipdb.set_trace()
-        self.get_team_yfa()
-
     @property
     def team_url(self):
         platform_url = self.config.get_platform_url(
@@ -72,32 +68,16 @@ class YahooClient(BaseClient):
         if not all(player in resp.text for player in self.league.locked_players):
             raise FantasyAuthError("Not logged in!")
 
-    def get_team_yfa(self):
-        team = self.handle.to_team(self.handle.team_key())
-        import ipdb
-
-        ipdb.set_trace()
-
     def get_team(self) -> Team:
-        def parse_resp_item(resp: Response, match_str: str) -> dict[str, Any]:
-            match = re.search(f'"{match_str}.*', resp.text)
-            if not match:
-                raise TeamDataNotFoundError(match_str)
-            return json.loads("{" + match.group(0)[:-1] + "}")
+        data = {}
 
-        resp_keys_to_model_keys = {
-            "varPRCurrTeamName": "name",
-            "varPRLeague": "league_name",
-            "varPRCurrTeamPlayers": "players",
-        }
+        data.update(self.handle.teams()[self.handle.team_key()])
 
-        parsed_response = {}
-        resp = self.session.get(self.team_url)
-        for resp_key, model_key in resp_keys_to_model_keys.items():
-            resp_item = parse_resp_item(resp, resp_key)
-            parsed_response.update({model_key: resp_item[resp_key]})
+        yfa_team = self.handle.to_team(self.handle.team_key())
+        data["roster"] = yfa_team.roster()
+        data["league_id"] = yfa_team.league_id
 
-        return Team.from_dict(parsed_response)
+        return Team.from_dict(prune_dict(Team, data))
 
     def add_player(self, add_id: str, drop_id: str = None) -> None:
         data = {
@@ -149,11 +129,6 @@ class YahooClient(BaseClient):
         }
         return self.session.post(f"{self.team_url}/editwaiver", data=data)
 
-    def get_player(self, player_id: str) -> Player:
-        yahoo_nhl_url = self.config.get_platform_url(
-            self.league.platform, PlatformUrl.NHL
-        )
-        response = self.session.get(f"{yahoo_nhl_url}/players/{player_id}/")
-        return Player(
-            id=player_id, name=response.text.split("title>")[1].split("(")[0].strip()
-        )
+    def get_player_by_id(self, player_id: int) -> Player:
+        yfa_player = self.handle.player_details(player_id)[0]
+        return Player.from_dict(prune_dict(Player, yfa_player))
