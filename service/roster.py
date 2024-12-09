@@ -46,9 +46,7 @@ class RosterService:
         if cancel_response.status_code == 200:
             print("Successfully canceled waiver claim")
         else:
-            import ipdb
-
-            ipdb.set_trace()
+            pass
         return
 
     def get_player_data(self, player_id: int) -> Player:

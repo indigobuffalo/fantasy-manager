@@ -19,4 +19,5 @@ ln -sf 2025_2026.py _current_leagues.py
 
 ## TODO
 
-Used argparse to enforce cli arg types
+- Used argparse to enforce cli arg types
+- Check inputs 30 seconds before execution time to save time.

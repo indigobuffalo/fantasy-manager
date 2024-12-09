@@ -2,34 +2,27 @@ from __future__ import annotations
 from dataclasses import dataclass, asdict
 from enum import Enum
 import json
+from typing import Optional
 
-from model.player_name import PlayerName
-
-
-class PlayerStatus(Enum):
-    ACTIVE = ""
-    DTD = "DTD"
-    IR = "IR"
-    NA = "NA"
-    OUT = "O"
-    LTIR = "IR-LT"
+from model.enums.position import Position, PositionType
+from model.enums.player_status import PlayerStatus
 
 
-class PositionType(Enum):
-    SKATER = "P"
-    GOALIE = "G"
+@dataclass(frozen=True)
+class PlayerName:
+    full: str
+    first: Optional[str] = None
+    last: Optional[str] = None
+    ascii_first: Optional[str] = None
+    ascii_last: Optional[str] = None
 
+    @classmethod
+    def from_dict(cls, data: dict) -> PlayerName:
+        """Convert a dictionary to a PlayerName instance."""
+        return cls(**data)
 
-class Position(Enum):
-    C = "C"
-    LW = "LW"
-    RW = "RW"
-    D = "D"
-    G = "G"
-    UTIL = "UTIL"
-    BN = "BN"
-    IR = "IR"
-    IR_PLUS = "IR+"
+    def __str__(self):
+        return self.full
 
 
 @dataclass(frozen=True)
@@ -62,3 +55,12 @@ class Player:
             else None
         )
         return cls(**data)
+
+    @classmethod
+    def from_roster_api(cls, data: dict) -> Player:
+        """Create a Player instance from the roster API data."""
+        data["name"] = {"full": data["name"]}
+        data["eligible_positions"] = [
+            {"position": pos} for pos in data["eligible_positions"]
+        ]
+        return cls.from_dict(data)

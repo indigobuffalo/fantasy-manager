@@ -77,7 +77,7 @@ class YahooClient(BaseClient):
         data["roster"] = yfa_team.roster()
         data["league_id"] = yfa_team.league_id
 
-        return Team.from_dict(prune_dict(Team, data))
+        return Team.from_roster_api(prune_dict(Team, data))
 
     def add_player(self, add_id: str, drop_id: str = None) -> None:
         data = {
