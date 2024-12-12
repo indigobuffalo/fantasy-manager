@@ -1,9 +1,9 @@
-from client.espn import EspnClient
-from client.fantrax import FantraxClient
-from client.yahoo import YahooClient
-from config.config import FantasyConfig
-from model.enums.platform import Platform
-from model.league import League
+from fantasy_manager.client.espn import EspnClient
+from fantasy_manager.client.fantrax import FantraxClient
+from fantasy_manager.client.yahoo import YahooClient
+from fantasy_manager.config.config import FantasyConfig
+from fantasy_manager.model.enums.platform import Platform
+from fantasy_manager.model.league import League
 
 
 class ClientFactory:

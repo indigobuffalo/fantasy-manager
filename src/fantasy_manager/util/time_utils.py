@@ -9,7 +9,7 @@ DAYS_OF_WEEK = {
     "Thursday": 3,
     "Friday": 4,
     "Saturday": 5,
-    "Sunday": 6
+    "Sunday": 6,
 }
 
 
@@ -29,7 +29,7 @@ def days_until(until_day: str, from_date: date = date.today()) -> int:
 
 def sleep_until(dt: datetime) -> None:
     if datetime.now() < dt:
-        duration = (dt - datetime.now())
+        duration = dt - datetime.now()
         total_seconds = duration.total_seconds()
         total_sleep_secs = total_seconds - 0.3
         sleep_hours = total_sleep_secs // 3600
@@ -45,4 +45,4 @@ def sleep_until(dt: datetime) -> None:
 
 def upcoming_midnight() -> datetime:
     tomorrow = date.today() + timedelta(days=1)
-    return datetime.combine(tomorrow, datetime.strptime('00:00', '%H:%M').time())
+    return datetime.combine(tomorrow, datetime.strptime("00:00", "%H:%M").time())

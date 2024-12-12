@@ -3,9 +3,9 @@ from abc import ABC, abstractmethod
 import requests
 from requests import Response
 
-from config.config import FantasyConfig
-from model.league import League
-from model.team import Team
+from fantasy_manager.config.config import FantasyConfig
+from fantasy_manager.model.league import League
+from fantasy_manager.model.team import Team
 
 
 class BaseClient(ABC):

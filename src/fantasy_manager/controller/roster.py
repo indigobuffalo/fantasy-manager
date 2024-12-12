@@ -3,7 +3,7 @@ from pathlib import Path
 from pdb import run
 from typing import Optional
 
-from service.roster import RosterService
+from fantasy_manager.service.roster import RosterService
 
 PROJECT_DIR = Path(__file__).parent.absolute()
 

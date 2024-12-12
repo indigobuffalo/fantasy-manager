@@ -3,7 +3,6 @@
 
 Usage:
   cli.py roster --league=<league_name> --add=<player_id> [-w | --waivers] [--faab=<faab>] [--drop=<player_id>] [--start=<start_date> | -n | --now]
-  cli.py lineup --league=<league_name> [--roster-file=<path_to_roster_file>] [--start=<start_date>] [--end=<end_date>]
 
 Options:
   --drop=<player_id>    Id of player to drop.
@@ -15,9 +14,9 @@ Options:
 from docopt import docopt
 from datetime import datetime
 
-from controller.roster import RosterController
-from exceptions import UserAbortError
-from util.time_utils import upcoming_midnight
+from fantasy_manager.controller.roster import RosterController
+from fantasy_manager.exceptions import UserAbortError
+from fantasy_manager.util.time_utils import upcoming_midnight
 
 
 def confirm_proceed() -> None:

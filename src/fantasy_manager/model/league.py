@@ -2,7 +2,7 @@ from __future__ import annotations
 from dataclasses import dataclass, asdict
 import json
 
-from model.enums.platform import Platform
+from fantasy_manager.model.enums.platform import Platform
 
 
 @dataclass(frozen=True)

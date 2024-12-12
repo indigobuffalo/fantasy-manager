@@ -1,7 +1,7 @@
 from __future__ import annotations
 from dataclasses import dataclass
 
-from model.player import Player
+from fantasy_manager.model.player import Player
 
 
 @dataclass(frozen=True)

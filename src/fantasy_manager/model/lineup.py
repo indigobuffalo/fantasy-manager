@@ -5,7 +5,7 @@ import json
 from typing import List
 from dataclasses import dataclass, asdict
 
-from model.player import LineupPlayer
+from fantasy_manager.model.player import LineupPlayer
 
 
 @dataclass

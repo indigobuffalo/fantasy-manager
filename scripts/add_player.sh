@@ -57,5 +57,5 @@ check_args(){
 check_args
 
 pushd $PROJECT_DIR
-caffeinate -is pipenv run python cli.py roster --league $LEAGUE --add $ADD_ID $DROP_OPT $START_OPT $NOW_OPT $WAIVER_OPT $FAAB_OPT
+caffeinate -is pipenv run python src/fantasy_manager/cli/roster.py roster --league $LEAGUE --add $ADD_ID $DROP_OPT $START_OPT $NOW_OPT $WAIVER_OPT $FAAB_OPT
 popd

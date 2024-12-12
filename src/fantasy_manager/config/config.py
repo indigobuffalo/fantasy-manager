@@ -6,9 +6,9 @@ import yaml
 
 from dotenv import load_dotenv
 
-from model.league import League
-from model.enums.platform import Platform
-from model.enums.platform_url import PlatformUrl
+from fantasy_manager.model.league import League
+from fantasy_manager.model.enums.platform import Platform
+from fantasy_manager.model.enums.platform_url import PlatformUrl
 
 
 load_dotenv()

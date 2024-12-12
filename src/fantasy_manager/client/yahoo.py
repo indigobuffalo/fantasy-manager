@@ -1,5 +1,4 @@
 import datetime
-from doctest import OutputChecker
 import json
 import re
 from typing import Any
@@ -8,9 +7,9 @@ import yahoo_fantasy_api as yfa
 from requests import Response
 from yahoo_oauth import OAuth2
 
-from client.base import BaseClient
-from config.config import FantasyConfig
-from exceptions import (
+from fantasy_manager.client.base import BaseClient
+from fantasy_manager.config.config import FantasyConfig
+from fantasy_manager.exceptions import (
     FantasyAuthError,
     AlreadyPlayedError,
     FantasyUnknownError,
@@ -18,13 +17,13 @@ from exceptions import (
     MaxAddsError,
     NotOnRosterError,
 )
-from model.enums.platform_url import PlatformUrl
-from model.enums.position import Position
-from model.league import League
-from model.player import Player, LineupPlayer
-from model.lineup import Lineup
-from model.team import Team
-from util.dataclass_utils import prune_dict
+from fantasy_manager.model.enums.platform_url import PlatformUrl
+from fantasy_manager.model.enums.position import Position
+from fantasy_manager.model.league import League
+from fantasy_manager.model.player import Player, LineupPlayer
+from fantasy_manager.model.lineup import Lineup
+from fantasy_manager.model.team import Team
+from fantasy_manager.util.dataclass_utils import prune_dict
 
 
 class TeamDataNotFoundError(Exception):
@@ -78,24 +77,20 @@ class YahooClient(BaseClient):
             raise FantasyAuthError("Not logged in!")
 
     def set_lineup(self):
-        lineup_date = datetime.date(2024, 12, 11)
+        lineup_date = datetime.date(2024, 12, 12)
         lineup = Lineup(
             players=[
                 # LineupPlayer(player_id=6751, name="Timo Meier", selected_position=Position.BN.value, ranking=85),
                 # LineupPlayer(player_id=8654, name="Dylan Holloway", selected_position=Position.LW.value, ranking=82),
-                LineupPlayer(
-                    player_id=5152,
-                    name="Mark Stone",
-                    selected_position=Position.BN.value,
-                    ranking=91,
-                ),
+                # LineupPlayer(player_id=8654, name="Mark Stone", selected_position=Position.RW.value, ranking=91),
+                # LineupPlayer(player_id=6756, name="Jake Debrusk", selected_position=Position.RW.value, ranking=86),
             ]
         )
         as_json = lineup.to_json()
-        self.team_handle.change_positions(lineup_date, json.loads(as_json))
         import ipdb
 
         ipdb.set_trace()
+        self.team_handle.change_positions(lineup_date, json.loads(as_json))
 
     def get_team(self) -> Team:
         data = {}

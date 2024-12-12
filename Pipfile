@@ -5,11 +5,11 @@ verify_ssl = true
 
 [dev-packages]
 black = "*"
+ipdb = "*"
 
 [packages]
 requests = "*"
 docopts = "*"
-ipdb = "*"
 pyyaml = "*"
 python-dotenv = "*"
 yahoo-oauth = "*"

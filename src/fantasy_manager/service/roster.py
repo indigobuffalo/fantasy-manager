@@ -4,16 +4,16 @@ from datetime import datetime, date, timedelta
 from pathlib import Path
 from typing import Optional
 
-from client.factory import ClientFactory
-from config.config import FantasyConfig
-from exceptions import (
+from fantasy_manager.client.factory import ClientFactory
+from fantasy_manager.config.config import FantasyConfig
+from fantasy_manager.exceptions import (
     AlreadyAddedError,
     FantasyUnknownError,
     NotOnRosterError,
     UnintendedWaiverAddError,
 )
-from model.player import Player
-from util.time_utils import sleep_until
+from fantasy_manager.model.player import Player
+from fantasy_manager.util.time_utils import sleep_until
 
 PROJECT_DIR = Path(__file__).parent.absolute()
 

@@ -4,9 +4,9 @@ from enum import Enum
 import json
 from typing import Optional
 
-from model.enums.position import Position, PositionType
-from model.enums.player_status import PlayerStatus
-from util.dataclass_utils import filtered_asdict
+from fantasy_manager.model.enums.position import Position, PositionType
+from fantasy_manager.model.enums.player_status import PlayerStatus
+from fantasy_manager.util.dataclass_utils import filtered_asdict
 
 
 @dataclass(frozen=True)
