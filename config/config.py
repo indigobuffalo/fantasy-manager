@@ -33,9 +33,9 @@ class FantasyConfig:
         },
     }
 
+    PRE_FLIGHT_CHECK_SECS = 30
     SEASON = os.getenv("FANTASY_SEASON", "2024_2025")
     YEAR = os.getenv("YEAR", "2024")
-
     YAHOO_CREDS_FILE = os.getenv("YAHOO_CREDS_FILE")
 
     @classmethod

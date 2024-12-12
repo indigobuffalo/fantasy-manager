@@ -2,6 +2,7 @@ from time import sleep
 
 from datetime import datetime, date, timedelta
 from pathlib import Path
+from typing import Optional
 
 from client.factory import ClientFactory
 from config.config import FantasyConfig
@@ -52,33 +53,37 @@ class RosterService:
     def get_player_data(self, player_id: int) -> Player:
         return self.client.get_player_by_id(player_id)
 
-    def sleep_until_with_client_refresh(
-        self, start: datetime, client_refresh_secs: int = 30
-    ) -> None:
-        """Sleeps until the desired execution datetime.
-        Will also wake up 30 seconds before the execution time to refresh credentials if needed.
+    def run_preflight_checks(self, add_id: str, drop_id: Optional[str] = None):
+        """Run any checks that need to execute before main execution.
 
         Args:
-            start (datetime): The time to execute the given action.
-            auth_check_secs(int): The number of seconds before execution time that auth should be checked (and if needed, refreshed).
+            add (str): Id of the player to add
+            drop (Optional[str]): Id of the player to drop
         """
-        if (start - datetime.now()).total_seconds() > client_refresh_secs:
-            auth_check_dt = start - timedelta(seconds=client_refresh_secs)
-            sleep_until(auth_check_dt)
-            self.client.refresh()
+        self.client.refresh()
+        self.__check_add_player_inputs(add_id=add_id, drop_id=drop_id)
+
+    def prepare_to_add(
+        self, start: datetime, add_id: str, drop_id: Optional[str] = None
+    ) -> None:
+        preflight_check_dt = start - timedelta(
+            seconds=self.config.PRE_FLIGHT_CHECK_SECS
+        )
+        sleep_until(preflight_check_dt)
+        self.run_preflight_checks(add_id=add_id, drop_id=drop_id)
         sleep_until(start)
 
     def add_player_with_delay(
         self,
         add_id: str,
-        drop_id: str = None,
+        drop_id: Optional[str] = None,
         waiver: bool = True,
         faab: int = None,
         start: datetime = None,
         run_now: bool = False,
     ):
         if not run_now:
-            self.sleep_until_with_client_refresh(start)
+            self.prepare_to_add(add_id=add_id, drop_id=drop_id, start=start)
         if waiver:
             return self.place_waiver_claim(add_id=add_id, drop_id=drop_id, faab=faab)
         return self.add_free_agent(add_id=add_id, drop_id=drop_id)
@@ -99,7 +104,6 @@ class RosterService:
             drop_id (str, optional): _description_. Defaults to None.
             faab (int, optional): _description_. Defaults to None.
         """
-        self.__check_add_player_inputs(add_id=add_id, drop_id=drop_id)
         self.client.place_waiver_claim(add_id=add_id, drop_id=drop_id, faab=faab)
 
     def add_free_agent(self, add_id: str, drop_id: str = None) -> None:
@@ -112,8 +116,6 @@ class RosterService:
         Raises:
             FantasyUnknownError: _description_
         """
-        self.__check_add_player_inputs(add_id=add_id, drop_id=drop_id)
-
         # TODO: determine how to only add a player once they clear waivers
         # if self.on_waivers(add_id):
         #     raise OnWaiversError(f"Player {add_id} is on waivers!")

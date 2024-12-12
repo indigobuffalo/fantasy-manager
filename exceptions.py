@@ -28,6 +28,18 @@ class AlreadyAddedError(YahooFantasyError):
         return f'Player "{self.player}" is already added to roster.'
 
 
+class InvalidRosterPosition(YahooFantasyError):
+    def __init__(
+        self, player: str, message: str = "Player is in an invalid roster position."
+    ):
+        self.player = player
+        self.message = message
+        super().__init__(self.message)
+
+    def __str__(self):
+        return f'Player "{self.player}" is in an invalid roster position:\n\n{self.message}'
+
+
 class AlreadyPlayedError(YahooFantasyError):
     def __init__(self, player: str, message: str = "Player already played"):
         self.player = player
@@ -35,7 +47,7 @@ class AlreadyPlayedError(YahooFantasyError):
         super().__init__(self.message)
 
     def __str__(self):
-        return f'A player has already played today and is locked.'
+        return f"A player has already played today and is locked."
 
 
 class MaxAddsError(YahooFantasyError):
@@ -67,14 +79,12 @@ class OnWaiversError(YahooFantasyError):
 
 
 class FantasyUnknownError(YahooFantasyError):
-    def __init__(self, player: str, message: str = "Something went wrong."):
-        self.player = player
+    def __init__(self, message):
         self.message = message
         super().__init__(self.message)
 
 
 class InvalidLeagueError(YahooFantasyError):
-
     def __init__(self, league_id: str):
         self.league_id = league_id
         super().__init__(f"Unknown league: {self.league_id}")
