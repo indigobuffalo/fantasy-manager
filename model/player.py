@@ -6,6 +6,7 @@ from typing import Optional
 
 from model.enums.position import Position, PositionType
 from model.enums.player_status import PlayerStatus
+from util.dataclass_utils import filtered_asdict
 
 
 @dataclass(frozen=True)
@@ -26,8 +27,12 @@ class PlayerName:
 
 
 @dataclass(frozen=True)
-class Player:
+class BasePlayer:
     player_id: str
+
+
+@dataclass(frozen=True)
+class Player(BasePlayer):
     name: PlayerName
     status: PlayerStatus
     position_type: PositionType
@@ -58,9 +63,28 @@ class Player:
 
     @classmethod
     def from_roster_api(cls, data: dict) -> Player:
-        """Create a Player instance from the roster API data."""
+        """Create a Player instance from the roster API data.
+
+        The object returned by the yfa roster api lacks information of player
+        objects returned from other apis, hence the filling out of data["name"] in
+        this method.
+        """
         data["name"] = {"full": data["name"]}
         data["eligible_positions"] = [
             {"position": pos} for pos in data["eligible_positions"]
         ]
         return cls.from_dict(data)
+
+
+@dataclass(frozen=True)
+class LineupPlayer(BasePlayer):
+    selected_position: Position
+    name: Optional[str] = None
+    ranking: int = None
+
+    def to_json(self) -> str:
+        """Convert the LineupPlayer instance to a JSON string for the lineup API."""
+        return json.dumps(
+            filtered_asdict(self, exclude={"name", "ranking"}),
+            default=lambda o: o.value if isinstance(o, Enum) else o,
+        )

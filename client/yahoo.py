@@ -16,13 +16,15 @@ from exceptions import (
     FantasyUnknownError,
     InvalidRosterPosition,
     MaxAddsError,
+    NotOnRosterError,
 )
 from model.enums.platform_url import PlatformUrl
 from model.enums.position import Position
 from model.league import League
-from model.player import Player
+from model.player import Player, LineupPlayer
+from model.lineup import Lineup
 from model.team import Team
-from util.misc import prune_dict
+from util.dataclass_utils import prune_dict
 
 
 class TeamDataNotFoundError(Exception):
@@ -47,7 +49,7 @@ class YahooClient(BaseClient):
         )
         self.crumb = self.config.get_crumb(self.league.platform)
         self._refresh_context()
-        self.change_lineup()
+        self.set_lineup()
 
     @property
     def team_url(self):
@@ -75,16 +77,25 @@ class YahooClient(BaseClient):
         if not all(player in resp.text for player in self.league.locked_players):
             raise FantasyAuthError("Not logged in!")
 
-    def change_lineup(self):
-        cd = datetime.date(2024, 12, 13)
-        plyrs = [
-            {"player_id": 6751, "selected_position": Position.LW.value},  # Meier
-            {"player_id": 8654, "selected_position": Position.BN.value},
-        ]  # Holloway
+    def set_lineup(self):
+        lineup_date = datetime.date(2024, 12, 11)
+        lineup = Lineup(
+            players=[
+                # LineupPlayer(player_id=6751, name="Timo Meier", selected_position=Position.BN.value, ranking=85),
+                # LineupPlayer(player_id=8654, name="Dylan Holloway", selected_position=Position.LW.value, ranking=82),
+                LineupPlayer(
+                    player_id=5152,
+                    name="Mark Stone",
+                    selected_position=Position.BN.value,
+                    ranking=91,
+                ),
+            ]
+        )
+        as_json = lineup.to_json()
+        self.team_handle.change_positions(lineup_date, json.loads(as_json))
         import ipdb
 
         ipdb.set_trace()
-        self.team_handle.change_positions(cd, plyrs)
 
     def get_team(self) -> Team:
         data = {}
@@ -115,6 +126,8 @@ class YahooClient(BaseClient):
                     raise AlreadyPlayedError(add_id)
                 case str() if "You have reached the weekly limit" in exc_msg:
                     raise MaxAddsError()
+                case str() if f"is not on team {self.league.team_name}" in exc_msg:
+                    raise NotOnRosterError(add_id, str(ex))
                 case _:
                     raise FantasyUnknownError(
                         f"Error adding player '{add_id}':\n\n{exc_msg}"
