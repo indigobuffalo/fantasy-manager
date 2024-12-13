@@ -1,24 +1,20 @@
 from datetime import datetime, date
+import logging
 from pathlib import Path
-from pdb import run
 from typing import Optional
 
+from fantasy_manager.config.config import FantasyConfig
 from fantasy_manager.service.roster import RosterService
 
 PROJECT_DIR = Path(__file__).parent.absolute()
 
 
+logger = logging.getLogger(__name__)
+
+
 class RosterController:
     def __init__(self, league_name: str):
         self.service = RosterService(league_name=league_name)
-
-    # TODO
-    def on_waivers(self, player_id):
-        pass
-
-    # TODO
-    def cancel_waiver_claim(self, player_id: str):
-        pass
 
     def print_inputs(
         self,
@@ -38,13 +34,11 @@ class RosterController:
             "FAAB": faab if waiver else None,
         }
 
-        def print_with_padding(
+        def print_all_with_padding(
             lable_value_pairs: list[tuple[str, str]], padding_width: int
         ) -> None:
-            print()
             for label, val in lable_value_pairs:
-                print(f"{label}{':'.ljust(padding_width - len(label))}{val}")
-            print()
+                logger.info(f"{label}{':'.ljust(padding_width - len(label))}{val}")
 
         max_label_width = 0
         label_values_pairs = []
@@ -53,7 +47,9 @@ class RosterController:
                 max_label_width = max(max_label_width, len(l))
                 label_values_pairs.append((l, v))
 
-        print_with_padding(label_values_pairs, max_label_width + 2)
+        logger.info(FantasyConfig.LOG_SPACER)
+        print_all_with_padding(label_values_pairs, max_label_width + 2)
+        logger.info(FantasyConfig.LOG_SPACER)
 
     def get_league(self) -> str:
         return self.service.league.to_json()

@@ -6,6 +6,7 @@ import yaml
 
 from dotenv import load_dotenv
 
+from fantasy_manager.exceptions import InvalidLeagueError
 from fantasy_manager.model.league import League
 from fantasy_manager.model.enums.platform import Platform
 from fantasy_manager.model.enums.platform_url import PlatformUrl
@@ -17,6 +18,17 @@ CONFIG_DIR = Path(__file__).parent.absolute()
 
 class FantasyConfig:
     """Application configuration, including dynamic season-based paths."""
+
+    VALID_LOG_LEVELS = {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}
+    LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
+    if LOG_LEVEL not in VALID_LOG_LEVELS:
+        LOG_LEVEL = "INFO"
+    LOG_SPACER = "==================================================================="
+
+    PRE_FLIGHT_CHECK_SECS = 30
+    SEASON = os.getenv("FANTASY_SEASON", "2024_2025")
+    YEAR = os.getenv("YEAR", "2024")
+    YAHOO_CREDS_FILE = os.getenv("YAHOO_CREDS_FILE")
 
     PLATFORM_URLS = {
         Platform.ESPN: {
@@ -32,11 +44,6 @@ class FantasyConfig:
             PlatformUrl.NHL: "https://sports.yahoo.com/nhl",
         },
     }
-
-    PRE_FLIGHT_CHECK_SECS = 30
-    SEASON = os.getenv("FANTASY_SEASON", "2024_2025")
-    YEAR = os.getenv("YEAR", "2024")
-    YAHOO_CREDS_FILE = os.getenv("YAHOO_CREDS_FILE")
 
     @classmethod
     def get_platform_url(cls, platform: Platform, key: PlatformUrl) -> str:
@@ -79,7 +86,7 @@ class FantasyConfig:
         )
 
         if not league_file.exists():
-            raise KeyError(
+            raise InvalidLeagueError(
                 f"No configuration file found for league: {league_name} in season {cls.SEASON}"
             )
 

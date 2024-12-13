@@ -4,7 +4,7 @@ Usage:
     fantasy-manager <command> [<args>...]
     fantasy-manager --help
 
-The most commonly used fantasy-manager commands are:
+The available fantasy-manager commands are:
 
 roster   Change roster composition (e.g. add or drop players)
 lineup   Change lineup (e.g. sit/start decisions)
@@ -17,6 +17,7 @@ import sys
 import logging
 import importlib
 from fantasy_manager.cli.command import CliCommand, error_result, not_permitted_result
+from fantasy_manager.config.config import FantasyConfig
 from fantasy_manager.exceptions import FantasyManagerError, FantasyManagerSoftError
 import docopt
 
@@ -28,24 +29,7 @@ ALL_COMMANDS = [
     if command.is_file() and command.name != "__init__.py"
 ]
 
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
-
-def generate_help():
-    commands_list = "\n".join(f"    {cmd}" for cmd in ALL_COMMANDS)
-    return f"""fantasy-manager
-
-Usage:
-    fantasy-manager <command> [<args>...]
-    fantasy-manager --help
-
-The available commands are:
-
-{commands_list}
-
-For more details, see 'fantasy-manager <command> --help'
-"""
 
 
 def main():
@@ -54,9 +38,6 @@ def main():
     command_name = args["<command>"]
     argv = [command_name] + args["<args>"]
 
-    if command_name == "help":
-        print(generate_help())
-        return 0
     if command_name not in ALL_COMMANDS:
         print(f"Error: Command '{command_name}' not found.")
         return 1
@@ -81,18 +62,22 @@ def main():
     try:
         result = command.run(command_args)
     except FantasyManagerSoftError as err:
-        result = not_permitted_result(str(err))
+        result = not_permitted_result(exception=err, message=str(err))
     except FantasyManagerError as err:
-        result = error_result(str(err))
+        result = error_result(exception=err, message=str(err))
+        logger.debug(result.traceback)
     except Exception as err:
-        logger.exception(f"Unexpected error while executing {command_name}: {err}")
-        result = error_result("An unexpected error occurred")
+        result = error_result(exception=err, message="An unexpected error occurred")
+        logger.debug(result.traceback)
 
-    # TODO: check out logger from rally.neptune
+    logger.info(FantasyConfig.LOG_SPACER)
+    logger.info(FantasyConfig.LOG_SPACER)
     logger.info(result.message)
     logger.info(
         f"Command '{command_name}' executed with return code {result.return_code}"
     )
+    logger.info(FantasyConfig.LOG_SPACER)
+    logger.info(FantasyConfig.LOG_SPACER)
     return result.return_code
 
 

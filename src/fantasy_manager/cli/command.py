@@ -3,7 +3,8 @@ Allows for some centralization of common logic"""
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import NamedTuple
+import traceback
+from typing import NamedTuple, Optional
 
 import docopt
 
@@ -13,6 +14,7 @@ class CommandResult(NamedTuple):
 
     return_code: int
     message: str
+    traceback: Optional[str] = None
 
 
 def success_result(message: str) -> CommandResult:
@@ -20,14 +22,18 @@ def success_result(message: str) -> CommandResult:
     return CommandResult(return_code=0, message=message)
 
 
-def error_result(message: str) -> CommandResult:
+def error_result(exception: Exception, message: str) -> CommandResult:
     """Returns a failed (return code 1) Command Result due to a 'hard' error"""
-    return CommandResult(return_code=1, message=message)
+    return CommandResult(
+        return_code=1, message=message, traceback=traceback.format_exc()
+    )
 
 
-def not_permitted_result(message: str) -> CommandResult:
-    """Returns a faield (return codd 2) Command Result due to a business-logic driven error"""
-    return CommandResult(return_code=2, message=message)
+def not_permitted_result(exception: Exception, message: str) -> CommandResult:
+    """Returns a faield (return code 2) Command Result due to a business-logic driven error"""
+    return CommandResult(
+        return_code=2, message=message, traceback=traceback.format_exc()
+    )
 
 
 class CliCommand(ABC):
