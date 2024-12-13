@@ -77,10 +77,10 @@ class RosterService:
         self.run_preflight_checks(add_id=add_id, drop_id=drop_id)
         sleep_until(start)
 
-    def add_player_with_delay(
+    def replace_player_with_delay(
         self,
         add_id: str,
-        drop_id: Optional[str] = None,
+        drop_id: str = None,
         start: datetime = None,
         run_now: bool = False,
     ):

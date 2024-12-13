@@ -1,4 +1,5 @@
 """Make a change to your roster via Free Agency"""
+import copy
 from datetime import datetime
 from typing import Any
 
@@ -9,7 +10,7 @@ from fantasy_manager.util.time_utils import upcoming_midnight
 
 
 def format_args(args: list[str]) -> dict[str, Any]:
-    formatted = {}
+    formatted = copy.deepcopy(args)
     formatted["--league"] = args["--league"]
     formatted["--add"] = (
         cli_arg_to_int("--add", args["--add"]) if args["--add"] is not None else None
@@ -37,18 +38,38 @@ def add_player(
         confirm_proceed()
     controller.log_inputs(add_id=add_id)
     controller.add_player_with_delay(add_id=add_id, start=start, run_now=run_now)
+    command.success_result(f"Succesfully added player {add_id}")
 
 
-def drop_player(args: dict) -> None:
-    import ipdb
+def drop_player(
+    args: dict[str, Any], controller: RosterController
+) -> command.success_result:
+    drop_id, start, run_now = args["--drop"], args["--start"], args["--now"]
+    if run_now:
+        confirm_proceed()
+    controller.log_inputs(drop_id=drop_id)
+    controller.drop_player_with_delay(drop_id=drop_id, start=start, run_now=run_now)
+    command.success_result(f"Succesfully dropped player {drop_id}")
 
-    ipdb.set_trace()
 
-
-def replace_player(args: dict) -> None:
-    import ipdb
-
-    ipdb.set_trace()
+def replace_player(
+    args: dict[str, Any], controller: RosterController
+) -> command.success_result:
+    add_id, drop_id, start, run_now = (
+        args["--add"],
+        args["--drop"],
+        args["--start"],
+        args["--now"],
+    )
+    if run_now:
+        confirm_proceed()
+    controller.log_inputs(add_id=add_id, drop_id=drop_id)
+    controller.replace_player_with_delay(
+        add_id=add_id, drop_id=drop_id, start=start, run_now=run_now
+    )
+    command.success_result(
+        f"Succesfully added player {add_id} and dropped player {drop_id}"
+    )
 
 
 class Roster(command.CliCommand):
@@ -67,15 +88,13 @@ class Roster(command.CliCommand):
     def run(self, args: dict) -> command.CommandResult:
         """Update roster by adding, dropping and/or submitting waiver claims for players"""
 
-        args_fmt = format_args(args)
-        controller = RosterController(league_name=args_fmt["--league"])
+        args = format_args(args)
+        controller = RosterController(league_name=args["--league"])
 
         match args:
             case args if args["add"] == True:
-                add_player(args_fmt, controller)
+                return add_player(args, controller)
             case args if args["drop"] == True:
-                drop_player(args)
+                return drop_player(args, controller)
             case args if args["replace"] == True:
-                replace_player(args)
-
-        return command.success_result("Yay we did it!")
+                return replace_player(args, controller)

@@ -19,8 +19,8 @@ class RosterController:
 
     def log_inputs(
         self,
-        add_id: Optional[str] = None,
-        drop_id: Optional[str] = None,
+        add_id: Optional[int] = None,
+        drop_id: Optional[int] = None,
     ) -> None:
         not_applicable = "-"
         labels_and_values = {
@@ -76,8 +76,30 @@ class RosterController:
         drop_id: str = None,
         start: datetime = None,
         run_now: bool = False,
-    ):
-        self.service.add_player_with_delay(
+    ) -> None:
+        self.service.replace_player_with_delay(
+            add_id=add_id,
+            drop_id=drop_id,
+            start=start,
+            run_now=run_now,
+        )
+
+    def drop_player_with_delay(
+        self,
+        drop_id: str,
+        start: datetime = None,
+        run_now: bool = False,
+    ) -> None:
+        pass
+
+    def replace_player_with_delay(
+        self,
+        add_id: str,
+        drop_id: str = None,
+        start: datetime = None,
+        run_now: bool = False,
+    ) -> None:
+        self.service.replace_player_with_delay(
             add_id=add_id,
             drop_id=drop_id,
             start=start,
