@@ -48,7 +48,6 @@ class YahooClient(BaseClient):
         )
         self.crumb = self.config.get_crumb(self.league.platform)
         self._refresh_context()
-        self.set_lineup()
 
     @property
     def team_url(self):
@@ -76,20 +75,23 @@ class YahooClient(BaseClient):
         if not all(player in resp.text for player in self.league.locked_players):
             raise FantasyAuthError("Not logged in!")
 
-    def set_lineup(self):
-        lineup_date = datetime.date(2024, 12, 12)
-        lineup = Lineup(
-            players=[
-                # LineupPlayer(player_id=6751, name="Timo Meier", selected_position=Position.BN.value, ranking=85),
-                # LineupPlayer(player_id=8654, name="Dylan Holloway", selected_position=Position.LW.value, ranking=82),
-                # LineupPlayer(player_id=8654, name="Mark Stone", selected_position=Position.RW.value, ranking=91),
-                # LineupPlayer(player_id=6756, name="Jake Debrusk", selected_position=Position.RW.value, ranking=86),
-            ]
-        )
-        as_json = lineup.to_json()
-        import ipdb
+    def set_lineup(self, lineup: Lineup, lineup_date: datetime.date) -> None:
+        """Set lineup for the given date.
 
-        ipdb.set_trace()
+        Args:
+            lineup (Lineup): lineup of players and their selected positions
+            lineup_date (datetime.date): the date to set the lineup
+        """
+        lineup_date = datetime.date(2024, 12, 12)
+        # lineup = Lineup(
+        # players=[
+        # LineupPlayer(player_id=6751, name="Timo Meier", selected_position=Position.BN.value, ranking=85),
+        # LineupPlayer(player_id=8654, name="Dylan Holloway", selected_position=Position.LW.value, ranking=82),
+        # LineupPlayer(player_id=8654, name="Mark Stone", selected_position=Position.RW.value, ranking=91),
+        # LineupPlayer(player_id=6756, name="Jake Debrusk", selected_position=Position.RW.value, ranking=86),
+        # ]
+        # )
+        as_json = lineup.to_json()
         self.team_handle.change_positions(lineup_date, json.loads(as_json))
 
     def get_team(self) -> Team:

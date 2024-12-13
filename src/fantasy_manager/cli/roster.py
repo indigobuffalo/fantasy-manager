@@ -1,43 +1,31 @@
-#!/Users/Akerson/.local/share/virtualenvs/yahoo-fantasy-1EuG-xYP/bin/python
-"""Make a change to your roster.
-
-Usage:
-  cli.py roster --league=<league_name> --add=<player_id> [-w | --waivers] [--faab=<faab>] [--drop=<player_id>] [--start=<start_date> | -n | --now]
-
-Options:
-  --drop=<player_id>    Id of player to drop.
-  --faab=<faab>         Amount of faab to spend [default: 0].
-  -n,--now              Execute script immediately [default: False].
-  -w,--waiver           Place waiver claim for player [default: False].
-
-"""
-from docopt import docopt
+"""Make a change to your roster"""
 from datetime import datetime
 
+from fantasy_manager.cli import command
 from fantasy_manager.controller.roster import RosterController
-from fantasy_manager.exceptions import UserAbortError
+from fantasy_manager.util.misc import confirm_proceed
 from fantasy_manager.util.time_utils import upcoming_midnight
 
 
-def confirm_proceed() -> None:
-    answer = input("Continue? [ y | n ]\n")
-    if answer.upper() in ["Y", "YES"]:
-        pass
-    else:
-        raise UserAbortError
+class Roster(command.CliCommand):
+    """Usage:
+    fantasy-manager roster --league=<league_name> --add=<player_id> [-w | --waivers] [--faab=<faab>] [--drop=<player_id>] [--start=<start_date> | -n | --now]
 
+    Options:
+      --league=<league>     Id of the league the team is under.
+      --add=<player_id>     Id of player to add.
+      --drop=<player_id>    Id of player to drop.
+      --faab=<faab>         Amount of faab to spend [default: 0].
+      -n,--now              Execute script immediately [default: False].
+      -w,--waiver           Place waiver claim for player [default: False].
+    """
 
-if __name__ == "__main__":
-    args = docopt(__doc__)
-    league_name = args["--league"]
+    def run(self, args: dict) -> command.CommandResult:
+        """Update roster by adding, dropping and/or submitting waiver claims for players"""
+        league_name = args["--league"]
 
-    controller = RosterController(league_name=league_name)
+        controller = RosterController(league_name=league_name)
 
-    if args["lineup"]:
-        start, end = args["--start"], args["--end"]
-        roster_file = args["--roster-file"]
-        # resp = controller.edit_lineup(start, end roster_file, game_date)
-    elif args["roster"]:
         add_id = int(args["--add"])
         drop_id = int(args["--drop"]) if args["--drop"] is not None else None
         start = args["--start"]
@@ -61,3 +49,4 @@ if __name__ == "__main__":
             faab=faab,
             run_now=run_now,
         )
+        return command.success_result("Yay we did it!")

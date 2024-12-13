@@ -22,7 +22,7 @@ def success_result(message: str) -> CommandResult:
 
 def error_result(message: str) -> CommandResult:
     """Returns a failed (return code 1) Command Result due to a 'hard' error"""
-    return CommandResult(return_code=2, message=message)
+    return CommandResult(return_code=1, message=message)
 
 
 def not_permitted_result(message: str) -> CommandResult:
