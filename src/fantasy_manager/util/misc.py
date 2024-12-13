@@ -2,8 +2,7 @@
 
 from logging import Logger
 from fantasy_manager.exceptions import (
-    FantasyManagerError,
-    FantasyManagerValueError,
+    InputError,
     UserAbortError,
 )
 
@@ -30,3 +29,19 @@ def log_line_break(
     """
     for _ in range(lines):
         logger.info(spacer * count)
+
+
+def cli_arg_to_int(arg_name: str, arg_value: str) -> int:
+    """Converts a CLI arg from a string to an int
+
+    Args:
+        arg_name (str): Name of the input arg
+        arg_value (str): Value of the input arg
+
+    Raises:
+        FantasyManagerValueError: Custom error stating the arg name and value.
+    """
+    try:
+        return int(arg_value)
+    except ValueError as err:
+        raise InputError(f"Expected int for '{arg_name}', got '{arg_value}'")

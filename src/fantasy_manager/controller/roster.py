@@ -19,20 +19,18 @@ class RosterController:
 
     def log_inputs(
         self,
-        add_id: str,
+        add_id: Optional[str] = None,
         drop_id: Optional[str] = None,
-        waiver: bool = False,
-        faab: Optional[int] = 0,
     ) -> None:
         not_applicable = "-"
         labels_and_values = {
             "League": self.service.league.name,
-            "Add": self.service.get_player_data(add_id).name.full,
+            "Add": self.service.get_player_data(add_id).name.full
+            if add_id is not None
+            else not_applicable,
             "Drop": self.service.get_player_data(drop_id).name.full
             if drop_id is not None
             else not_applicable,
-            "Type": "Waiver Claim" if waiver else "Free Agent",
-            "FAAB": faab if waiver else None,
         }
 
         def log_all_with_padding(
@@ -77,16 +75,12 @@ class RosterController:
         add_id: str,
         drop_id: str = None,
         start: datetime = None,
-        waiver: bool = False,
-        faab: int = None,
         run_now: bool = False,
     ):
         self.service.add_player_with_delay(
             add_id=add_id,
             drop_id=drop_id,
             start=start,
-            waiver=waiver,
-            faab=faab,
             run_now=run_now,
         )
 

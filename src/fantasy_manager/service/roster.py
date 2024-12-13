@@ -81,15 +81,11 @@ class RosterService:
         self,
         add_id: str,
         drop_id: Optional[str] = None,
-        waiver: bool = True,
-        faab: int = None,
         start: datetime = None,
         run_now: bool = False,
     ):
         if not run_now:
             self.prepare_to_add(add_id=add_id, drop_id=drop_id, start=start)
-        if waiver:
-            return self.place_waiver_claim(add_id=add_id, drop_id=drop_id, faab=faab)
         return self.add_free_agent(add_id=add_id, drop_id=drop_id)
 
     def __check_add_player_inputs(self, add_id: str, drop_id: str) -> None:

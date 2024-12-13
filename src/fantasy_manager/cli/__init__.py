@@ -73,6 +73,7 @@ def main():
         logger.debug(result.traceback)
 
     log_line_break(logger=logger, spacer="=", lines=2)
+    logger.info(result.message)
     logger.info(
         f"Command '{command_name}' executed with return code {result.return_code}"
     )

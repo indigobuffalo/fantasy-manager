@@ -22,7 +22,7 @@ class UserAbortError(FantasyManagerError):
         super().__init__(self.message)
 
 
-class FantasyManagerValueError(FantasyManagerError):
+class InputError(FantasyManagerError):
     def __init__(self, message: str = "Invalid value"):
         self.message = message
         super().__init__(self.message)
