@@ -1,6 +1,9 @@
 from datetime import date, timedelta, datetime
+import logging
 from time import sleep
-from typing import Set, Iterator
+from typing import Iterator
+
+logger = logging.getLogger(__name__)
 
 DAYS_OF_WEEK = {
     "Monday": 0,
@@ -35,7 +38,7 @@ def sleep_until(dt: datetime) -> None:
         sleep_hours = total_sleep_secs // 3600
         sleep_mins = (total_sleep_secs % 3600) // 60
         sleep_secs = total_sleep_secs % 60
-        print(
+        logger.info(
             f"Time until {dt.isoformat()}: '{duration}'. "
             f"Sleeping {int(sleep_hours)} hours "
             f"{int(sleep_mins)} minutes {round(sleep_secs, 2)} seconds."

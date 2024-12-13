@@ -33,9 +33,7 @@ class Roster(command.CliCommand):
         faab = args["--faab"]
         waiver = args["--waiver"]
 
-        controller.print_inputs(
-            add_id=add_id, drop_id=drop_id, waiver=waiver, faab=faab
-        )
+        controller.log_inputs(add_id=add_id, drop_id=drop_id, waiver=waiver, faab=faab)
         if run_now:
             confirm_proceed()
         else:

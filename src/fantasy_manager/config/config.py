@@ -23,7 +23,6 @@ class FantasyConfig:
     LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
     if LOG_LEVEL not in VALID_LOG_LEVELS:
         LOG_LEVEL = "INFO"
-    LOG_SPACER = "==================================================================="
 
     PRE_FLIGHT_CHECK_SECS = 30
     SEASON = os.getenv("FANTASY_SEASON", "2024_2025")

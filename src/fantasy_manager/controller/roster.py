@@ -5,6 +5,7 @@ from typing import Optional
 
 from fantasy_manager.config.config import FantasyConfig
 from fantasy_manager.service.roster import RosterService
+from fantasy_manager.util.misc import log_line_break
 
 PROJECT_DIR = Path(__file__).parent.absolute()
 
@@ -16,7 +17,7 @@ class RosterController:
     def __init__(self, league_name: str):
         self.service = RosterService(league_name=league_name)
 
-    def print_inputs(
+    def log_inputs(
         self,
         add_id: str,
         drop_id: Optional[str] = None,
@@ -34,7 +35,7 @@ class RosterController:
             "FAAB": faab if waiver else None,
         }
 
-        def print_all_with_padding(
+        def log_all_with_padding(
             lable_value_pairs: list[tuple[str, str]], padding_width: int
         ) -> None:
             for label, val in lable_value_pairs:
@@ -47,9 +48,12 @@ class RosterController:
                 max_label_width = max(max_label_width, len(l))
                 label_values_pairs.append((l, v))
 
-        logger.info(FantasyConfig.LOG_SPACER)
-        print_all_with_padding(label_values_pairs, max_label_width + 2)
-        logger.info(FantasyConfig.LOG_SPACER)
+        space_btwn_label_and_val = 2
+        log_line_break(logger)
+        log_all_with_padding(
+            label_values_pairs, max_label_width + space_btwn_label_and_val
+        )
+        log_line_break(logger)
 
     def get_league(self) -> str:
         return self.service.league.to_json()

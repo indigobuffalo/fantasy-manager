@@ -21,6 +21,8 @@ from fantasy_manager.config.config import FantasyConfig
 from fantasy_manager.exceptions import FantasyManagerError, FantasyManagerSoftError
 import docopt
 
+from fantasy_manager.util.misc import log_line_break
+
 CLI_DIRECTORY = Path(__file__).parent
 
 ALL_COMMANDS = [
@@ -39,7 +41,7 @@ def main():
     argv = [command_name] + args["<args>"]
 
     if command_name not in ALL_COMMANDS:
-        print(f"Error: Command '{command_name}' not found.")
+        logger.info(f"Error: Command '{command_name}' not found.")
         return 1
     try:
         module = importlib.import_module(f"fantasy_manager.cli.{command_name}")
@@ -51,10 +53,10 @@ def main():
             and klass is not CliCommand
         )()
     except ModuleNotFoundError:
-        print(f"Error: Command '{command_name}' not found.")
+        logger.info(f"Error: Command '{command_name}' not found.")
         return 1
     except StopIteration:
-        print(f"Error: No valid command class found in '{command_name}'.")
+        logger.info(f"Error: No valid command class found in '{command_name}'.")
         return 1
 
     command_args = command.parse_args(argv)
@@ -70,14 +72,11 @@ def main():
         result = error_result(exception=err, message="An unexpected error occurred")
         logger.debug(result.traceback)
 
-    logger.info(FantasyConfig.LOG_SPACER)
-    logger.info(FantasyConfig.LOG_SPACER)
-    logger.info(result.message)
+    log_line_break(logger=logger, spacer="=", lines=2)
     logger.info(
         f"Command '{command_name}' executed with return code {result.return_code}"
     )
-    logger.info(FantasyConfig.LOG_SPACER)
-    logger.info(FantasyConfig.LOG_SPACER)
+    log_line_break(logger=logger, spacer="=", lines=2)
     return result.return_code
 
 

@@ -1,3 +1,4 @@
+import logging
 from time import sleep
 
 from datetime import datetime, date, timedelta
@@ -16,6 +17,9 @@ from fantasy_manager.model.player import Player
 from fantasy_manager.util.time_utils import sleep_until
 
 PROJECT_DIR = Path(__file__).parent.absolute()
+
+
+logger = logging.getLogger(__name__)
 
 
 class RosterService:
@@ -45,7 +49,7 @@ class RosterService:
     def cancel_waiver_claim(self, player_id: str):
         cancel_response = self.client.cancel_waiver_claim(player_id)
         if cancel_response.status_code == 200:
-            print("Successfully canceled waiver claim")
+            logger.info("Successfully canceled waiver claim")
         else:
             pass
         return
@@ -121,27 +125,27 @@ class RosterService:
         #     raise OnWaiversError(f"Player {add_id} is on waivers!")
 
         while True:
-            print(f"The time is {datetime.now()}.")
+            logger.info(f"The time is {datetime.now()}.")
             try:
                 # TODO: break out waiver claims into separate method
                 # add_response = self.client.add_player(add_id=add_id, drop_id=drop_id, faab=faab)
                 self.client.add_player(add_id=add_id, drop_id=drop_id)
                 if not self.is_rostered(add_id):
                     raise FantasyUnknownError(f"Error - player '{add_id}' not added.")
-                print(f"Success!  Player {add_id} is now on roster.")
+                logger.info(f"Success!  Player {add_id} is now on roster.")
                 return
             except UnintendedWaiverAddError:
                 waiver_wait_min = 30
-                print("Accidentally added player to waivers, canceling now.")
+                logger.info("Accidentally added player to waivers, canceling now.")
                 self.cancel_waiver_claim(add_id)
-                print(
+                logger.info(
                     f"Waiting {waiver_wait_min} minutes for waivers to clear "
                     f"before trying to add player {add_id} from FA again."
                 )
                 sleep(waiver_wait_min * 60)
                 continue
             except FantasyUnknownError as err:
-                print(f"Error:{err} \nSleeping 0.1 seconds.")
+                logger.info(f"Error:{err} \nSleeping 0.1 seconds.")
                 sleep(0.1)
                 continue
 

@@ -22,6 +22,12 @@ class UserAbortError(FantasyManagerError):
         super().__init__(self.message)
 
 
+class FantasyManagerValueError(FantasyManagerError):
+    def __init__(self, message: str = "Invalid value"):
+        self.message = message
+        super().__init__(self.message)
+
+
 class NotOnRosterError(FantasyManagerError):
     def __init__(self, player: str, message: str = "Player to drop not on roster"):
         self.player = player
