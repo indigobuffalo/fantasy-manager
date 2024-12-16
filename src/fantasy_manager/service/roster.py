@@ -77,17 +77,6 @@ class RosterService:
         self.run_preflight_checks(add_id=add_id, drop_id=drop_id)
         sleep_until(start)
 
-    def replace_player_with_delay(
-        self,
-        add_id: str,
-        drop_id: str = None,
-        start: datetime = None,
-        run_now: bool = False,
-    ):
-        if not run_now:
-            self.prepare_to_add(add_id=add_id, drop_id=drop_id, start=start)
-        return self.add_free_agent(add_id=add_id, drop_id=drop_id)
-
     def __check_add_player_inputs(self, add_id: str, drop_id: str) -> None:
         if self.is_rostered(add_id):
             raise AlreadyAddedError(add_id)
@@ -106,7 +95,7 @@ class RosterService:
         """
         self.client.place_waiver_claim(add_id=add_id, drop_id=drop_id, faab=faab)
 
-    def add_free_agent(self, add_id: str, drop_id: str = None) -> None:
+    def replace_player(self, add_id: str, drop_id: str, start: datetime) -> None:
         """Adds a player from free agency to the roster.
 
         Args:
@@ -116,6 +105,7 @@ class RosterService:
         Raises:
             FantasyUnknownError: _description_
         """
+        self.prepare_to_add(add_id=add_id, drop_id=drop_id, start=start)
         # TODO: determine how to only add a player once they clear waivers
         # if self.on_waivers(add_id):
         #     raise OnWaiversError(f"Player {add_id} is on waivers!")

@@ -64,7 +64,8 @@ def replace_player(
     if run_now:
         confirm_proceed()
     controller.log_inputs(add_id=add_id, drop_id=drop_id)
-    controller.replace_player_with_delay(
+    # TODO get rid of run_now
+    controller.replace_playerd(
         add_id=add_id, drop_id=drop_id, start=start, run_now=run_now
     )
     command.success_result(

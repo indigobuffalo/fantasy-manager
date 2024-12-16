@@ -92,7 +92,7 @@ class RosterController:
     ) -> None:
         pass
 
-    def replace_player_with_delay(
+    def replace_player(
         self,
         add_id: str,
         drop_id: str = None,
