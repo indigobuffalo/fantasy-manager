@@ -35,8 +35,15 @@ class NotOnRosterError(FantasyManagerError):
         super().__init__(self.message)
 
 
+class OnAnotherTeamError(FantasyManagerError):
+    def __init__(self, player: str, message: str = "Player to add is on another team."):
+        self.player = player
+        self.message = message
+        super().__init__(self.message)
+
+
 class AlreadyAddedError(FantasyManagerError):
-    def __init__(self, player: str, message: str = "Already added player"):
+    def __init__(self, player: str, message: str = "Already added player."):
         self.player = player
         self.message = message
         super().__init__(self.message)

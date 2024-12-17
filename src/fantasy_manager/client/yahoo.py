@@ -16,6 +16,7 @@ from fantasy_manager.exceptions import (
     InvalidRosterPosition,
     MaxAddsError,
     NotOnRosterError,
+    OnAnotherTeamError,
 )
 from fantasy_manager.model.enums.platform_url import PlatformUrl
 from fantasy_manager.model.enums.position import Position
@@ -105,30 +106,36 @@ class YahooClient(BaseClient):
 
         return Team.from_roster_api(prune_dict(Team, data))
 
-    def add_player(self, add_id: str, drop_id: str = None) -> None:
+    @staticmethod
+    def _handle_client_error(add_id: str, err: Exception):
+        msg = str(err)
+        match msg:
+            case str() if "no longer qualifies for that position" in msg:
+                raise InvalidRosterPosition(add_id, msg)
+            case str() if "player has already played" in msg:
+                raise AlreadyPlayedError(add_id)
+            case str() if "player is currently on another team" in msg:
+                raise OnAnotherTeamError(add_id)
+            case str() if "reached the weekly limit" in msg:
+                raise MaxAddsError()
+            case str() if f"is not on team" in msg:
+                raise NotOnRosterError(add_id, msg)
+            case _:
+                raise FantasyUnknownError(f"Error adding player '{add_id}':\n\n{msg}")
+
+    def add_player(self, add_id: str) -> None:
         try:
-            match drop_id:
-                case None:
-                    self.team_handle.add_player(add_id)
-                case _:
-                    self.team_handle.add_and_drop_players(
-                        add_player_id=add_id, drop_player_id=drop_id
-                    )
-        except Exception as ex:
-            exc_msg = str(ex)
-            match exc_msg:
-                case str() if "no longer qualifies for that position" in exc_msg:
-                    raise InvalidRosterPosition(add_id, str(ex))
-                case str() if "player has already played and is no longer" in exc_msg:
-                    raise AlreadyPlayedError(add_id)
-                case str() if "You have reached the weekly limit" in exc_msg:
-                    raise MaxAddsError()
-                case str() if f"is not on team {self.league.team_name}" in exc_msg:
-                    raise NotOnRosterError(add_id, str(ex))
-                case _:
-                    raise FantasyUnknownError(
-                        f"Error adding player '{add_id}':\n\n{exc_msg}"
-                    )
+            self.team_handle.add_player(add_id)
+        except Exception as err:
+            self._handle_client_error(add_id=add_id, err=err)
+
+    def replace_player(self, add_id: str, drop_id: str = None) -> None:
+        try:
+            self.team_handle.add_and_drop_players(
+                add_player_id=add_id, drop_player_id=drop_id
+            )
+        except Exception as err:
+            self._handle_client_error(add_id=add_id, err=err)
 
     def place_waiver_claim(
         self, add_id: str, drop_id: str = None, faab: int = None

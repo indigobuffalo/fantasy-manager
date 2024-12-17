@@ -9,7 +9,9 @@ from fantasy_manager.client.factory import ClientFactory
 from fantasy_manager.config.config import FantasyConfig
 from fantasy_manager.exceptions import (
     AlreadyAddedError,
+    FantasyManagerError,
     FantasyUnknownError,
+    MaxAddsError,
     NotOnRosterError,
     UnintendedWaiverAddError,
 )
@@ -106,34 +108,50 @@ class RosterService:
             FantasyUnknownError: _description_
         """
         self.prepare_to_add(add_id=add_id, drop_id=drop_id, start=start)
-        # TODO: determine how to only add a player once they clear waivers
+
         # if self.on_waivers(add_id):
-        #     raise OnWaiversError(f"Player {add_id} is on waivers!")
+        #     logger.info("Player still on waivers.  Sleeping 5 minutes then trying again.")
+        #     sleep(5_minutes)
+        #     self.replace_player(...)
 
         while True:
             logger.info(f"The time is {datetime.now()}.")
             try:
-                # TODO: break out waiver claims into separate method
-                # add_response = self.client.add_player(add_id=add_id, drop_id=drop_id, faab=faab)
-                self.client.add_player(add_id=add_id, drop_id=drop_id)
+                self.client.replace_player(add_id=add_id, drop_id=drop_id)
                 if not self.is_rostered(add_id):
                     raise FantasyUnknownError(f"Error - player '{add_id}' not added.")
                 logger.info(f"Success!  Player {add_id} is now on roster.")
                 return
-            except UnintendedWaiverAddError:
-                waiver_wait_min = 30
-                logger.info("Accidentally added player to waivers, canceling now.")
-                self.cancel_waiver_claim(add_id)
-                logger.info(
-                    f"Waiting {waiver_wait_min} minutes for waivers to clear "
-                    f"before trying to add player {add_id} from FA again."
-                )
-                sleep(waiver_wait_min * 60)
-                continue
-            except FantasyUnknownError as err:
-                logger.info(f"Error:{err} \nSleeping 0.1 seconds.")
-                sleep(0.1)
-                continue
+            except Exception as err:
+                match err:
+                    case UnintendedWaiverAddError():
+                        waiver_wait_min = 30
+                        logger.info(
+                            "Accidentally added player to waivers, canceling now."
+                        )
+                        self.cancel_waiver_claim(add_id)
+                        logger.info(
+                            f"Waiting {waiver_wait_min} minutes for waivers to clear "
+                            f"before trying to add player {add_id} from FA again."
+                        )
+                        sleep(waiver_wait_min * 60)
+                        continue
+                    case _:
+                        logger.info(str(err))
+                        logger.info(f"Sleeping 0.1 seconds.")
+                        sleep(0.1)
+                        continue
+
+    def drop_player(self, drop_id: str, start: datetime) -> None:
+        """Drops a player.
+
+        Args:
+            drop_id (str, optional): The id of the player to drop. Defaults to None.
+
+        Raises:
+            FantasyUnknownError: _description_
+        """
+        pass
 
     def edit_lineup(self, roster_filename: str, game_date: date):
         data = {
