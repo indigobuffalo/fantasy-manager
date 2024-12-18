@@ -34,7 +34,7 @@ def sleep_until(dt: datetime) -> None:
     if datetime.now() < dt:
         duration = dt - datetime.now()
         total_seconds = duration.total_seconds()
-        total_sleep_secs = total_seconds - 0.3
+        total_sleep_secs = total_seconds - 0.2
         sleep_hours = total_sleep_secs // 3600
         sleep_mins = (total_sleep_secs % 3600) // 60
         sleep_secs = total_sleep_secs % 60
@@ -44,6 +44,11 @@ def sleep_until(dt: datetime) -> None:
             f"{int(sleep_mins)} minutes {round(sleep_secs, 2)} seconds."
         )
         sleep(total_sleep_secs)
+
+
+def sleep_verbose(logger: logging.Logger, sleep_seconds: int) -> None:
+    logger.info(f"Sleeping for {sleep_seconds} seconds...")
+    sleep(sleep_seconds)
 
 
 def upcoming_midnight() -> datetime:

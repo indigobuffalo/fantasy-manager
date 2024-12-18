@@ -10,10 +10,9 @@ unset ADD_ID
 unset LEAGUE
 
 # set defaults for optional args
-NOW_OPT=""
 START_OPT=""
 
-while getopts "a:hl:ns:" opt; do
+while getopts "a:hl:s:" opt; do
   case $opt in
     a) # The id of the player to be added.
       ADD_ID="$OPTARG"
@@ -24,9 +23,6 @@ while getopts "a:hl:ns:" opt; do
       ;;
     l) # The league name.
       LEAGUE="$OPTARG"
-      ;;
-    n) # Add the player immediately.
-      NOW_OPT="--now"
       ;;
     s) # ISO 8601 time stamp which sets the time to add the player.
       START_OPT="--start $OPTARG"

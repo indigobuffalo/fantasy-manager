@@ -13,10 +13,11 @@ from fantasy_manager.exceptions import (
     FantasyUnknownError,
     MaxAddsError,
     NotOnRosterError,
+    TimeoutExceededError,
     UnintendedWaiverAddError,
 )
 from fantasy_manager.model.player import Player
-from fantasy_manager.util.time_utils import sleep_until
+from fantasy_manager.util.time_utils import sleep_until, sleep_verbose
 
 PROJECT_DIR = Path(__file__).parent.absolute()
 
@@ -97,8 +98,25 @@ class RosterService:
         """
         self.client.place_waiver_claim(add_id=add_id, drop_id=drop_id, faab=faab)
 
+    def _handle_add_and_replace_client_errors(self, add_id: str, err: Exception):
+        match err:
+            case UnintendedWaiverAddError():
+                waiver_wait_min = 30
+                logger.info("Accidentally added player to waivers, canceling now.")
+                self.cancel_waiver_claim(add_id)
+                logger.info(
+                    f"Waiting {waiver_wait_min} minutes for waivers to clear "
+                    f"before trying to add player {add_id} from FA again."
+                )
+                sleep(waiver_wait_min * 60)
+            case _:
+                sleep_verbose(logger, 0.1)
+                logger.info(str(err))
+                logger.info(f"Sleeping 0.1 seconds.")
+                sleep(0.1)
+
     def replace_player(self, add_id: str, drop_id: str, start: datetime) -> None:
-        """Adds a player from free agency to the roster.
+        """Add a free agent while dropping a currently rostered player.
 
         Args:
             add_id (str): The id of the player to add
@@ -115,32 +133,52 @@ class RosterService:
         #     self.replace_player(...)
 
         while True:
-            logger.info(f"The time is {datetime.now()}.")
+            now = datetime.now()
+            if now > start + timedelta(hours=3):  # TODO: make timeout configurable
+                raise TimeoutExceededError("Took too long to add player")
+
+            logger.info(f"The time is {now}.")
             try:
                 self.client.replace_player(add_id=add_id, drop_id=drop_id)
                 if not self.is_rostered(add_id):
                     raise FantasyUnknownError(f"Error - player '{add_id}' not added.")
                 logger.info(f"Success!  Player {add_id} is now on roster.")
                 return
-            except Exception as err:
-                match err:
-                    case UnintendedWaiverAddError():
-                        waiver_wait_min = 30
-                        logger.info(
-                            "Accidentally added player to waivers, canceling now."
-                        )
-                        self.cancel_waiver_claim(add_id)
-                        logger.info(
-                            f"Waiting {waiver_wait_min} minutes for waivers to clear "
-                            f"before trying to add player {add_id} from FA again."
-                        )
-                        sleep(waiver_wait_min * 60)
-                        continue
-                    case _:
-                        logger.info(str(err))
-                        logger.info(f"Sleeping 0.1 seconds.")
-                        sleep(0.1)
-                        continue
+            except Exception as err:  # TODO: make stricter
+                self._handle_add_and_replace_client_errors(add_id=add_id, err=err)
+                continue
+
+    def add_player(self, add_id: str, start: datetime) -> None:
+        """Adds a player from free agency to the roster.
+
+        Args:
+            add_id (str): The id of the player to add
+
+        Raises:
+            FantasyUnknownError: _description_
+        """
+        self.prepare_to_add(add_id=add_id, start=start)
+
+        # if self.on_waivers(add_id):
+        #     logger.info("Player still on waivers.  Sleeping 5 minutes then trying again.")
+        #     sleep(5_minutes)
+        #     self.replace_player(...)
+
+        while True:
+            now = datetime.now()
+            if now > start + timedelta(hours=3):  # TODO: make timeout configurable
+                raise TimeoutExceededError("Took too long to add player")
+
+            logger.info(f"The time is {now}.")
+            try:
+                self.client.add_player(add_id=add_id)
+                if not self.is_rostered(add_id):
+                    raise FantasyUnknownError(f"Error - player '{add_id}' not added.")
+                logger.info(f"Success!  Player {add_id} is now on roster.")
+                return
+            except Exception as err:  # TODO: make stricter
+                self._handle_add_and_replace_client_errors(add_id=add_id, err=err)
+                continue
 
     def drop_player(self, drop_id: str, start: datetime) -> None:
         """Drops a player.

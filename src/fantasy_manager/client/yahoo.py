@@ -107,7 +107,7 @@ class YahooClient(BaseClient):
         return Team.from_roster_api(prune_dict(Team, data))
 
     @staticmethod
-    def _handle_client_error(add_id: str, err: Exception):
+    def _handle_yfa_error(add_id: str, err: Exception):
         msg = str(err)
         match msg:
             case str() if "no longer qualifies for that position" in msg:
@@ -127,7 +127,7 @@ class YahooClient(BaseClient):
         try:
             self.team_handle.add_player(add_id)
         except Exception as err:
-            self._handle_client_error(add_id=add_id, err=err)
+            self._handle_yfa_error(add_id=add_id, err=err)
 
     def replace_player(self, add_id: str, drop_id: str = None) -> None:
         try:
@@ -135,7 +135,7 @@ class YahooClient(BaseClient):
                 add_player_id=add_id, drop_player_id=drop_id
             )
         except Exception as err:
-            self._handle_client_error(add_id=add_id, err=err)
+            self._handle_yfa_error(add_id=add_id, err=err)
 
     def place_waiver_claim(
         self, add_id: str, drop_id: str = None, faab: int = None

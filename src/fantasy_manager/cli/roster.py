@@ -24,8 +24,8 @@ def add_player(
 ) -> command.success_result:
     add_id, start, run_now = args["--add"], args["--start"]
     controller.log_inputs(add_id=add_id)
-    controller.add_player_with_delay(add_id=add_id, start=start, run_now=run_now)
-    command.success_result(f"Succesfully added player {add_id}")
+    controller.add_player(add_id=add_id, start_dt=start, run_now=run_now)
+    return command.success_result(f"Succesfully added player {add_id}")
 
 
 def drop_player(
@@ -34,7 +34,7 @@ def drop_player(
     drop_id, start, run_now = args["--drop"], args["--start"]
     controller.log_inputs(drop_id=drop_id)
     controller.drop_player_with_delay(drop_id=drop_id, start=start, run_now=run_now)
-    command.success_result(f"Succesfully dropped player {drop_id}")
+    return command.success_result(f"Succesfully dropped player {drop_id}")
 
 
 def replace_player(
@@ -45,8 +45,8 @@ def replace_player(
         args["--drop"],
         args["--start"],
     )
-    controller.replace_player(add_id=add_id, drop_id=drop_id, start=start)
-    command.success_result(
+    controller.replace_player(add_id=add_id, drop_id=drop_id, start_dt=start)
+    return command.success_result(
         f"Succesfully added player {add_id} and dropped player {drop_id}"
     )
 

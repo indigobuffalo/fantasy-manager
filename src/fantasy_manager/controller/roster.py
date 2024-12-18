@@ -85,11 +85,12 @@ class RosterController:
     def add_player(
         self,
         add_id: str,
-        start: datetime = None,
+        start_dt: Optional[str] = None,
     ) -> None:
-        self.service.replace_player(
+        start_dt = self._get_start(start_dt)
+        self.service.add_player(
             add_id=add_id,
-            start=start,
+            start=start_dt,
         )
 
     def drop_player(
@@ -100,11 +101,11 @@ class RosterController:
         pass
 
     def replace_player(
-        self, add_id: str, drop_id: str = None, start: Optional[str] = None
+        self, add_id: str, drop_id: str = None, start_dt: Optional[str] = None
     ) -> None:
-        start = self._get_start(start)
+        start_dt = self._get_start(start_dt)
         self.log_inputs(add_id=add_id, drop_id=drop_id)
-        self.service.replace_player(add_id=add_id, drop_id=drop_id, start=start)
+        self.service.replace_player(add_id=add_id, drop_id=drop_id, start=start_dt)
 
     def edit_lineup(self, roster_filename: str, game_date: date):
         data = {
