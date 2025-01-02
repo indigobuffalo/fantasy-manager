@@ -3,7 +3,7 @@
 usage() { echo "$0 usage:" && grep " .)\ #" $0; exit 0; }
 [ $# -eq 0 ] && usage
 
-PROJECT_DIR="$HOME/code/personal/fantasy-manager"
+PROJECT_DIR="$(dirname "$(dirname "$0")")"
 
 # unset required args
 unset DROP_ID
@@ -13,7 +13,7 @@ unset LEAGUE
 NOW_OPT=""
 START_OPT=""
 
-while getopts "d:hl:ns:" opt; do
+while getopts "d:hl:s:" opt; do
   case $opt in
     d) # The id of the player to be dropped.
       DROP_ID="$OPTARG"
@@ -24,9 +24,6 @@ while getopts "d:hl:ns:" opt; do
       ;;
     l) # The league name.
       LEAGUE="$OPTARG"
-      ;;
-    n) # Add the player immediately.
-      NOW_OPT="--now"
       ;;
     s) # ISO 8601 time stamp which sets the time to add the player.
       START_OPT="--start $OPTARG"
@@ -45,7 +42,7 @@ check_args(){
 check_args
 
 pushd $PROJECT_DIR
-caffeinate -is pipenv run python src/fantasy_manager/cli/__init__.py roster drop --league $LEAGUE --drop $DROP_ID $START_OPT $NOW_OPT 
+caffeinate -is pipenv run python src/fantasy_manager/cli/__init__.py roster drop --league $LEAGUE --drop $DROP_ID $START_OPT
 exit_code=$?
 popd
 

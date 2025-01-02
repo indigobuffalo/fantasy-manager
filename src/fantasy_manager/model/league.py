@@ -9,7 +9,7 @@ from fantasy_manager.model.enums.platform import Platform
 class League:
     id: str
     key: str
-    locked_players: tuple
+    locked_players: tuple[int]
     name: str
     name_abbr: str
     platform: Platform

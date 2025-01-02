@@ -28,7 +28,7 @@ class PlayerName:
 
 @dataclass(frozen=True)
 class BasePlayer:
-    player_id: str
+    player_id: int
 
 
 @dataclass(frozen=True)

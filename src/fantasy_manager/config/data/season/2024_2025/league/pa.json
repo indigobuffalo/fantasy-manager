@@ -6,5 +6,5 @@
     "platform": "YAHOO",
     "team_id": 1,
     "team_name": "Larkin Up the Wrong Tree",
-    "locked_players": ["6744", "6751", "6877"]
+    "locked_players": [6744, 6751, 6877]
 }

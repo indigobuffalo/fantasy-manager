@@ -3,8 +3,6 @@ import logging
 from time import sleep
 from typing import Iterator
 
-logger = logging.getLogger(__name__)
-
 DAYS_OF_WEEK = {
     "Monday": 0,
     "Tuesday": 1,
@@ -30,7 +28,7 @@ def days_until(until_day: str, from_date: date = date.today()) -> int:
     return days_until
 
 
-def sleep_until(dt: datetime) -> None:
+def sleep_until(dt: datetime, logger: logging.Logger) -> None:
     if datetime.now() < dt:
         duration = dt - datetime.now()
         total_seconds = duration.total_seconds()
@@ -46,7 +44,7 @@ def sleep_until(dt: datetime) -> None:
         sleep(total_sleep_secs)
 
 
-def sleep_verbose(logger: logging.Logger, sleep_seconds: int) -> None:
+def sleep_verbose(sleep_seconds: float, logger: logging.Logger) -> None:
     logger.info(f"Sleeping for {sleep_seconds} seconds...")
     sleep(sleep_seconds)
 

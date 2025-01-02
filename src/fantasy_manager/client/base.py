@@ -26,17 +26,17 @@ class BaseClient(ABC):
         pass
 
     @abstractmethod
-    def check_current_auth(self):
-        """Ensure the current session is authenticated."""
+    def refresh(self):
+        """Refresh client auth and handles."""
         pass
 
     @abstractmethod
-    def add_player(self, add_id: str, drop_id: str = None) -> Response:
+    def add_player(self, add_id: int) -> Response:
         """Add a player to the roster.
 
         Args:
-            add_id (str): The id of player to add.
-            drop_id (str, optional): The id of player to drop. Defaults to None.
+            add_id (int): The id of player to add.
+            drop_id (int, optional): The id of player to drop. Defaults to None.
 
         Returns:
             Response: Response of the add player request.
@@ -45,7 +45,7 @@ class BaseClient(ABC):
 
     @abstractmethod
     def place_waiver_claim(
-        self, add_id: str, drop_id: str = None, faab: int = None
+        self, add_id: int, drop_id: int = None, faab: int = None
     ) -> Response:
         """Place a waiver caim.
 
@@ -60,7 +60,7 @@ class BaseClient(ABC):
         pass
 
     @abstractmethod
-    def cancel_waiver_claim(self, player_id: str) -> Response:
+    def cancel_waiver_claim(self, player_id: int) -> Response:
         """Cancel a waiver claim.
 
         Args:

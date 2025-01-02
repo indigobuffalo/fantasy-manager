@@ -1,7 +1,7 @@
 import datetime
 import json
-import re
-from typing import Any
+import logging
+from typing import Optional
 
 import yahoo_fantasy_api as yfa
 from requests import Response
@@ -10,8 +10,8 @@ from yahoo_oauth import OAuth2
 from fantasy_manager.client.base import BaseClient
 from fantasy_manager.config.config import FantasyConfig
 from fantasy_manager.exceptions import (
-    FantasyAuthError,
     AlreadyPlayedError,
+    FantasyAuthError,
     FantasyUnknownError,
     InvalidRosterPosition,
     MaxAddsError,
@@ -19,12 +19,14 @@ from fantasy_manager.exceptions import (
     OnAnotherTeamError,
 )
 from fantasy_manager.model.enums.platform_url import PlatformUrl
-from fantasy_manager.model.enums.position import Position
 from fantasy_manager.model.league import League
-from fantasy_manager.model.player import Player, LineupPlayer
+from fantasy_manager.model.player import Player
 from fantasy_manager.model.lineup import Lineup
 from fantasy_manager.model.team import Team
 from fantasy_manager.util.dataclass_utils import prune_dict
+
+
+logger = logging.getLogger(__name__)
 
 
 class TeamDataNotFoundError(Exception):
@@ -62,19 +64,26 @@ class YahooClient(BaseClient):
         self.session_context = OAuth2(
             None, None, from_file=self.config.YAHOO_CREDS_FILE
         )
-        self.leage_handle = yfa.Game(self.session_context, "nhl").to_league(
+        self.league_handle = yfa.Game(self.session_context, "nhl").to_league(
             self.league.key
         )
-        self.team_handle = self.leage_handle.to_team(self.leage_handle.team_key())
+        self.team_handle = self.league_handle.to_team(self.league_handle.team_key())
+
+    def _check_locked_players(self) -> None:
+        """Ensure all expected players are on roster.
+
+        Raises:
+            FantasyAuthError: If not all locked players are on roster.
+        """
+        rostered_players_ids = [p["player_id"] for p in self.team_handle.roster()]
+        locked_player_ids = self.league.locked_players
+        if not all(locked in rostered_players_ids for locked in locked_player_ids):
+            raise FantasyAuthError("Failed to load team. Check auth.")
 
     def refresh(self):
-        """Refreshes client auth and related handles."""
+        """Refresh client auth and related handles."""
         self._refresh_context()
-
-    def check_current_auth(self):
-        resp = self.session.get(self.team_url)
-        if not all(player in resp.text for player in self.league.locked_players):
-            raise FantasyAuthError("Not logged in!")
+        self._check_locked_players()
 
     def set_lineup(self, lineup: Lineup, lineup_date: datetime.date) -> None:
         """Set lineup for the given date.
@@ -98,64 +107,67 @@ class YahooClient(BaseClient):
     def get_team(self) -> Team:
         data = {}
 
-        data.update(self.leage_handle.teams()[self.leage_handle.team_key()])
+        data.update(self.league_handle.teams()[self.league_handle.team_key()])
 
-        yfa_team = self.leage_handle.to_team(self.leage_handle.team_key())
+        yfa_team = self.league_handle.to_team(self.league_handle.team_key())
         data["roster"] = yfa_team.roster()
         data["league_id"] = yfa_team.league_id
 
         return Team.from_roster_api(prune_dict(Team, data))
 
     @staticmethod
-    def _handle_yfa_error(add_id: str, err: Exception):
+    def _handle_client_error(add_id: int, err: Exception):
+        add_id_str = str(add_id)
         msg = str(err)
         match msg:
             case str() if "no longer qualifies for that position" in msg:
-                raise InvalidRosterPosition(add_id, msg)
+                raise InvalidRosterPosition(add_id_str, msg)
             case str() if "player has already played" in msg:
-                raise AlreadyPlayedError(add_id)
+                raise AlreadyPlayedError(add_id_str)
             case str() if "player is currently on another team" in msg:
-                raise OnAnotherTeamError(add_id)
+                raise OnAnotherTeamError(add_id_str)
             case str() if "reached the weekly limit" in msg:
                 raise MaxAddsError()
             case str() if f"is not on team" in msg:
-                raise NotOnRosterError(add_id, msg)
+                raise NotOnRosterError(add_id_str, msg)
             case _:
-                raise FantasyUnknownError(f"Error adding player '{add_id}':\n\n{msg}")
+                raise FantasyUnknownError(
+                    f"Error adding player '{add_id_str}':\n\n{msg}"
+                )
 
-    def add_player(self, add_id: str) -> None:
+    def add_player(self, add_id: int) -> None:
         try:
             self.team_handle.add_player(add_id)
         except Exception as err:
-            self._handle_yfa_error(add_id=add_id, err=err)
+            self._handle_client_error(add_id=add_id, err=err)
 
-    def replace_player(self, add_id: str, drop_id: str = None) -> None:
+    def replace_player(self, add_id: int, drop_id: Optional[int] = None) -> None:
         try:
             self.team_handle.add_and_drop_players(
                 add_player_id=add_id, drop_player_id=drop_id
             )
         except Exception as err:
-            self._handle_yfa_error(add_id=add_id, err=err)
+            self._handle_client_error(add_id=add_id, err=err)
 
     def place_waiver_claim(
-        self, add_id: str, drop_id: str = None, faab: int = None
+        self, add_id: int, drop_id: Optional[int] = None, faab: int = None
     ) -> Response:
         data = {
             "stage": "3",
             "crumb": self.crumb,
             "stat1": "P",
             "stat2": "P",
-            "apid": add_id,
+            "apid": f"{add_id}",
         }
 
         if drop_id is not None:
-            data["dpid"] = drop_id
+            data["dpid"] = f"{drop_id}"
         if faab is not None:
             data["faab"] = faab
 
         return self.session.post(f"{self.team_url}/addplayer", data=data)
 
-    def cancel_waiver_claim(self, player_id: str) -> Response:
+    def cancel_waiver_claim(self, player_id: int) -> Response:
         data = {
             "stage": "2",
             "crumb": self.crumb,
@@ -167,5 +179,5 @@ class YahooClient(BaseClient):
         return self.session.post(f"{self.team_url}/editwaiver", data=data)
 
     def get_player_by_id(self, player_id: int) -> Player:
-        yfa_player = self.leage_handle.player_details(player_id)[0]
+        yfa_player = self.league_handle.player_details(player_id)[0]
         return Player.from_dict(prune_dict(Player, yfa_player))

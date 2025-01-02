@@ -25,9 +25,6 @@ class FantasyConfig:
         LOG_LEVEL = "INFO"
 
     PRE_FLIGHT_CHECK_SECS = 30
-    SEASON = os.getenv("FANTASY_SEASON", "2024_2025")
-    YEAR = os.getenv("YEAR", "2024")
-    YAHOO_CREDS_FILE = os.getenv("YAHOO_CREDS_FILE")
 
     PLATFORM_URLS = {
         Platform.ESPN: {
@@ -43,6 +40,11 @@ class FantasyConfig:
             PlatformUrl.NHL: "https://sports.yahoo.com/nhl",
         },
     }
+
+    SEASON = os.getenv("FANTASY_SEASON", "2024_2025")
+    TIMEOUT_SECONDS = os.getenv("TIMEOUT_SECONDS", 15)
+    YEAR = os.getenv("YEAR", "2024")
+    YAHOO_CREDS_FILE = os.getenv("YAHOO_CREDS_FILE")
 
     @classmethod
     def get_platform_url(cls, platform: Platform, key: PlatformUrl) -> str:

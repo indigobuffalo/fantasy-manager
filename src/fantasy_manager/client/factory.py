@@ -1,5 +1,3 @@
-from fantasy_manager.client.espn import EspnClient
-from fantasy_manager.client.fantrax import FantraxClient
 from fantasy_manager.client.yahoo import YahooClient
 from fantasy_manager.config.config import FantasyConfig
 from fantasy_manager.model.enums.platform import Platform

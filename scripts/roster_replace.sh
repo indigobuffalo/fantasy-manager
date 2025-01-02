@@ -3,7 +3,7 @@
 usage() { echo "$0 usage:" && grep " .)\ #" $0; exit 0; }
 [ $# -eq 0 ] && usage
 
-PROJECT_DIR="$HOME/code/personal/fantasy-manager"
+PROJECT_DIR="$(dirname "$(dirname "$0")")"
 
 # unset required args
 unset ADD_ID
@@ -46,7 +46,7 @@ check_args(){
 check_args
 
 pushd $PROJECT_DIR
-caffeinate -is pipenv run python src/fantasy_manager/cli/__init__.py roster replace --league $LEAGUE --add $ADD_ID --drop $DROP_ID $START_OPT $NOW_OPT 
+caffeinate -is pipenv run python src/fantasy_manager/cli/__init__.py roster replace --league $LEAGUE --add $ADD_ID --drop $DROP_ID $START_OPT
 exit_code=$?
 popd
 

@@ -1,11 +1,10 @@
-from ctypes import Union
-from datetime import datetime, date
+from datetime import datetime
 import logging
 from pathlib import Path
 from typing import Optional
 
 from fantasy_manager.service.roster import RosterService
-from fantasy_manager.util.misc import log_line_break
+from fantasy_manager.util.misc import log_line_break, confirm_proceed
 from fantasy_manager.util.time_utils import upcoming_midnight
 
 PROJECT_DIR = Path(__file__).parent.absolute()
@@ -68,9 +67,6 @@ class RosterController:
         """
         return self.service.get_player_data(player_id).to_json()
 
-    def add_free_agent(self, add_id: str, drop_id: str) -> None:
-        return self.service.add_free_agent(add_id=add_id, drop_id=drop_id)
-
     @staticmethod
     def _get_start(start: str) -> datetime:
         start = start.lower() if start is not None else None
@@ -84,10 +80,13 @@ class RosterController:
 
     def add_player(
         self,
-        add_id: str,
-        start_dt: Optional[str] = None,
+        add_id: int,
+        start: Optional[str] = None,
     ) -> None:
-        start_dt = self._get_start(start_dt)
+        start_dt = self._get_start(start)
+        self.log_inputs(add_id=add_id)
+        if start_dt <= datetime.now():
+            confirm_proceed()
         self.service.add_player(
             add_id=add_id,
             start=start_dt,
@@ -95,26 +94,16 @@ class RosterController:
 
     def drop_player(
         self,
-        drop_id: str,
-        start: datetime = None,
+        drop_id: int,
+        start: Optional[str] = None,
     ) -> None:
         pass
 
     def replace_player(
-        self, add_id: str, drop_id: str = None, start_dt: Optional[str] = None
+        self, add_id: int, drop_id: int = None, start: Optional[str] = None
     ) -> None:
-        start_dt = self._get_start(start_dt)
+        start_dt = self._get_start(start)
         self.log_inputs(add_id=add_id, drop_id=drop_id)
+        if start_dt <= datetime.now():
+            confirm_proceed()
         self.service.replace_player(add_id=add_id, drop_id=drop_id, start=start_dt)
-
-    def edit_lineup(self, roster_filename: str, game_date: date):
-        data = {
-            "ret": "swap",
-            "date": datetime.strftime(game_date, "%Y-%m-%d"),
-            "stat1": "S",
-            "stat2": "D",
-            "crumb": self.config.get_crumb(self.league.platform),
-        }
-        roster_data = self.config.get_roster_data(self.league.name_abbr)
-        data.update(roster_data)
-        return self.session.post(f"{self.team_url}/editroster", data=data)
