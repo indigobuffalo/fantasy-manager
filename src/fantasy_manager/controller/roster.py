@@ -53,9 +53,6 @@ class RosterController:
         )
         log_line_break(logger)
 
-    def get_league(self) -> str:
-        return self.service.league.to_json()
-
     def get_player(self, player_id: int) -> str:
         """Gets player data and returns it as a json string
 

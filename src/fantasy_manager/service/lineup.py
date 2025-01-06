@@ -23,7 +23,7 @@ PROJECT_DIR = Path(__file__).parent.absolute()
 logger = logging.getLogger(__name__)
 
 
-class RosterService:
+class LineupService:
     def __init__(self, league_name: str):
         self.config = FantasyConfig()
         self.league = self.config.get_league(league_name)
@@ -32,12 +32,6 @@ class RosterService:
         )
         self.client.refresh()
         self.timeout_seconds = self.config.TIMEOUT_SECONDS
-
-    def _check_add_player_inputs(self, add_id: int, drop_id: int) -> None:
-        if self.is_rostered(add_id):
-            raise AlreadyAddedError(add_id)
-        if drop_id is not None and not self.is_rostered(drop_id):
-            raise NotOnRosterError(drop_id)
 
     def are_rostered(self, player_ids: list[str]) -> list[str]:
         unrostered = list()
@@ -48,6 +42,19 @@ class RosterService:
 
     def is_rostered(self, player_id: int) -> bool:
         return player_id in [p.player_id for p in self.client.get_team().roster]
+
+    # TODO: FIX THIS on_waivers method
+    def on_waivers(self, player_id):
+        add_response = self.session.get(f"{self.team_url}/addplayer?apid={player_id}")
+        return "Claim Player From Waivers" in add_response.text
+
+    def cancel_waiver_claim(self, player_id: str):
+        cancel_response = self.client.cancel_waiver_claim(player_id)
+        if cancel_response.status_code == 200:
+            logger.info("Successfully canceled waiver claim")
+        else:
+            pass
+        return
 
     def get_player_data(self, player_id: int) -> Player:
         return self.client.get_player_by_id(player_id)
@@ -60,7 +67,7 @@ class RosterService:
             drop (Optional[int]): Id of the player to drop
         """
         self.client.refresh()
-        self._check_add_player_inputs(add_id=add_id, drop_id=drop_id)
+        self.__check_add_player_inputs(add_id=add_id, drop_id=drop_id)
 
     def prepare_to_add(
         self, start: datetime, add_id: int, drop_id: Optional[int] = None
@@ -71,6 +78,12 @@ class RosterService:
         sleep_until(preflight_check_dt, logger)
         self.run_preflight_checks(add_id, drop_id)
         sleep_until(start, logger)
+
+    def __check_add_player_inputs(self, add_id: int, drop_id: int) -> None:
+        if self.is_rostered(add_id):
+            raise AlreadyAddedError(add_id)
+        if drop_id is not None and not self.is_rostered(drop_id):
+            raise NotOnRosterError(drop_id)
 
     def place_waiver_claim(
         self, add_id: str, drop_id: str = None, faab: int = None
@@ -169,3 +182,15 @@ class RosterService:
             FantasyUnknownError: _description_
         """
         pass
+
+    def edit_lineup(self, roster_filename: str, game_date: date):
+        data = {
+            "ret": "swap",
+            "date": datetime.strftime(game_date, "%Y-%m-%d"),
+            "stat1": "S",
+            "stat2": "D",
+            "crumb": self.config.get_crumb(self.league.platform),
+        }
+        roster_data = self.config.get_roster_data(self.league.name_abbr)
+        data.update(roster_data)
+        return self.session.post(f"{self.team_url}/editroster", data=data)

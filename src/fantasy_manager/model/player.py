@@ -78,9 +78,9 @@ class Player(BasePlayer):
 
 @dataclass(frozen=True)
 class LineupPlayer(BasePlayer):
-    selected_position: Position
     name: Optional[str] = None
-    ranking: int = None
+    selected_position: Optional[Position] = None
+    ranking: int
 
     def to_json(self) -> str:
         """Convert the LineupPlayer instance to a JSON string for the lineup API."""

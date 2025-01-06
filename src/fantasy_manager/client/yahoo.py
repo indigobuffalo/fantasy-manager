@@ -152,31 +152,10 @@ class YahooClient(BaseClient):
     def place_waiver_claim(
         self, add_id: int, drop_id: Optional[int] = None, faab: int = None
     ) -> Response:
-        data = {
-            "stage": "3",
-            "crumb": self.crumb,
-            "stat1": "P",
-            "stat2": "P",
-            "apid": f"{add_id}",
-        }
+        pass
 
-        if drop_id is not None:
-            data["dpid"] = f"{drop_id}"
-        if faab is not None:
-            data["faab"] = faab
-
-        return self.session.post(f"{self.team_url}/addplayer", data=data)
-
-    def cancel_waiver_claim(self, player_id: int) -> Response:
-        data = {
-            "stage": "2",
-            "crumb": self.crumb,
-            "claim_id": f"1_{player_id}_0",
-            "mode": "edit",
-            "apid": player_id,
-            "s": "Cancel Waiver",
-        }
-        return self.session.post(f"{self.team_url}/editwaiver", data=data)
+    def cancel_waiver_claim(self, player_id: int) -> None:
+        pass
 
     def get_player_by_id(self, player_id: int) -> Player:
         yfa_player = self.league_handle.player_details(player_id)[0]
