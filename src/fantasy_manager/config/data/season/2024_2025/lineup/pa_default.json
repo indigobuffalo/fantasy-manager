@@ -1,23 +1,48 @@
 [
     {
+        "player_id": 7900,
+        "name": "Andrei Svechnikov",
+        "ranking": 85
+    },
+    {
+        "player_id": 5441,
+        "name": "Blake Coleman",
+        "ranking": 86
+    },
+    {
         "player_id": 7902,
         "name": "Brady Tkachuk",
         "ranking": 99
     },
     {
-        "player_id": 6877,
-        "name": "Kirill Kaprizov",
-        "ranking": 97
+        "player_id": 5053,
+        "name": "Bryan Rust",
+        "ranking": 90
+    },
+    {
+        "player_id": 4472,
+        "name": "Drew Doughty",
+        "ranking": 86
+    },
+    {
+        "player_id": 8654,
+        "name": "Dylan Holloway",
+        "ranking": 90
+    },
+    {
+        "player_id": 6381,
+        "name": "Dylan Larkin",
+        "ranking": 85
     },
     {
         "player_id": 6744,
         "name": "Jack Eichel",
-        "ranking": 94
+        "ranking": 95
     },
     {
-        "player_id": 5152,
-        "name": "Mark Stone",
-        "ranking": 91
+        "player_id": 30154,
+        "name": "Jackson LaCombe",
+        "ranking": 84
     },
     {
         "player_id": 6451,
@@ -25,94 +50,68 @@
         "ranking": 88
     },
     {
-        "player_id": 1111,
-        "name": "DO_NOT_KNOW",
-        "ranking": 0
+        "player_id": 4503,
+        "name": "John Carlson",
+        "ranking": 90
     },
     {
-        "player_id": 1111,
-        "name": "DO_NOT_KNOW",
-        "ranking": 0
+        "player_id": 5454,
+        "name": "Jordan Binnington",
+        "ranking": 85
     },
     {
-        "player_id": 1111,
-        "name": "DO_NOT_KNOW",
-        "ranking": 0
+        "player_id": 6877,
+        "name": "Kirill Kaprizov",
+        "ranking": 97
+    },
+    {
+        "player_id": 5853,
+        "name": "Linus Ullmark",
+        "ranking": 94
+    },
+    {
+        "player_id": 5152,
+        "name": "Mark Stone",
+        "ranking": 92
+    },
+    {
+        "player_id": 6936,
+        "name": "Matt Roy",
+        "ranking": 82
+    },
+    {
+        "player_id": 5685,
+        "name": "Morgan Rielly",
+        "ranking": 68
+    },
+    {
+        "player_id": 7516,
+        "name": "Nico Hischier",
+        "ranking": 93
+    },
+    {
+        "player_id": 7111,
+        "name": "Pierre-Luc Dubois",
+        "ranking": 74
+    },
+    {
+        "player_id": 8314,
+        "name": "Pyotr Kochetkov",
+        "ranking": 84
+    },
+    {
+        "player_id": 8643,
+        "name": "Tim Stutzle",
+        "ranking": 91
     },
     {
         "player_id": 6751,
         "name": "Timo Meier",
-        "ranking": 82
+        "ranking": 86
     },
     {
-        "player_id": 1111,
-        "name": "DO_NOT_KNOW",
-        "ranking": 0
-    },
-    {
-        "player_id": 1111,
-        "name": "DO_NOT_KNOW",
-        "ranking": 0
-    },
-    {
-        "player_id": 1111,
-        "name": "DO_NOT_KNOW",
-        "ranking": 0
-    },
-    {
-        "player_id": 1111,
-        "name": "DO_NOT_KNOW",
-        "ranking": 0
-    },
-    {
-        "player_id": 1111,
-        "name": "DO_NOT_KNOW",
-        "ranking": 0
-    },
-    {
-        "player_id": 1111,
-        "name": "DO_NOT_KNOW",
-        "ranking": 0
-    },
-    {
-        "player_id": 1111,
-        "name": "DO_NOT_KNOW",
-        "ranking": 0
-    },
-    {
-        "player_id": 1111,
-        "name": "DO_NOT_KNOW",
-        "ranking": 0
-    },
-    {
-        "player_id": 1111,
-        "name": "DO_NOT_KNOW",
-        "ranking": 0
-    },
-    {
-        "player_id": 1111,
-        "name": "DO_NOT_KNOW",
-        "ranking": 0
-    },
-    {
-        "player_id": 1111,
-        "name": "DO_NOT_KNOW",
-        "ranking": 0
-    },
-    {
-        "player_id": 1111,
-        "name": "DO_NOT_KNOW",
-        "ranking": 0
-    },
-    {
-        "player_id": 1111,
-        "name": "DO_NOT_KNOW",
-        "ranking": 0
-    },
-    {
-        "player_id": 1111,
-        "name": "DO_NOT_KNOW",
-        "ranking": 0
+        "player_id": 5989,
+        "name": "Valeri Nichuskin",
+        "ranking": 90
     }
-
 ]
