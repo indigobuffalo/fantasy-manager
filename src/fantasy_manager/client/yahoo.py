@@ -84,6 +84,10 @@ class YahooClient(BaseClient):
         """Refresh client auth and related handles."""
         self._refresh_context()
         self._check_locked_players()
+        import ipdb
+
+        ipdb.set_trace()
+        self.team_handle.change_positions
 
     def set_lineup(self, lineup: Lineup, lineup_date: datetime.date) -> None:
         """Set lineup for the given date.

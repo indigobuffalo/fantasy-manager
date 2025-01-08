@@ -6,7 +6,6 @@ from fantasy_manager.controller.lineup import LineupController
 def automate_lineup(
     args: dict[str, Any], controller: LineupController
 ) -> command.success_result:
-    lineup_file = args["--lineup-file"]
     controller.automate_lineup()
     return command.success_result(
         f"Succesfully set lineup for {controller.service.league.name}"

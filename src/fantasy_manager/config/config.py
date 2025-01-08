@@ -10,6 +10,7 @@ from fantasy_manager.exceptions import InvalidLeagueError
 from fantasy_manager.model.league import League
 from fantasy_manager.model.enums.platform import Platform
 from fantasy_manager.model.enums.platform_url import PlatformUrl
+from fantasy_manager.model.lineup import Lineup
 
 
 load_dotenv()
@@ -81,6 +82,22 @@ class FantasyConfig:
 
     @classmethod
     def get_league(cls, league_name: str) -> League:
+        """Load league-specific configuration on demand, considering the current season."""
+        league_file = (
+            CONFIG_DIR / f"data/season/{cls.SEASON}/league/{league_name.lower()}.json"
+        )
+
+        if not league_file.exists():
+            raise InvalidLeagueError(
+                f"No configuration file found for league: {league_name} in season {cls.SEASON}"
+            )
+
+        with open(league_file) as f:
+            json_data = json.load(f)
+            return League.from_dict(json_data)
+
+    @classmethod
+    def get_lineup(cls, lineup_name: str) -> Lineup:
         """Load league-specific configuration on demand, considering the current season."""
         league_file = (
             CONFIG_DIR / f"data/season/{cls.SEASON}/league/{league_name.lower()}.json"
