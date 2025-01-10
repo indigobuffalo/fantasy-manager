@@ -28,14 +28,23 @@ def days_until(until_day: str, from_date: date = date.today()) -> int:
     return days_until
 
 
+def seconds_to_hours_mins_and_secs(seconds: float) -> tuple[float, float, float]:
+    """Convert a duration represented as total seconds into hours, minutes and seconds"""
+    seconds = abs(seconds)
+    hours = seconds // 3600
+    minutes = (seconds % 3600) // 60
+    seconds = seconds % 60
+    return hours, minutes, seconds
+
+
 def sleep_until(dt: datetime, logger: logging.Logger) -> None:
     if datetime.now() < dt:
         duration = dt - datetime.now()
         total_seconds = duration.total_seconds()
         total_sleep_secs = total_seconds - 0.2
-        sleep_hours = total_sleep_secs // 3600
-        sleep_mins = (total_sleep_secs % 3600) // 60
-        sleep_secs = total_sleep_secs % 60
+        sleep_hours, sleep_mins, sleep_secs = seconds_to_hours_mins_and_secs(
+            total_sleep_secs
+        )
         logger.info(
             f"Time until {dt.isoformat()}: '{duration}'. "
             f"Sleeping {int(sleep_hours)} hours "

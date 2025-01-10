@@ -20,7 +20,7 @@ from fantasy_manager.exceptions import (
 )
 from fantasy_manager.model.enums.platform_url import PlatformUrl
 from fantasy_manager.model.league import League
-from fantasy_manager.model.player import Player
+from fantasy_manager.model.player import ApiPlayer
 from fantasy_manager.model.lineup import Lineup
 from fantasy_manager.model.team import Team
 from fantasy_manager.util.dataclass_utils import prune_dict
@@ -84,10 +84,6 @@ class YahooClient(BaseClient):
         """Refresh client auth and related handles."""
         self._refresh_context()
         self._check_locked_players()
-        import ipdb
-
-        ipdb.set_trace()
-        self.team_handle.change_positions
 
     def set_lineup(self, lineup: Lineup, lineup_date: datetime.date) -> None:
         """Set lineup for the given date.
@@ -117,7 +113,7 @@ class YahooClient(BaseClient):
         data["roster"] = yfa_team.roster()
         data["league_id"] = yfa_team.league_id
 
-        return Team.from_roster_api(prune_dict(Team, data))
+        return Team.from_dict(prune_dict(Team, data))
 
     @staticmethod
     def _handle_client_error(add_id: int, err: Exception):
@@ -161,6 +157,17 @@ class YahooClient(BaseClient):
     def cancel_waiver_claim(self, player_id: int) -> None:
         pass
 
-    def get_player_by_id(self, player_id: int) -> Player:
+    def get_player_by_id(self, player_id: int) -> ApiPlayer:
+        """Fetches player from yfa's League.get_player_details endpoint.
+
+        Note: we ignore some data coming back from this endpoint which we may
+        want to use in the future.  E.g. advanced stats, points, logo_url, etc.
+
+        Args:
+            player_id (int): The id of the player.
+
+        Returns:
+            ApiPlayer: an ApiPlayer model instance.
+        """
         yfa_player = self.league_handle.player_details(player_id)[0]
-        return Player.from_dict(prune_dict(Player, yfa_player))
+        return ApiPlayer.from_dict(yfa_player)

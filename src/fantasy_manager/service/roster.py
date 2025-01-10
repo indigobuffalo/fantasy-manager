@@ -14,7 +14,7 @@ from fantasy_manager.exceptions import (
     OnAnotherTeamError,
     TimeoutExceededError,
 )
-from fantasy_manager.model.player import Player
+from fantasy_manager.model.player import ApiPlayer
 from fantasy_manager.util.time_utils import sleep_until, sleep_verbose
 
 PROJECT_DIR = Path(__file__).parent.absolute()
@@ -49,7 +49,7 @@ class RosterService:
     def is_rostered(self, player_id: int) -> bool:
         return player_id in [p.player_id for p in self.client.get_team().roster]
 
-    def get_player_data(self, player_id: int) -> Player:
+    def get_player_data(self, player_id: int) -> ApiPlayer:
         return self.client.get_player_by_id(player_id)
 
     def run_preflight_checks(self, add_id: int, drop_id: Optional[int] = None):

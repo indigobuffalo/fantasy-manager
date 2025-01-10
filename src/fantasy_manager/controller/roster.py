@@ -5,7 +5,10 @@ from typing import Optional
 
 from fantasy_manager.service.roster import RosterService
 from fantasy_manager.util.misc import log_line_break, confirm_proceed
-from fantasy_manager.util.time_utils import upcoming_midnight
+from fantasy_manager.util.time_utils import (
+    seconds_to_hours_mins_and_secs,
+    upcoming_midnight,
+)
 
 PROJECT_DIR = Path(__file__).parent.absolute()
 
@@ -19,18 +22,29 @@ class RosterController:
 
     def log_inputs(
         self,
+        start: datetime,
         add_id: Optional[int] = None,
         drop_id: Optional[int] = None,
     ) -> None:
         not_applicable = "-"
+
+        add_player_data = self.service.get_player_data(add_id)
+        if drop_id is not None:
+            drop_player_data = self.service.get_player_data(drop_id)
+
+        hours, mins, secs = seconds_to_hours_mins_and_secs(
+            (datetime.now() - start).total_seconds()
+        )
+
         labels_and_values = {
             "League": self.service.league.name,
-            "Add": self.service.get_player_data(add_id).name.full
+            "Add": f"{add_player_data.name} [{add_player_data.player_id}]"
             if add_id is not None
             else not_applicable,
-            "Drop": self.service.get_player_data(drop_id).name.full
+            "Drop": f"{drop_player_data.name} [{drop_player_data.player_id}]"
             if drop_id is not None
             else not_applicable,
+            "Start": f"{start} ({int(hours)} hrs, {int(mins)} mins, {int(secs)} secs)",
         }
 
         def log_all_with_padding(
@@ -46,7 +60,7 @@ class RosterController:
                 max_label_width = max(max_label_width, len(l))
                 label_values_pairs.append((l, v))
 
-        space_btwn_label_and_val = 2
+        space_btwn_label_and_val = 4
         log_line_break(logger)
         log_all_with_padding(
             label_values_pairs, max_label_width + space_btwn_label_and_val
@@ -81,7 +95,7 @@ class RosterController:
         start: Optional[str] = None,
     ) -> None:
         start_dt = self._get_start(start)
-        self.log_inputs(add_id=add_id)
+        self.log_inputs(start=start_dt, add_id=add_id)
         if start_dt <= datetime.now():
             confirm_proceed()
         self.service.add_player(
@@ -100,7 +114,7 @@ class RosterController:
         self, add_id: int, drop_id: int = None, start: Optional[str] = None
     ) -> None:
         start_dt = self._get_start(start)
-        self.log_inputs(add_id=add_id, drop_id=drop_id)
+        self.log_inputs(start=start_dt, add_id=add_id, drop_id=drop_id)
         if start_dt <= datetime.now():
             confirm_proceed()
         self.service.replace_player(add_id=add_id, drop_id=drop_id, start=start_dt)

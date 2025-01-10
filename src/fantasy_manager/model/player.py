@@ -6,7 +6,7 @@ from typing import Optional
 
 from fantasy_manager.model.enums.position import Position, PositionType
 from fantasy_manager.model.enums.player_status import PlayerStatus
-from fantasy_manager.util.dataclass_utils import filtered_asdict
+from fantasy_manager.util.dataclass_utils import filtered_asdict, prune_dict
 
 
 @dataclass(frozen=True)
@@ -29,15 +29,49 @@ class PlayerName:
 @dataclass(frozen=True)
 class BasePlayer:
     player_id: int
+    name: str
 
 
 @dataclass(frozen=True)
-class Player(BasePlayer):
-    name: PlayerName
-    status: PlayerStatus
+class PositionedPlayer(BasePlayer):
+    """Player model with generalized (i.e. not lineup-specific) position assignments.
+
+    Attrs:
+        position_type (PositionType):         Whether the player is a skater or goalie.
+        status (PlayerStatus):                The player's status, e.g. 'IR', 'DTD', 'O', etc.
+        eligible_positions (list[Position]):  The positions the player is eligible for
+        selected_position (Position):         The player's currently selected position
+    """
+
     position_type: PositionType
+    status: PlayerStatus
     eligible_positions: list[Position]
-    selected_position: Position
+
+    @classmethod
+    def from_dict(cls, data: dict) -> ApiPlayer:
+        """Create a Player instance from a JSON string."""
+        data["position_type"] = PositionType(data["position_type"].upper())
+        data["status"] = PlayerStatus(data.get("status", "").upper())
+        data["eligible_positions"] = [
+            Position(p.upper()) for p in data["eligible_positions"]
+        ]
+        return cls(**(prune_dict(cls, data)))
+
+
+@dataclass(frozen=True)
+class ApiPlayer(PositionedPlayer):
+    """Represents comprhensive player details outside the context of a given lineup.
+    This player data is fetched from player-specific api endpoint.
+
+    Attrs:
+        name_decomposed (PlayerName): Decomposed player name, including first, last, ascii versions, etc.
+        team (str):                   The player's team.
+        team_abbr (str):              The player's team's abbreviation.
+    """
+
+    name_decomposed: PlayerName
+    team: str
+    team_abbr: str
 
     def to_json(self) -> str:
         """Convert the Player instance to a JSON string."""
@@ -46,40 +80,66 @@ class Player(BasePlayer):
         )
 
     @classmethod
-    def from_dict(cls, data: dict) -> Player:
-        """Create a Player instance from a JSON string."""
-        data["name"] = PlayerName.from_dict(data["name"])
+    def from_dict(cls, data: dict) -> ApiPlayer:
+        """Convert a dictionary into an APIPlayer instance.
+
+        The passed dict may come from an api that returns fields not needed by
+        this model.  The prune_dict method is used to remove these extraneous fields.
+
+        Args:
+            data (dict): Input dictionary containing player data.
+
+        Returns:
+            ApiPlayer: _description_
+        """
+        data["name_decomposed"] = PlayerName.from_dict(data["name"])
+        data["name"] = data["name"]["full"]
         data["status"] = PlayerStatus(data.get("status", "").upper())
         data["position_type"] = PositionType(data["position_type"].upper())
+        data["team"] = data.pop("editorial_team_full_name")
+        data["team_abbr"] = data.pop("editorial_team_abbr")
         data["eligible_positions"] = [
-            p["position"].upper() for p in data["eligible_positions"]
+            Position(p["position"].upper()) for p in data["eligible_positions"]
         ]
-        data["selected_position"] = (
-            Position(data["selected_position"].upper())
-            if "selected_position" in data
-            else None
-        )
-        return cls(**data)
+        return cls(**(prune_dict(cls, data)))
+
+
+@dataclass(frozen=True)
+class RosterPlayer(PositionedPlayer):
+    """Player model with general, non-lineup specific position assignments.
+    This player data is fetched from the yfa team.roster endpoint.
+
+    Attributes:
+        selected_position (Position):  The player's currently selected position in the lineup.
+    """
+
+    selected_position: Position
 
     @classmethod
-    def from_roster_api(cls, data: dict) -> Player:
-        """Create a Player instance from the roster API data.
+    def from_dict(cls, data: dict) -> RosterPlayer:
+        """Convert a dictionary into a RosterPlayer instance"""
+        positioned_player = PositionedPlayer.from_dict(data)
+        player_data = {
+            **positioned_player.__dict__,
+            "selected_position": Position(data["selected_position"].upper()),
+        }
+        return cls(**player_data)
 
-        The object returned by the yfa roster api lacks information of player
-        objects returned from other apis, hence the filling out of data["name"] in
-        this method.
-        """
-        data["name"] = {"full": data["name"]}
-        data["eligible_positions"] = [
-            {"position": pos} for pos in data["eligible_positions"]
-        ]
-        return cls.from_dict(data)
+
+@dataclass(frozen=True)
+class RankedPlayer(BasePlayer):
+    """Model representing a player and their custom assigned ranking
+
+    Attrs:
+      ranking (int): Custom assigned ranking from 0-100
+    """
+
+    ranking: int
 
 
 @dataclass(frozen=True)
 class LineupPlayer(BasePlayer):
     ranking: int
-    name: Optional[str] = None
     selected_position: Optional[Position] = None
 
     def to_json(self) -> str:
