@@ -4,7 +4,9 @@ from pathlib import Path
 from typing import Optional
 
 from fantasy_manager.service.roster import RosterService
-from fantasy_manager.util.misc import log_line_break, confirm_proceed
+from fantasy_manager.util.log_utils import join_with_padding, log_tuples
+from fantasy_manager.util.misc import prompt_run_now
+from fantasy_manager.util.log_utils import log_line_break
 from fantasy_manager.util.time_utils import (
     seconds_to_hours_mins_and_secs,
     upcoming_midnight,
@@ -20,51 +22,72 @@ class RosterController:
     def __init__(self, league_name: str):
         self.service = RosterService(league_name=league_name)
 
+    @staticmethod
+    def _get_loggable_time_until_start(start: datetime) -> str:
+        """Get loggable string that depicts time to exectution.
+
+        Args:
+            start (datetime): The time of execution.
+
+        Returns:
+            str: A loggable str that informs the user of time until exection.
+        """
+        hours, mins, secs = seconds_to_hours_mins_and_secs(
+            (datetime.now() - start).total_seconds()
+        )
+        return f"{int(hours)} HOURS {int(mins)} MINUTES {int(secs)} SECONDS"
+
+    def _get_loggable_player_info(
+        self, add_id: Optional[int] = None, drop_id: Optional[int] = None
+    ) -> dict[str, str]:
+        add_tuple = None
+        drop_tuple = None
+
+        if add_id is not None:
+            add_player_data = self.service.get_player_data(add_id)
+            add_tuple = (add_player_data.name, "[" + add_player_data.player_id + "]")
+        if drop_id is not None:
+            drop_player_data = self.service.get_player_data(drop_id)
+            drop_tuple = (drop_player_data.name, "[" + drop_player_data.player_id + "]")
+
+        players_with_ids = join_with_padding(
+            tuples=[
+                (add_player_data.name, f"[{add_player_data.player_id}]"),
+                (drop_player_data.name, f"[{drop_player_data.player_id}]"),
+            ],
+            separator=" ",
+        )
+        pass
+
     def log_inputs(
         self,
         start: datetime,
         add_id: Optional[int] = None,
         drop_id: Optional[int] = None,
     ) -> None:
-        not_applicable = "-"
 
         add_player_data = self.service.get_player_data(add_id)
         if drop_id is not None:
             drop_player_data = self.service.get_player_data(drop_id)
 
-        hours, mins, secs = seconds_to_hours_mins_and_secs(
-            (datetime.now() - start).total_seconds()
+        # TODO: handle add-only
+        players_with_ids = join_with_padding(
+            tuples=[
+                (add_player_data.name, f"[{add_player_data.player_id}]"),
+                (drop_player_data.name, f"[{drop_player_data.player_id}]"),
+            ],
+            separator=" ",
         )
 
-        labels_and_values = {
-            "League": self.service.league.name,
-            "Add": f"{add_player_data.name} [{add_player_data.player_id}]"
-            if add_id is not None
-            else not_applicable,
-            "Drop": f"{drop_player_data.name} [{drop_player_data.player_id}]"
-            if drop_id is not None
-            else not_applicable,
-            "Start": f"{start} ({int(hours)} hrs, {int(mins)} mins, {int(secs)} secs)",
-        }
+        pairs = [
+            ("League", self.service.league.name),
+            ("Add", players_with_ids[0]),
+            ("Drop", players_with_ids[1]),
+            ("Start", self._get_loggable_time_until_start(start)),
+        ]
 
-        def log_all_with_padding(
-            lable_value_pairs: list[tuple[str, str]], padding_width: int
-        ) -> None:
-            for label, val in lable_value_pairs:
-                logger.info(f"{label}{':'.ljust(padding_width - len(label))}{val}")
-
-        max_label_width = 0
-        label_values_pairs = []
-        for l, v in labels_and_values.items():
-            if v:
-                max_label_width = max(max_label_width, len(l))
-                label_values_pairs.append((l, v))
-
-        space_btwn_label_and_val = 4
         log_line_break(logger)
-        log_all_with_padding(
-            label_values_pairs, max_label_width + space_btwn_label_and_val
-        )
+        log_tuples(logger=logger, tuples=pairs, padding=4)
         log_line_break(logger)
 
     def get_player(self, player_id: int) -> str:
@@ -96,8 +119,7 @@ class RosterController:
     ) -> None:
         start_dt = self._get_start(start)
         self.log_inputs(start=start_dt, add_id=add_id)
-        if start_dt <= datetime.now():
-            confirm_proceed()
+        prompt_run_now(start_dt)
         self.service.add_player(
             add_id=add_id,
             start=start_dt,
@@ -115,6 +137,5 @@ class RosterController:
     ) -> None:
         start_dt = self._get_start(start)
         self.log_inputs(start=start_dt, add_id=add_id, drop_id=drop_id)
-        if start_dt <= datetime.now():
-            confirm_proceed()
+        prompt_run_now(start_dt)
         self.service.replace_player(add_id=add_id, drop_id=drop_id, start=start_dt)

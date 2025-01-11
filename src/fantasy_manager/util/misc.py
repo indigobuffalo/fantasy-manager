@@ -1,10 +1,20 @@
 """Miscellaneous utility functions"""
 
-from logging import Logger
-from fantasy_manager.exceptions import (
-    InputError,
-    UserAbortError,
-)
+from datetime import datetime
+from fantasy_manager.exceptions import InputError, UserAbortError
+
+
+def prompt_run_now(exec_start: datetime) -> None:
+    """Require user to confirm the desired action when the
+    passed start time is now or in the past.
+
+    Helps to avoid accidental irreversible actions.
+
+    Args:
+        exec_start (datetime): The time to execute the action.
+    """
+    if exec_start <= datetime.now():
+        confirm_proceed()
 
 
 def confirm_proceed() -> None:
@@ -14,21 +24,6 @@ def confirm_proceed() -> None:
         pass
     else:
         raise UserAbortError
-
-
-def log_line_break(
-    logger: Logger, spacer: str = "-", count: int = 60, lines: int = 1
-) -> None:
-    """Log out line breaks for clarity in view log messages
-
-    Args:
-        logger (Logger): The logger to use.
-        spacer (str, optional): The character to use to create the line break. Defaults to "=".
-        countr (int, optional): The number of times to repeat the spacer. Defaults to 65=.
-        lines (int, optional): THe number of consecutive line breaks to log. Defaults to 1.
-    """
-    for _ in range(lines):
-        logger.info(spacer * count)
 
 
 def cli_arg_to_int(arg_name: str, arg_value: str) -> int:
