@@ -61,3 +61,16 @@ def sleep_verbose(sleep_seconds: float, logger: logging.Logger) -> None:
 def upcoming_midnight() -> datetime:
     tomorrow = date.today() + timedelta(days=1)
     return datetime.combine(tomorrow, datetime.strptime("00:00", "%H:%M").time())
+
+
+def get_time_until_start_str(start: datetime) -> str:
+    """Get loggable string that depicts time remaining before exectution.
+    Args:
+        start (datetime): The time of execution.
+    Returns:
+        str: A loggable str that informs the user of time until exection.
+    """
+    hours, mins, secs = seconds_to_hours_mins_and_secs(
+        (datetime.now() - start).total_seconds()
+    )
+    return f"{int(hours)} HOURS {int(mins)} MINUTES {int(secs)} SECONDS"

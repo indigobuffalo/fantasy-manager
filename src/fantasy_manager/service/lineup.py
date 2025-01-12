@@ -15,7 +15,7 @@ from fantasy_manager.exceptions import (
     TimeoutExceededError,
 )
 from fantasy_manager.model.player import ApiPlayer
-from fantasy_manager.util.time_utils import sleep_until, sleep_verbose
+from fantasy_manager.util.temporal import sleep_until, sleep_verbose
 
 PROJECT_DIR = Path(__file__).parent.absolute()
 

@@ -4,7 +4,7 @@ from typing import Any
 
 from fantasy_manager.cli import command
 from fantasy_manager.controller.roster import RosterController
-from fantasy_manager.util.misc import cli_arg_to_int, confirm_proceed
+from fantasy_manager.util.cli import cli_arg_to_int, confirm_proceed
 
 
 def format_args(args: dict[str, Any]) -> dict[str, Any]:

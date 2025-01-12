@@ -4,10 +4,11 @@ from pathlib import Path
 from typing import Optional
 
 from fantasy_manager.service.roster import RosterService
-from fantasy_manager.util.log_utils import join_with_padding, log_tuples
-from fantasy_manager.util.misc import prompt_run_now
-from fantasy_manager.util.log_utils import log_line_break
-from fantasy_manager.util.time_utils import (
+from fantasy_manager.util.cli import get_start
+from fantasy_manager.util.log import join_with_padding, log_tuples
+from fantasy_manager.util.log import log_line_break
+from fantasy_manager.util.temporal import (
+    get_time_until_start_str,
     seconds_to_hours_mins_and_secs,
     upcoming_midnight,
 )
@@ -22,22 +23,7 @@ class RosterController:
     def __init__(self, league_name: str):
         self.service = RosterService(league_name=league_name)
 
-    @staticmethod
-    def _get_loggable_time_until_start(start: datetime) -> str:
-        """Get loggable string that depicts time to exectution.
-
-        Args:
-            start (datetime): The time of execution.
-
-        Returns:
-            str: A loggable str that informs the user of time until exection.
-        """
-        hours, mins, secs = seconds_to_hours_mins_and_secs(
-            (datetime.now() - start).total_seconds()
-        )
-        return f"{int(hours)} HOURS {int(mins)} MINUTES {int(secs)} SECONDS"
-
-    def _get_loggable_player_info(
+    def _get_player_info_strs(
         self, add_id: Optional[int] = None, drop_id: Optional[int] = None
     ) -> dict[str, str]:
         add_tuple = None
@@ -83,7 +69,7 @@ class RosterController:
             ("League", self.service.league.name),
             ("Add", players_with_ids[0]),
             ("Drop", players_with_ids[1]),
-            ("Start", self._get_loggable_time_until_start(start)),
+            ("Start", get_time_until_start_str(start)),
         ]
 
         log_line_break(logger)
@@ -101,25 +87,13 @@ class RosterController:
         """
         return self.service.get_player_data(player_id).to_json()
 
-    @staticmethod
-    def _get_start(start: str) -> datetime:
-        start = start.lower() if start is not None else None
-        match start:
-            case None:
-                return upcoming_midnight()
-            case "now":
-                return datetime.now()
-            case _:
-                return datetime.fromisoformat(start)
-
     def add_player(
         self,
         add_id: int,
         start: Optional[str] = None,
     ) -> None:
-        start_dt = self._get_start(start)
+        start_dt = get_start(start)
         self.log_inputs(start=start_dt, add_id=add_id)
-        prompt_run_now(start_dt)
         self.service.add_player(
             add_id=add_id,
             start=start_dt,
@@ -135,7 +109,6 @@ class RosterController:
     def replace_player(
         self, add_id: int, drop_id: int = None, start: Optional[str] = None
     ) -> None:
-        start_dt = self._get_start(start)
+        start_dt = get_start(start)
         self.log_inputs(start=start_dt, add_id=add_id, drop_id=drop_id)
-        prompt_run_now(start_dt)
         self.service.replace_player(add_id=add_id, drop_id=drop_id, start=start_dt)

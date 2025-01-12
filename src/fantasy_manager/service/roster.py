@@ -15,7 +15,7 @@ from fantasy_manager.exceptions import (
     TimeoutExceededError,
 )
 from fantasy_manager.model.player import ApiPlayer
-from fantasy_manager.util.time_utils import sleep_until, sleep_verbose
+from fantasy_manager.util.temporal import sleep_until, sleep_verbose
 
 PROJECT_DIR = Path(__file__).parent.absolute()
 
@@ -31,23 +31,21 @@ class RosterService:
             platform=self.league.platform, league=self.league, config=self.config
         )
         self.client.refresh()
+        self.team = self.client.get_team()
         self.timeout_seconds = self.config.TIMEOUT_SECONDS
 
     def _check_add_player_inputs(self, add_id: int, drop_id: int) -> None:
-        if self.is_rostered(add_id):
+        if self.team.has_player(add_id):
             raise AlreadyAddedError(add_id)
-        if drop_id is not None and not self.is_rostered(drop_id):
+        if drop_id is not None and not self.team.has_player(drop_id):
             raise NotOnRosterError(drop_id)
 
     def are_rostered(self, player_ids: list[str]) -> list[str]:
         unrostered = list()
         for player_id in player_ids:
-            if not self.is_rostered(player_id):
+            if not self.team.has_player(player_id):
                 unrostered.append(player_id)
         return unrostered
-
-    def is_rostered(self, player_id: int) -> bool:
-        return player_id in [p.player_id for p in self.client.get_team().roster]
 
     def get_player_data(self, player_id: int) -> ApiPlayer:
         return self.client.get_player_by_id(player_id)
@@ -106,7 +104,7 @@ class RosterService:
                 )
             try:
                 self.client.replace_player(add_id=add_id, drop_id=drop_id)
-                if not self.is_rostered(add_id):
+                if not self.team.has_player(add_id):
                     raise FantasyUnknownError(f"Error - player '{add_id}' not added.")
                 logger.info(f"Success!  Player {add_id} is now on roster.")
                 return
@@ -143,7 +141,7 @@ class RosterService:
                 )
             try:
                 self.client.add_player(add_id=add_id)
-                if not self.is_rostered(add_id):
+                if not self.team.has_player(add_id):
                     raise FantasyUnknownError(f"Error - player '{add_id}' not added.")
                 logger.info(f"Success!  Player {add_id} is now on roster.")
                 return

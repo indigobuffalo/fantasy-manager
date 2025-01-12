@@ -20,7 +20,7 @@ from fantasy_manager.cli.command import CliCommand, error_result, not_permitted_
 from fantasy_manager.exceptions import FantasyManagerError, FantasyManagerSoftError
 import docopt
 
-from fantasy_manager.util.log_utils import log_line_break
+from fantasy_manager.util.log import log_line_break
 
 CLI_DIRECTORY = Path(__file__).parent
 
