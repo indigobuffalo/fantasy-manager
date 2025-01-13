@@ -28,9 +28,9 @@ def days_until(until_day: str, from_date: date = date.today()) -> int:
     return days_until
 
 
-def seconds_to_hours_mins_and_secs(seconds: float) -> tuple[float, float, float]:
-    """Convert a duration represented as total seconds into hours, minutes and seconds"""
-    seconds = abs(seconds)
+def duration_to_hours_mins_and_secs(duration: timedelta) -> tuple[float, float, float]:
+    """Convert a duration represented into hours, minutes and seconds"""
+    seconds = abs(duration.seconds)
     hours = seconds // 3600
     minutes = (seconds % 3600) // 60
     seconds = seconds % 60
@@ -39,18 +39,17 @@ def seconds_to_hours_mins_and_secs(seconds: float) -> tuple[float, float, float]
 
 def sleep_until(dt: datetime, logger: logging.Logger) -> None:
     if datetime.now() < dt:
-        duration = dt - datetime.now()
-        total_seconds = duration.total_seconds()
-        total_sleep_secs = total_seconds - 0.2
-        sleep_hours, sleep_mins, sleep_secs = seconds_to_hours_mins_and_secs(
-            total_sleep_secs
+        total_duration = dt - datetime.now()
+        sleep_duration = total_duration - timedelta(seconds=0.2)
+        sleep_hours, sleep_mins, sleep_secs = duration_to_hours_mins_and_secs(
+            sleep_duration
         )
         logger.info(
-            f"Time until {dt.isoformat()}: '{duration}'. "
+            f"Time until {dt.isoformat()}: '{total_duration}'. "
             f"Sleeping {int(sleep_hours)} hours "
             f"{int(sleep_mins)} minutes {round(sleep_secs, 2)} seconds."
         )
-        sleep(total_sleep_secs)
+        sleep(sleep_duration.total_seconds())
 
 
 def sleep_verbose(sleep_seconds: float, logger: logging.Logger) -> None:
@@ -61,16 +60,3 @@ def sleep_verbose(sleep_seconds: float, logger: logging.Logger) -> None:
 def upcoming_midnight() -> datetime:
     tomorrow = date.today() + timedelta(days=1)
     return datetime.combine(tomorrow, datetime.strptime("00:00", "%H:%M").time())
-
-
-def get_time_until_start_str(start: datetime) -> str:
-    """Get loggable string that depicts time remaining before exectution.
-    Args:
-        start (datetime): The time of execution.
-    Returns:
-        str: A loggable str that informs the user of time until exection.
-    """
-    hours, mins, secs = seconds_to_hours_mins_and_secs(
-        (datetime.now() - start).total_seconds()
-    )
-    return f"{int(hours)} HOURS {int(mins)} MINUTES {int(secs)} SECONDS"

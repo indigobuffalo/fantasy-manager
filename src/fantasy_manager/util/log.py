@@ -18,7 +18,8 @@ def log_line_break(
 
 
 def get_key_adjusted_padding(tuples: list[tuple[str, str]], padding: int) -> int:
-    """Factors key lengths into padding to ensure proper ljust/rjust alignment.
+    """Factors max key length of key-val pairs to get
+    correct padding for printing all pairs.
 
     Args:
         tuples (list[tuple[str, str]]): A list of key-value pairs.
@@ -47,9 +48,9 @@ def log_tuples(
         logger.info(label + ":".ljust(padding - len(label)) + (val or default))
 
 
-def join_with_padding(
+def align_key_val_pairs(
     tuples: list[tuple[str, str]], padding: int = 2, separator: str = ":"
-):
+) -> list[str]:
     """Joins each pair in the passed tuple with consistent alignment for pretty logging.
 
     Args:
@@ -58,7 +59,7 @@ def join_with_padding(
         separator (str, optional): The separator to use between each joined key-val pair. Defaults to ":".
 
     Returns:
-        _type_: _description_
+        list[str]: Strings of joined key-val pairs which will be aligned when printed line-by-line.
     """
     padding = get_key_adjusted_padding(tuples, padding)
     adjusted_tuples = []

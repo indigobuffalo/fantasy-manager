@@ -1,7 +1,7 @@
 from __future__ import annotations
 from dataclasses import dataclass
 
-from fantasy_manager.model.player import RosterPlayer
+from fantasy_manager.model.player import BasePlayer, RosterPlayer
 
 
 @dataclass(frozen=True)
@@ -23,7 +23,7 @@ class Team:
         # """
         return self.name
 
-    def has_player(self, player_id: int) -> bool:
+    def has_player(self, player: BasePlayer) -> bool:
         """Check if a player is on the team by player_id.
 
         Args:
@@ -32,4 +32,4 @@ class Team:
         Returns:
             bool: Returns True if the player is on the team, else False.
         """
-        return player_id in (p.player_id for p in self.roster)
+        return player.player_id in (p.player_id for p in self.roster)

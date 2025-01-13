@@ -73,6 +73,9 @@ class ApiPlayer(PositionedPlayer):
     team: str
     team_abbr: str
 
+    def __repr__(self):
+        return f"{self.name}  [{self.player_id}]"
+
     def to_json(self) -> str:
         """Convert the Player instance to a JSON string."""
         return json.dumps(
