@@ -31,15 +31,30 @@ class BaseClient(ABC):
         pass
 
     @abstractmethod
-    def add_player(self, add_id: int) -> Response:
+    def add_player(self, add_id: int) -> None:
+        """Add a player to the roster.
+
+        Args:
+            add_id (int): The id of player to add.
+        """
+        pass
+
+    @abstractmethod
+    def drop_player(self, drop_id: int) -> None:
+        """Drops a player from the roster.
+
+        Args:
+            drop_id (int): The id of the player to drop.
+        """
+        pass
+
+    @abstractmethod
+    def replace_player(self, add_id: int) -> None:
         """Add a player to the roster.
 
         Args:
             add_id (int): The id of player to add.
             drop_id (int, optional): The id of player to drop. Defaults to None.
-
-        Returns:
-            Response: Response of the add player request.
         """
         pass
 

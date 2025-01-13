@@ -31,6 +31,9 @@ class BasePlayer:
     player_id: int
     name: str
 
+    def __repr__(self):
+        return f"{self.name}  [{self.player_id}]"
+
 
 @dataclass(frozen=True)
 class PositionedPlayer(BasePlayer):
@@ -72,9 +75,6 @@ class ApiPlayer(PositionedPlayer):
     name_decomposed: PlayerName
     team: str
     team_abbr: str
-
-    def __repr__(self):
-        return f"{self.name}  [{self.player_id}]"
 
     def to_json(self) -> str:
         """Convert the Player instance to a JSON string."""

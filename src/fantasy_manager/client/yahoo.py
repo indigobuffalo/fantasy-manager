@@ -141,6 +141,13 @@ class YahooClient(BaseClient):
         except Exception as err:
             self._handle_client_error(add_id=add_id, err=err)
 
+    def drop_player(self, drop_id: int) -> None:
+        try:
+            self.team_handle.drop_player(drop_id)
+        except Exception as err:
+            logging.info(f"Error dropping player: {err}")
+            raise
+
     def replace_player(self, add_id: int, drop_id: Optional[int] = None) -> None:
         try:
             self.team_handle.add_and_drop_players(

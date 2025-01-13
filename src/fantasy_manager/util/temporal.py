@@ -1,7 +1,8 @@
-from datetime import date, timedelta, datetime
+from datetime import date, time, timedelta, datetime, timezone
 import logging
 from time import sleep
-from typing import Iterator
+from typing import Iterator, Optional
+from zoneinfo import ZoneInfo
 
 DAYS_OF_WEEK = {
     "Monday": 0,
@@ -38,8 +39,9 @@ def duration_to_hours_mins_and_secs(duration: timedelta) -> tuple[float, float, 
 
 
 def sleep_until(dt: datetime, logger: logging.Logger) -> None:
-    if datetime.now() < dt:
-        total_duration = dt - datetime.now()
+    now = now_pacific()
+    if now < dt:
+        total_duration = dt - now
         sleep_duration = total_duration - timedelta(seconds=0.2)
         sleep_hours, sleep_mins, sleep_secs = duration_to_hours_mins_and_secs(
             sleep_duration
@@ -57,6 +59,22 @@ def sleep_verbose(sleep_seconds: float, logger: logging.Logger) -> None:
     sleep(sleep_seconds)
 
 
-def upcoming_midnight() -> datetime:
-    tomorrow = date.today() + timedelta(days=1)
-    return datetime.combine(tomorrow, datetime.strptime("00:00", "%H:%M").time())
+def upcoming_midnight_pacific() -> datetime:
+    """
+    Returns midnight Pacific time (00:00) on the current day,
+    considering the difference between PST and PDT.
+    """
+    pacific_tz = ZoneInfo("America/Los_Angeles")
+    now_utc = datetime.now(timezone.utc)
+    tomorrow_pacific = now_utc.astimezone(pacific_tz).date() + timedelta(days=1)
+    return datetime.combine(tomorrow_pacific, time(0), tzinfo=pacific_tz)
+
+
+def now_pacific() -> datetime:
+    """Gets current datetime for the "America/Los_Angeles" timezone,
+    which is the timezone Yahoo uses to determine EOD.
+
+    Returns:
+        datetime: The present datetime in the Pacific timezone.
+    """
+    return datetime.now(ZoneInfo("America/Los_Angeles"))

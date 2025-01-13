@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import Optional
 from fantasy_manager.exceptions import InputError, UserAbortError
-from fantasy_manager.util.temporal import upcoming_midnight
+from fantasy_manager.util.temporal import now_pacific, upcoming_midnight_pacific
 
 
 def confirm_proceed() -> None:
@@ -41,11 +41,11 @@ def get_start(start: Optional[str] = None) -> datetime:
         datetime: _description_
     """
     start = start.lower() if start is not None else None
-    now = datetime.now()
+    now = now_pacific()
 
     match start:
         case None:
-            start_dt = upcoming_midnight()
+            start_dt = upcoming_midnight_pacific()
         case "now":
             start_dt = now
         case _:

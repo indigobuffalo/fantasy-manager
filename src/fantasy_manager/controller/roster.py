@@ -1,4 +1,3 @@
-from datetime import datetime
 import logging
 from pathlib import Path
 from typing import Optional
@@ -32,6 +31,12 @@ class RosterController:
         add_id: int,
         start: Optional[str] = None,
     ) -> None:
+        """Add a player to the roster.
+
+        Args:
+            add_id (int): The id of the player to add.
+            start (Optional[str], optional): The datetime to add the player. Defaults to midnght Pacific.
+        """
         start_dt = get_start(start)
         self.service.add_player(
             add_id=add_id,
@@ -43,6 +48,13 @@ class RosterController:
         drop_id: int,
         start: Optional[str] = None,
     ) -> None:
+        """Drops a player from the roster.
+
+        Args:
+            drop_id (int): The id of the player to drop.
+            start (Optional[str], optional): The datetime to drop the player. Defaults to midnght Pacific.
+        """
+        start_dt = get_start(start)
         pass
 
     def replace_player(
