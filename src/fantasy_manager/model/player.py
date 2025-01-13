@@ -31,8 +31,13 @@ class BasePlayer:
     player_id: int
     name: str
 
-    def __repr__(self):
+    def __str__(self):
         return f"{self.name}  [{self.player_id}]"
+
+    @classmethod
+    def from_dict(cls, data: dict) -> BasePlayer:
+        """Create a BasePlayer instance from a dict."""
+        return cls(player_id=int(data["player_id"]), name=data["name"])
 
 
 @dataclass(frozen=True)
@@ -52,13 +57,17 @@ class PositionedPlayer(BasePlayer):
 
     @classmethod
     def from_dict(cls, data: dict) -> ApiPlayer:
-        """Create a Player instance from a JSON string."""
-        data["position_type"] = PositionType(data["position_type"].upper())
-        data["status"] = PlayerStatus(data.get("status", "").upper())
-        data["eligible_positions"] = [
-            Position(p.upper()) for p in data["eligible_positions"]
-        ]
-        return cls(**(prune_dict(cls, data)))
+        """Create a PositionedPlayer instance from a dict."""
+        base_player = BasePlayer.from_dict(data)
+        player_data = {
+            **base_player.__dict__,
+            "position_type": PositionType(data["position_type"].upper()),
+            "status": PlayerStatus(data.get("status", "").upper()),
+            "eligible_positions": [
+                Position(p.upper()) for p in data["eligible_positions"]
+            ],
+        }
+        return cls(**player_data)
 
 
 @dataclass(frozen=True)
@@ -95,16 +104,20 @@ class ApiPlayer(PositionedPlayer):
         Returns:
             ApiPlayer: _description_
         """
-        data["name_decomposed"] = PlayerName.from_dict(data["name"])
-        data["name"] = data["name"]["full"]
-        data["status"] = PlayerStatus(data.get("status", "").upper())
-        data["position_type"] = PositionType(data["position_type"].upper())
-        data["team"] = data.pop("editorial_team_full_name")
-        data["team_abbr"] = data.pop("editorial_team_abbr")
-        data["eligible_positions"] = [
-            Position(p["position"].upper()) for p in data["eligible_positions"]
-        ]
-        return cls(**(prune_dict(cls, data)))
+        base_player = BasePlayer.from_dict(data)
+        player_data = {
+            **base_player.__dict__,
+            "name_decomposed": PlayerName.from_dict(data["name"]),
+            "name": data["name"]["full"],
+            "status": PlayerStatus(data.get("status", "").upper()),
+            "position_type": PositionType(data["position_type"].upper()),
+            "team": data.pop("editorial_team_full_name"),
+            "team_abbr": data.pop("editorial_team_abbr"),
+            "eligible_positions": [
+                Position(p["position"].upper()) for p in data["eligible_positions"]
+            ],
+        }
+        return cls(**player_data)
 
 
 @dataclass(frozen=True)
@@ -121,8 +134,10 @@ class RosterPlayer(PositionedPlayer):
     @classmethod
     def from_dict(cls, data: dict) -> RosterPlayer:
         """Convert a dictionary into a RosterPlayer instance"""
+        base_player = BasePlayer.from_dict(data)
         positioned_player = PositionedPlayer.from_dict(data)
         player_data = {
+            **base_player.__dict__,
             **positioned_player.__dict__,
             "selected_position": Position(data["selected_position"].upper()),
         }

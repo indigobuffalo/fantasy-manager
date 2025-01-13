@@ -228,7 +228,7 @@ class RosterService:
                 )
             try:
                 self.client.add_player(add_id=add_id)
-                if not self.team.has_player(add_id):
+                if not self.team.has_player(add_player):
                     raise FantasyUnknownError(f"Error adding '{add_player}'.")
                 logger.info(f"Success!  {add_player} is now on roster.")
                 return
