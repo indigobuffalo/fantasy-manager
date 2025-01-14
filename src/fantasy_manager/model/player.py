@@ -6,7 +6,7 @@ from typing import Optional
 
 from fantasy_manager.model.enums.position import Position, PositionType
 from fantasy_manager.model.enums.player_status import PlayerStatus
-from fantasy_manager.util.dataclass_utils import filtered_asdict, prune_dict
+from fantasy_manager.util.dataclass_utils import filtered_asdict
 
 
 @dataclass(frozen=True)
@@ -76,12 +76,12 @@ class ApiPlayer(PositionedPlayer):
     This player data is fetched from player-specific api endpoint.
 
     Attrs:
-        name_decomposed (PlayerName): Decomposed player name, including first, last, ascii versions, etc.
-        team (str):                   The player's team.
-        team_abbr (str):              The player's team's abbreviation.
+        name_parts(PlayerName):  Decomposed player name, including first, last, ascii versions, etc.
+        team (str):              The player's team.
+        team_abbr (str):         The player's team's abbreviation.
     """
 
-    name_decomposed: PlayerName
+    name_parts: PlayerName
     team: str
     team_abbr: str
 
@@ -104,18 +104,21 @@ class ApiPlayer(PositionedPlayer):
         Returns:
             ApiPlayer: _description_
         """
-        base_player = BasePlayer.from_dict(data)
+        positioned_player = PositionedPlayer.from_dict(
+            {
+                **data,
+                "name": data["name"]["full"],
+                "eligible_positions": [
+                    p["position"] for p in data["eligible_positions"]
+                ],
+            }
+        )
+
         player_data = {
-            **base_player.__dict__,
-            "name_decomposed": PlayerName.from_dict(data["name"]),
-            "name": data["name"]["full"],
-            "status": PlayerStatus(data.get("status", "").upper()),
-            "position_type": PositionType(data["position_type"].upper()),
+            **positioned_player.__dict__,
+            "name_parts": PlayerName.from_dict(data["name"]),
             "team": data.pop("editorial_team_full_name"),
             "team_abbr": data.pop("editorial_team_abbr"),
-            "eligible_positions": [
-                Position(p["position"].upper()) for p in data["eligible_positions"]
-            ],
         }
         return cls(**player_data)
 
