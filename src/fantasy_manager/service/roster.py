@@ -119,16 +119,16 @@ class RosterService:
             case (ApiPlayer(), ApiPlayer()):
                 player_names = align_pairs(
                     tuples=[
-                        (add_player.name, f"[{add_player.player_id}]"),
-                        (drop_player.name, f"[{drop_player.player_id}]"),
+                        (add_player.name.full, f"[{add_player.player_id}]"),
+                        (drop_player.name.full, f"[{drop_player.player_id}]"),
                     ],
                     separator=" ",
                 )
                 return player_names[0], player_names[1]
             case (ApiPlayer(), None):
-                return [f"{add_player.name}  [{add_player.player_id}]", None]
+                return [str(add_player), None]
             case (None, ApiPlayer()):
-                return [None, f"{drop_player.name}  [{drop_player.player_id}]"]
+                return [None, str(drop_player)]
             case _:
                 raise InputError(
                     f"Invalid player inputs: '{add_player}' and '{drop_player}'"

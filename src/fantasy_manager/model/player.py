@@ -4,6 +4,7 @@ from enum import Enum
 import json
 from typing import Optional
 
+from fantasy_manager.exceptions import InvalidModelDataError
 from fantasy_manager.model.enums.position import Position, PositionType
 from fantasy_manager.model.enums.player_status import PlayerStatus
 from fantasy_manager.util.dataclass_utils import filtered_asdict
@@ -25,19 +26,58 @@ class PlayerName:
     def __str__(self):
         return self.full
 
+    def __len__(self):
+        return len(self.full)
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, PlayerName):
+            return NotImplemented
+        return (self.last, self.first) == (other.last, other.first)
+
+    def __lt__(self, other: object) -> bool:
+        if not isinstance(other, PlayerName):
+            return NotImplemented
+        return self.full < other.full
+
+    def __gt__(self, other: object) -> bool:
+        if not isinstance(other, PlayerName):
+            return NotImplemented
+        return self.full > other.full
+
 
 @dataclass(frozen=True)
 class BasePlayer:
+    """Base representation of a player.
+
+    Attrs:
+        name(PlayerName): The name of the player
+    """
+
     player_id: int
-    name: str
+    name: PlayerName
 
     def __str__(self):
-        return f"{self.name}  [{self.player_id}]"
+        return str(self.name)
 
     @classmethod
     def from_dict(cls, data: dict) -> BasePlayer:
         """Create a BasePlayer instance from a dict."""
-        return cls(player_id=int(data["player_id"]), name=data["name"])
+
+        name_data = data["name"]
+        match name_data:
+            case str():
+                name = PlayerName(full=name_data)
+            case dict():
+                name = PlayerName.from_dict(name_data)
+            case _:
+                raise InvalidModelDataError(
+                    f"Unable to instantiate a player name from: '{name_data}'"
+                )
+
+        return cls(player_id=int(data["player_id"]), name=name)
+
+    def to_json(self) -> str:
+        return json.dumps(asdict(self))
 
 
 @dataclass(frozen=True)
@@ -48,7 +88,6 @@ class PositionedPlayer(BasePlayer):
         position_type (PositionType):         Whether the player is a skater or goalie.
         status (PlayerStatus):                The player's status, e.g. 'IR', 'DTD', 'O', etc.
         eligible_positions (list[Position]):  The positions the player is eligible for
-        selected_position (Position):         The player's currently selected position
     """
 
     position_type: PositionType
@@ -76,12 +115,10 @@ class ApiPlayer(PositionedPlayer):
     This player data is fetched from player-specific api endpoint.
 
     Attrs:
-        name_parts(PlayerName):  Decomposed player name, including first, last, ascii versions, etc.
         team (str):              The player's team.
         team_abbr (str):         The player's team's abbreviation.
     """
 
-    name_parts: PlayerName
     team: str
     team_abbr: str
 
@@ -95,28 +132,23 @@ class ApiPlayer(PositionedPlayer):
     def from_dict(cls, data: dict) -> ApiPlayer:
         """Convert a dictionary into an APIPlayer instance.
 
-        The passed dict may come from an api that returns fields not needed by
-        this model.  The prune_dict method is used to remove these extraneous fields.
+        The parent classes of ApiPlayer often are instantiated with simpler
+        input dictionaries, hence the need to transform some of the data
+        before instantinating them.
 
         Args:
             data (dict): Input dictionary containing player data.
 
         Returns:
-            ApiPlayer: _description_
+            ApiPlayer:  The player instantiated.
         """
-        positioned_player = PositionedPlayer.from_dict(
-            {
-                **data,
-                "name": data["name"]["full"],
-                "eligible_positions": [
-                    p["position"] for p in data["eligible_positions"]
-                ],
-            }
-        )
-
+        positioned_data = {
+            **data,
+            "eligible_positions": [p["position"] for p in data["eligible_positions"]],
+        }
+        positioned_player = PositionedPlayer.from_dict(positioned_data)
         player_data = {
             **positioned_player.__dict__,
-            "name_parts": PlayerName.from_dict(data["name"]),
             "team": data.pop("editorial_team_full_name"),
             "team_abbr": data.pop("editorial_team_abbr"),
         }

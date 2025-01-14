@@ -28,6 +28,12 @@ class InputError(FantasyManagerError):
         super().__init__(self.message)
 
 
+class InvalidModelDataError(FantasyManagerError):
+    def __init__(self, message: str = "Invalid input data for model creation."):
+        self.message = message
+        super().__init__(self.message)
+
+
 class TimeoutExceededError(FantasyManagerError):
     def __init__(self, message: str = "Operation has timed out."):
         self.message = message
