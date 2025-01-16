@@ -7,7 +7,7 @@ from typing import Optional
 from fantasy_manager.exceptions import InvalidModelDataError
 from fantasy_manager.model.enums.position import Position, PositionType
 from fantasy_manager.model.enums.player_status import PlayerStatus
-from fantasy_manager.util.dataclass_utils import filtered_asdict
+from fantasy_manager.util.dataclass_utils import filtered_asdict, prune_dict
 
 
 @dataclass(frozen=True)
@@ -87,7 +87,7 @@ class PositionedPlayer(BasePlayer):
     Attrs:
         position_type (PositionType):         Whether the player is a skater or goalie.
         status (PlayerStatus):                The player's status, e.g. 'IR', 'DTD', 'O', etc.
-        eligible_positions (list[Position]):  The positions the player is eligible for
+        eligible_positions (list[Position]):  The positions the player is eligible for.
     """
 
     position_type: PositionType
@@ -132,25 +132,16 @@ class ApiPlayer(PositionedPlayer):
     def from_dict(cls, data: dict) -> ApiPlayer:
         """Convert a dictionary into an APIPlayer instance.
 
-        The parent classes of ApiPlayer often are instantiated with simpler
-        input dictionaries, hence the need to transform some of the data
-        before instantinating them.
-
         Args:
             data (dict): Input dictionary containing player data.
 
         Returns:
             ApiPlayer:  The player instantiated.
         """
-        positioned_data = {
-            **data,
-            "eligible_positions": [p["position"] for p in data["eligible_positions"]],
-        }
-        positioned_player = PositionedPlayer.from_dict(positioned_data)
+        positioned_player = PositionedPlayer.from_dict(data)
         player_data = {
+            **data,
             **positioned_player.__dict__,
-            "team": data.pop("editorial_team_full_name"),
-            "team_abbr": data.pop("editorial_team_abbr"),
         }
         return cls(**player_data)
 

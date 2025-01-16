@@ -1,5 +1,4 @@
 import logging
-from time import sleep
 
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -55,13 +54,6 @@ class RosterService:
             raise AlreadyAddedError(add_player)
         if drop_player is not None and not self.team.has_player(drop_player):
             raise NotOnRosterError(drop_player)
-
-    def are_rostered(self, player_ids: list[str]) -> list[str]:
-        unrostered = list()
-        for player_id in player_ids:
-            if not self.team.has_player(player_id):
-                unrostered.append(player_id)
-        return unrostered
 
     def get_player_data(self, player_id: int) -> ApiPlayer:
         return self.client.get_player_by_id(player_id)
@@ -182,11 +174,11 @@ class RosterService:
             logger.info(f"The time is {now}")
             if now > end:
                 raise TimeoutExceededError(
-                    f"Failed to '{add_player}' for '{drop_player}' within {self.timeout_seconds} second timeout"
+                    f"Failed to add '{add_player}' for '{drop_player}' within {self.timeout_seconds} second timeout"
                 )
             try:
                 self.client.replace_player(add_id=add_id, drop_id=drop_id)
-                if not self.team.has_player(add_id):
+                if not self.team.has_player(add_player):
                     raise FantasyUnknownError(
                         f"Error adding {add_player} for {drop_player}."
                     )

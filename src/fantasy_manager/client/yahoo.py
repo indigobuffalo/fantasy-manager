@@ -23,6 +23,7 @@ from fantasy_manager.model.league import League
 from fantasy_manager.model.player import ApiPlayer
 from fantasy_manager.model.lineup import Lineup
 from fantasy_manager.model.team import Team
+from fantasy_manager.transform.yahoo import transform_player_by_id_to_api_player
 from fantasy_manager.util.dataclass_utils import prune_dict
 
 
@@ -177,4 +178,5 @@ class YahooClient(BaseClient):
             ApiPlayer: an ApiPlayer model instance.
         """
         yfa_player = self.league_handle.player_details(player_id)[0]
-        return ApiPlayer.from_dict(yfa_player)
+        transformed = transform_player_by_id_to_api_player(yfa_player)
+        return ApiPlayer.from_dict(transformed)
