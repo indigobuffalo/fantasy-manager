@@ -3,6 +3,7 @@ import json
 import logging
 from typing import Optional
 
+import ipdb.stdout
 import yahoo_fantasy_api as yfa
 from requests import Response
 from yahoo_oauth import OAuth2
@@ -18,13 +19,16 @@ from fantasy_manager.exceptions import (
     NotOnRosterError,
     OnAnotherTeamError,
 )
+from fantasy_manager.model.dto.team import RawTeamDto
 from fantasy_manager.model.enums.platform_url import PlatformUrl
 from fantasy_manager.model.league import League
 from fantasy_manager.model.player import ApiPlayer
 from fantasy_manager.model.lineup import Lineup
 from fantasy_manager.model.team import Team
-from fantasy_manager.transform.yahoo import transform_player_by_id_to_api_player
-from fantasy_manager.util.dataclass_utils import prune_dict
+from fantasy_manager.transform.yahoo import (
+    transform_player_by_id_to_api_player,
+    transform_yfa_team_data_to_team,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -84,6 +88,7 @@ class YahooClient(BaseClient):
     def refresh(self):
         """Refresh client auth and related handles."""
         self._refresh_context()
+        # TODO: moved locked players check to service
         self._check_locked_players()
 
     def set_lineup(self, lineup: Lineup, lineup_date: datetime.date) -> None:
@@ -106,15 +111,12 @@ class YahooClient(BaseClient):
         self.team_handle.change_positions(lineup_date, json.loads(as_json))
 
     def get_team(self) -> Team:
-        data = {}
-
-        data.update(self.league_handle.teams()[self.league_handle.team_key()])
-
-        yfa_team = self.league_handle.to_team(self.league_handle.team_key())
-        data["roster"] = yfa_team.roster()
-        data["league_id"] = yfa_team.league_id
-
-        return Team.from_dict(prune_dict(Team, data))
+        league_team = self.league_handle.teams()[self.league_handle.team_key()]
+        team = self.league_handle.to_team(self.league_handle.team_key())
+        raw_data_dto = RawTeamDto.from_raw_data(league_team, team)
+        transformed = transform_yfa_team_data_to_team(raw_data_dto)
+        team = Team.from_dict(transformed)
+        return Team
 
     @staticmethod
     def _handle_client_error(add_id: int, err: Exception):

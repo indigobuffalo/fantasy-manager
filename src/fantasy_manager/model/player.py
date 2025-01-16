@@ -57,24 +57,14 @@ class BasePlayer:
     name: PlayerName
 
     def __str__(self):
-        return str(self.name)
+        return str(self.name.full)
 
     @classmethod
     def from_dict(cls, data: dict) -> BasePlayer:
         """Create a BasePlayer instance from a dict."""
-
-        name_data = data["name"]
-        match name_data:
-            case str():
-                name = PlayerName(full=name_data)
-            case dict():
-                name = PlayerName.from_dict(name_data)
-            case _:
-                raise InvalidModelDataError(
-                    f"Unable to instantiate a player name from: '{name_data}'"
-                )
-
-        return cls(player_id=int(data["player_id"]), name=name)
+        return cls(
+            player_id=int(data["player_id"]), name=PlayerName.from_dict(data["name"])
+        )
 
     def to_json(self) -> str:
         return json.dumps(asdict(self))
