@@ -8,6 +8,8 @@ from requests import Response
 from yahoo_oauth import OAuth2
 
 from fantasy_manager.client.base import BaseClient
+from fantasy_manager.client.yfa_custom.custom_team import CustomTeam
+from fantasy_manager.client.yfa_custom.custom_yhandler import CustomYHandler
 from fantasy_manager.config.config import FantasyConfig
 from fantasy_manager.exceptions import (
     AlreadyPlayedError,
@@ -21,7 +23,7 @@ from fantasy_manager.exceptions import (
 from fantasy_manager.model.dto.team import RawTeamDto
 from fantasy_manager.model.enums.platform_url import PlatformUrl
 from fantasy_manager.model.league import League
-from fantasy_manager.model.player import ApiPlayer
+from fantasy_manager.model.player import NhlPlayer
 from fantasy_manager.model.lineup import Lineup
 from fantasy_manager.model.team import Team
 from fantasy_manager.transform.yahoo import (
@@ -72,6 +74,10 @@ class YahooClient(BaseClient):
             self.league.key
         )
         self.team_handle = self.league_handle.to_team(self.league_handle.team_key())
+        self.custom_yfa_handler = CustomYHandler(self.session_context)
+        self.custom_team = CustomTeam(
+            self.custom_yfa_handler, self.league_handle.team_key()
+        )
 
     def _check_locked_players(self) -> None:
         """Ensure all expected players are on roster.
@@ -141,8 +147,12 @@ class YahooClient(BaseClient):
     def add_player(self, add_id: int) -> None:
         try:
             self.team_handle.add_player(add_id)
+            self.league.name_abbr
         except Exception as err:
             self._handle_client_error(add_id=add_id, err=err)
+
+    def add_player_claim(self, add_id, faab=None):
+        self.custom_team.claim_player(add_id, faab)
 
     def drop_player(self, drop_id: int) -> None:
         try:
@@ -159,15 +169,15 @@ class YahooClient(BaseClient):
         except Exception as err:
             self._handle_client_error(add_id=add_id, err=err)
 
-    def place_waiver_claim(
-        self, add_id: int, drop_id: Optional[int] = None, faab: int = None
+    def replace_player_claim(
+        self, add_id: int, drop_id: int, faab: int = None
     ) -> Response:
-        pass
+        return self.custom_team.claim_and_drop_players(add_id, drop_id, faab)
 
     def cancel_waiver_claim(self, player_id: int) -> None:
         pass
 
-    def get_player_by_id(self, player_id: int) -> ApiPlayer:
+    def get_player_by_id(self, player_id: int) -> NhlPlayer:
         """Fetches player from yfa's League.get_player_details endpoint.
 
         Note: we ignore some data coming back from this endpoint which we may
@@ -181,4 +191,4 @@ class YahooClient(BaseClient):
         """
         yfa_player = self.league_handle.player_details(player_id)[0]
         transformed = transform_player_by_id_to_api_player(yfa_player)
-        return ApiPlayer(**transformed)
+        return NhlPlayer(**transformed)

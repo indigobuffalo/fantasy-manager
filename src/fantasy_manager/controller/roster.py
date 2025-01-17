@@ -43,6 +43,26 @@ class RosterController:
             start=start_dt,
         )
 
+    def add_player_claim(
+        self,
+        add_id: int,
+        faab: int = None,
+        start: Optional[str] = None,
+    ) -> None:
+        """Make a claim for a player.
+
+        Args:
+            add_id (int): The id of the player to add.
+            faab (int): The amount of faab to bid on the player.
+            start (Optional[str], optional): The datetime to add the player. Defaults to midnght Pacific.
+        """
+        start_dt = get_start(start)
+        self.service.add_player_claim(
+            add_id=add_id,
+            faab=faab,
+            start=start_dt,
+        )
+
     def drop_player(
         self,
         drop_id: int,
@@ -62,3 +82,26 @@ class RosterController:
     ) -> None:
         start_dt = get_start(start)
         self.service.replace_player(add_id=add_id, drop_id=drop_id, start=start_dt)
+
+    def replace_player_claim(
+        self,
+        add_id: int,
+        drop_id: int,
+        faab: int = None,
+        start: Optional[str] = None,
+    ) -> None:
+        """Make a waiver claim to add one player and drop another.
+
+        Args:
+            add_id (int): The id of the player to add.
+            drop_id(int): The id of the player to drop.
+            faab (int): The amount of faab to bid on the player.
+            start (Optional[str], optional): The datetime to add the player. Defaults to midnght Pacific.
+        """
+        start_dt = get_start(start)
+        self.service.replace_player_claim(
+            add_id=add_id,
+            drop_id=drop_id,
+            faab=faab,
+            start=start_dt,
+        )

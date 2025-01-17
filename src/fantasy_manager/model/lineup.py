@@ -6,13 +6,13 @@ import json
 from typing import List
 from dataclasses import dataclass, asdict
 
-from fantasy_manager.model.player import LineupPlayer
+from fantasy_manager.model.player import FantasyPlayer
 
 
 @dataclass
 class Lineup:
     day: date
-    players: List[LineupPlayer]
+    players: List[FantasyPlayer]
 
     def to_json(self) -> str:
         """Convert the Roster instance to a JSON string for the lineup API."""

@@ -40,6 +40,19 @@ class BaseClient(ABC):
         pass
 
     @abstractmethod
+    def add_player_claim(self, add_id: int, faab: int = None) -> Response:
+        """Make a waiver claim to add one player to the roster.
+
+        Args:
+            add_id (str): The id of player to add.
+            faab (int, optional): The amount of faab to bid on the player. Defaults to None.
+
+        Returns:
+            Response: Response of the waiver claim request.
+        """
+        pass
+
+    @abstractmethod
     def drop_player(self, drop_id: int) -> None:
         """Drops a player from the roster.
 
@@ -50,7 +63,7 @@ class BaseClient(ABC):
 
     @abstractmethod
     def replace_player(self, add_id: int) -> None:
-        """Add a player to the roster.
+        """Add one player to the roster while dropping another.
 
         Args:
             add_id (int): The id of player to add.
@@ -59,14 +72,14 @@ class BaseClient(ABC):
         pass
 
     @abstractmethod
-    def place_waiver_claim(
-        self, add_id: int, drop_id: int = None, faab: int = None
+    def replace_player_claim(
+        self, add_id: int, drop_id: int, faab: int = None
     ) -> Response:
-        """Place a waiver caim.
+        """Make a waiver claim to add one player to the roster while dropping another.
 
         Args:
             add_id (str): The id of player to add.
-            drop_id (str, optional): The id of player to drop. Defaults to None.
+            drop_id (str): The id of player to drop.
             faab (int, optional): The amount of faab to bid on the player. Defaults to None.
 
         Returns:

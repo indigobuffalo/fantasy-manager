@@ -1,7 +1,7 @@
 from datetime import date, time, timedelta, datetime, timezone
 import logging
 from time import sleep
-from typing import Iterator, Optional
+from typing import Iterator
 from zoneinfo import ZoneInfo
 
 DAYS_OF_WEEK = {

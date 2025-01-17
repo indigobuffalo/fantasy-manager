@@ -40,7 +40,6 @@ class PositionedPlayer(BasePlayer):
 
     Attrs:
         position_type (PositionType):         Whether the player is a skater or goalie.
-        status (PlayerStatus):                The player's status, e.g. 'IR', 'DTD', 'O', etc.
         eligible_positions (list[Position]):  The positions the player is eligible for.
     """
 
@@ -48,8 +47,8 @@ class PositionedPlayer(BasePlayer):
     eligible_positions: list[Position]
 
 
-class ApiPlayer(PositionedPlayer):
-    """Represents comprhensive player details outside the context of a given lineup.
+class NhlPlayer(PositionedPlayer):
+    """Represents player details outside the context of a specific fantasy team.
     This player data is fetched from player-specific api endpoint.
 
     Attrs:
@@ -59,30 +58,18 @@ class ApiPlayer(PositionedPlayer):
 
     team: str
     team_abbr: str
-    status: Optional[PlayerStatus] = ""
+    status: Optional[PlayerStatus] = PlayerStatus.ACTIVE
 
 
-class RosterPlayer(PositionedPlayer):
+class FantasyPlayer(PositionedPlayer):
     """Player model with general, non-lineup specific position assignments.
     This player data is fetched from the yfa team.roster endpoint.
 
     Attributes:
         selected_position (Position):  The player's currently selected position in the lineup.
+        rank (int):                    The user assigned rank of the player, on a scale of 1-100.
+                                       Lowest rank is 1, highest is 100.
     """
 
     selected_position: Position
-
-
-class RankedPlayer(BasePlayer):
-    """Model representing a player and their custom assigned ranking
-
-    Attrs:
-      ranking (int): Custom assigned ranking from 0-100
-    """
-
-    ranking: int
-
-
-class LineupPlayer(BasePlayer):
-    ranking: int
-    selected_position: Optional[Position] = None
+    rank: Optional[int] = 1

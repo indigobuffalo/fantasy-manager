@@ -15,6 +15,9 @@ def format_args(args: dict[str, Any]) -> dict[str, Any]:
     formatted["--drop"] = (
         cli_arg_to_int("--drop", args["--drop"]) if args["--drop"] is not None else None
     )
+    formatted["--faab"] = (
+        cli_arg_to_int("--faab", args["--faab"]) if args["--faab"] is not None else None
+    )
     return formatted
 
 
@@ -24,6 +27,16 @@ def add_player(
     add_id, start = args["--add"], args["--start"]
     controller.add_player(add_id=add_id, start=start)
     return command.success_result(f"Succesfully added player {add_id}")
+
+
+def add_player_claim(
+    args: dict[str, Any], controller: RosterController
+) -> command.success_result:
+    add_id, start, faab = args["--add"], args["--start"], args["--faab"]
+    controller.add_player_claim(add_id=add_id, start=start, faab=faab)
+    return command.success_result(
+        f"Succesfully placed waiver claim for player {add_id}"
+    )
 
 
 def drop_player(
@@ -51,17 +64,37 @@ def replace_player(
     )
 
 
+def replace_player_claim(
+    args: dict[str, Any], controller: RosterController
+) -> command.success_result:
+    add_id, drop_id, start, faab = (
+        args["--add"],
+        args["--drop"],
+        args["--start"],
+        args["--faab"],
+    )
+    controller.replace_player_claim(
+        add_id=add_id, drop_id=drop_id, start=start, faab=faab
+    )
+    return command.success_result(
+        f"Succesfully placed waiver claim to add player {add_id} and drop player {drop_id}"
+    )
+
+
 class Roster(command.CliCommand):
     """fantasy-manager roster
     Usage:
         fantasy-manager roster add --league=<league_name> --add=<player_id> [--start=<start_date>]
+        fantasy-manager roster add claim --league=<league_name> --add=<player_id> [--faab=<faab] [--start=<start_date>]
         fantasy-manager roster drop --league=<league_name> --drop=<player_id> [--start=<start_date>]
         fantasy-manager roster replace --league=<league_name> --add=<player_id>  --drop=<player_id> [--start=<start_date>]
+        fantasy-manager roster replace claim --league=<league_name> --add=<player_id>  --drop=<player_id> [--faab=<faab>] [--start=<start_date>]
 
     Options:
           --league=<league>     Id of the league the team is under.
           --add=<player_id>     Id of player to add.
           --drop=<player_id>    Id of player to drop.
+          --faab=<faab>         The amount of faab to bid on a player.
           --start=<start_date>  The date time to execute the transaction. Can use the string 'now' to run immediately."""
 
     @staticmethod
@@ -73,9 +106,13 @@ class Roster(command.CliCommand):
         controller = RosterController(league_name=args["--league"])
 
         match args:
-            case args if args["add"] is True:
+            case args if args["add"] and args["claim"]:
+                return add_player_claim(args, controller)
+            case args if args["add"]:
                 return add_player(args, controller)
-            case args if args["drop"] is True:
+            case args if args["drop"]:
                 return drop_player(args, controller)
-            case args if args["replace"] is True:
+            case args if args["replace"] and args["claim"]:
+                return replace_player_claim(args, controller)
+            case args if args["replace"]:
                 return replace_player(args, controller)
