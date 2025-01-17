@@ -1,28 +1,28 @@
 from __future__ import annotations
-from dataclasses import dataclass
+
+from pydantic import field_validator
+from pydantic.dataclasses import dataclass
 
 from fantasy_manager.model.player import BasePlayer, RosterPlayer
 
 
 @dataclass(frozen=True)
 class Team:
-    team_id: str  # league_team
-    team_key: str  # league_team
-    name: str  # league_team
+    team_id: str
+    team_key: str
+    name: str
     league_id: str
-    faab_balance: int  # league_team
+    faab_balance: int
     roster: list[RosterPlayer]
 
     def __post_init__(self):
         if self.faab_balance < 0:
             raise ValueError("FAAB balance cannot be negative")
 
-    @classmethod
-    def from_dict(cls, data: dict) -> Team:
-        """Convert a dictionary to a Team instance."""
-        data["roster"] = [RosterPlayer.from_dict(p) for p in data["roster"]]
-        data["faab_balance"] = int(data["faab_balance"])
-        return cls(**data)
+    @field_validator("faab_balance", mode="before")
+    def convert_to_int(cls, v):
+        if isinstance(v, str):
+            return int(v)
 
     def __str__(self):
         # """

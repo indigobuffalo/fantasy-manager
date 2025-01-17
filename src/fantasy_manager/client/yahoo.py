@@ -3,7 +3,6 @@ import json
 import logging
 from typing import Optional
 
-import ipdb.stdout
 import yahoo_fantasy_api as yfa
 from requests import Response
 from yahoo_oauth import OAuth2
@@ -115,8 +114,9 @@ class YahooClient(BaseClient):
         team = self.league_handle.to_team(self.league_handle.team_key())
         raw_data_dto = RawTeamDto.from_raw_data(league_team, team)
         transformed = transform_yfa_team_data_to_team(raw_data_dto)
-        team = Team.from_dict(transformed)
-        return Team
+        import ipdb
+
+        return Team(**transformed)
 
     @staticmethod
     def _handle_client_error(add_id: int, err: Exception):
@@ -181,4 +181,4 @@ class YahooClient(BaseClient):
         """
         yfa_player = self.league_handle.player_details(player_id)[0]
         transformed = transform_player_by_id_to_api_player(yfa_player)
-        return ApiPlayer.from_dict(transformed)
+        return ApiPlayer(**transformed)
