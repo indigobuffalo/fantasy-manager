@@ -11,11 +11,16 @@ unset LEAGUE
 
 # set defaults for optional args
 START_OPT=""
+FAAB_OPT=""
+WAIVERS="false"
 
-while getopts "a:hl:s:" opt; do
+while getopts "a:f:hl:s:w" opt; do
   case $opt in
     a) # The id of the player to be added.
       ADD_ID="$OPTARG"
+      ;;
+    f) # faab to bid on the waiver claim
+      FAAB_OPT="--faab $OPTARG"
       ;;
     h) # Display help text.
       usage
@@ -26,6 +31,9 @@ while getopts "a:hl:s:" opt; do
       ;;
     s) # ISO 8601 time stamp which sets the time to add the player.
       START_OPT="--start $OPTARG"
+      ;;
+    w) # Whether the player to add is on waivers.
+      WAIVERS="true"
       ;;
     ?) # Display help.
       usage
@@ -41,7 +49,11 @@ check_args(){
 check_args
 
 pushd $PROJECT_DIR
-caffeinate -is pipenv run python src/fantasy_manager/cli/__init__.py roster add --league $LEAGUE --add $ADD_ID $START_OPT
+if [[ "$WAIVERS" == "true" ]]; then
+    caffeinate -is pipenv run python src/fantasy_manager/cli/__init__.py roster add claim --league $LEAGUE --add $ADD_ID $FAAB_OPT $START_OPT
+else
+    caffeinate -is pipenv run python src/fantasy_manager/cli/__init__.py roster add --league $LEAGUE --add $ADD_ID $START_OPT
+fi
 exit_code=$?
 popd
 
