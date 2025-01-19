@@ -1,21 +1,9 @@
 import logging
-from time import sleep
 
-from datetime import datetime, date, timedelta
 from pathlib import Path
-from typing import Optional
 
 from fantasy_manager.client.factory import ClientFactory
 from fantasy_manager.config.config import FantasyConfig
-from fantasy_manager.exceptions import (
-    AlreadyAddedError,
-    FantasyUnknownError,
-    NotOnRosterError,
-    OnAnotherTeamError,
-    TimeoutExceededError,
-)
-from fantasy_manager.model.player import NhlPlayer
-from fantasy_manager.util.temporal import sleep_until, sleep_verbose
 
 PROJECT_DIR = Path(__file__).parent.absolute()
 
@@ -34,5 +22,8 @@ class LineupService:
         self.timeout_seconds = self.config.TIMEOUT_SECONDS
 
     def automate_lineup(self):
-        lineup = self.config.get_lineup()
+        roster = self.client.get_team().roster
+        import ipdb
+
+        ipdb.set_trace()
         pass

@@ -26,4 +26,4 @@ class LineupController:
         pass
 
     def automate_lineup(self):
-        pass
+        self.service.automate_lineup()

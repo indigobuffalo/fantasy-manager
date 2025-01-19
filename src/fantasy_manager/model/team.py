@@ -3,7 +3,7 @@ from __future__ import annotations
 from pydantic import field_validator
 from pydantic.dataclasses import dataclass
 
-from fantasy_manager.model.player import BasePlayer, FantasyPlayer
+from fantasy_manager.model.player import BasePlayer, LineupPlayer
 
 
 @dataclass(frozen=True)
@@ -13,7 +13,7 @@ class Team:
     name: str
     league_id: str
     faab_balance: int
-    roster: list[FantasyPlayer]
+    roster: list[LineupPlayer]
 
     def __post_init__(self):
         if self.faab_balance < 0:

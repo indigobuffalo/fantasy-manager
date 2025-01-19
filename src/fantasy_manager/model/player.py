@@ -20,7 +20,7 @@ class PlayerName:
         return self.full
 
 
-class BasePlayer(BaseModel):
+class BasePlayer(BaseModel, validate_assignment=True):
     """Base representation of a player.
 
     Attrs:
@@ -61,9 +61,9 @@ class NhlPlayer(PositionedPlayer):
     status: Optional[PlayerStatus] = PlayerStatus.ACTIVE
 
 
-class FantasyPlayer(PositionedPlayer):
-    """Player model with general, non-lineup specific position assignments.
-    This player data is fetched from the yfa team.roster endpoint.
+class LineupPlayer(PositionedPlayer):
+    """Player model representing a player in a fantasy lineup.
+    This player data comes from the yfa team.roster endpoint.
 
     Attributes:
         selected_position (Position):  The player's currently selected position in the lineup.
@@ -72,4 +72,4 @@ class FantasyPlayer(PositionedPlayer):
     """
 
     selected_position: Position
-    rank: Optional[int] = 1
+    rank: Optional[int] = None

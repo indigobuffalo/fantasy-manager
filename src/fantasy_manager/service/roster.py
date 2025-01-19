@@ -156,6 +156,7 @@ class RosterService:
         self.prepare_to_execute(add_player=add_player, start=start)
 
         end = start + timedelta(seconds=self.timeout_seconds)
+
         while True:
             now = now_pacific()
             logger.info(f"The time is {now}.")

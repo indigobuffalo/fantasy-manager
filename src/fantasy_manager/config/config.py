@@ -99,18 +99,18 @@ class FantasyConfig:
     @classmethod
     def get_lineup(cls, lineup_name: str) -> Lineup:
         """Load league-specific configuration on demand, considering the current season."""
-        league_file = (
-            CONFIG_DIR / f"data/season/{cls.SEASON}/league/{league_name.lower()}.json"
+        lineup_file = (
+            CONFIG_DIR / f"data/season/{cls.SEASON}/lineup/{lineup_name.lower()}.json"
         )
 
-        if not league_file.exists():
+        if not lineup_file.exists():
             raise InvalidLeagueError(
-                f"No configuration file found for league: {league_name} in season {cls.SEASON}"
+                f"No configuration file found for lineup: {lineup_name} in season {cls.SEASON}"
             )
 
-        with open(league_file) as f:
+        with open(lineup_file) as f:
             json_data = json.load(f)
-            return League.from_dict(json_data)
+            return Lineup.from_dict(json_data)
 
     @classmethod
     def get_roster_data(cls, league_name: str, roster_name: str) -> dict[str, Any]:

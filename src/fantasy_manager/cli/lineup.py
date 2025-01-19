@@ -1,4 +1,5 @@
 """Make a change to your roster"""
+from typing import Any
 from fantasy_manager.cli import command
 from fantasy_manager.controller.lineup import LineupController
 
