@@ -75,7 +75,7 @@ class RosterController:
             start (Optional[str], optional): The datetime to drop the player. Defaults to midnght Pacific.
         """
         start_dt = get_start(start)
-        pass
+        self.service.drop_player(drop_id, start_dt)
 
     def replace_player(
         self, add_id: int, drop_id: int = None, start: Optional[str] = None

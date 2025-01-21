@@ -114,6 +114,9 @@ class RosterService:
                     f"Invalid player inputs: '{add_player}' and '{drop_player}'"
                 )
 
+    def refresh_team(self):
+        self.team = self.client.get_team()
+
     def log_inputs(
         self,
         start: datetime,
@@ -166,6 +169,7 @@ class RosterService:
                 )
             try:
                 self.client.add_player(add_id=add_id)
+                self.refresh_team()
                 if not self.team.has_player(add_player):
                     raise FantasyUnknownError(f"Error adding '{add_player}'.")
                 logger.info(f"Success!  {add_player} is now on roster.")
@@ -227,6 +231,7 @@ class RosterService:
                 )
             try:
                 self.client.replace_player(add_id=add_id, drop_id=drop_id)
+                self.refresh_team()
                 if not self.team.has_player(add_player):
                     raise FantasyUnknownError(
                         f"Error adding {add_player} for {drop_player}."
@@ -260,8 +265,13 @@ class RosterService:
             FantasyUnknownError: _description_
         """
         add_player = self.get_player_data(add_id)
-        self.log_inputs(start, add_player=add_player, faab=faab)
-        self.prepare_to_execute(add_player=add_player, start=start)
+        drop_player = self.get_player_data(drop_id)
+        self.log_inputs(
+            start, add_player=add_player, drop_player=drop_player, faab=faab
+        )
+        self.prepare_to_execute(
+            add_player=add_player, drop_player=drop_player, start=start
+        )
         return self.client.replace_player_claim(
             add_id=add_id, drop_id=drop_id, faab=faab
         )
@@ -279,29 +289,8 @@ class RosterService:
         self.log_inputs(start, drop_player=drop_player)
         self.prepare_to_execute(drop_player=drop_player, start=start)
 
-        end = start + timedelta(seconds=self.timeout_seconds)
-        while True:
-            now = now_pacific()
-            logger.info(f"The time is {now}.")
-            if now > end:
-                raise TimeoutExceededError(
-                    f"Failed to drop '{drop_player}' within {self.timeout_seconds} second timeout"
-                )
-            try:
-                self.client.drop_player(drop_player.player_id)
-                if self.team.has_player(drop_player):
-                    raise FantasyUnknownError(f"Error dropping '{drop_player}'.")
-                logger.info(f"Success!  Dropped {drop_player}.")
-                return
-            # TODO: use exception handling private method to reduce code duplication
-            except Exception as err:
-                match err:
-                    case OnAnotherTeamError():
-                        raise
-                    case NotOnRosterError():
-                        raise
-                    case _:
-                        logger.info(str(err))
-                        sleep_verbose(0.1, logger)
-                        continue
-        pass
+        self.client.drop_player(drop_player.player_id)
+
+        self.refresh_team()
+        if self.team.has_player(drop_player):
+            raise FantasyUnknownError(f"Error dropping '{drop_player}'.")

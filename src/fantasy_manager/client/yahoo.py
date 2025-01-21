@@ -8,8 +8,6 @@ from requests import Response
 from yahoo_oauth import OAuth2
 
 from fantasy_manager.client.base import BaseClient
-from fantasy_manager.client.yfa_custom.custom_team import CustomTeam
-from fantasy_manager.client.yfa_custom.custom_yhandler import CustomYHandler
 from fantasy_manager.config.config import FantasyConfig
 from fantasy_manager.exceptions import (
     AlreadyPlayedError,
@@ -74,10 +72,6 @@ class YahooClient(BaseClient):
             self.league.key
         )
         self.team_handle = self.league_handle.to_team(self.league_handle.team_key())
-        self.custom_yfa_handler = CustomYHandler(self.session_context)
-        self.custom_team = CustomTeam(
-            self.custom_yfa_handler, self.league_handle.team_key()
-        )
 
     def _check_locked_players(self) -> None:
         """Ensure all expected players are on roster.
@@ -152,7 +146,7 @@ class YahooClient(BaseClient):
             self._handle_client_error(add_id=add_id, err=err)
 
     def add_player_claim(self, add_id, faab=None):
-        self.custom_team.claim_player(add_id, faab)
+        self.team_handle.claim_player(add_id, faab)
 
     def drop_player(self, drop_id: int) -> None:
         try:
@@ -172,7 +166,7 @@ class YahooClient(BaseClient):
     def replace_player_claim(
         self, add_id: int, drop_id: int, faab: int = None
     ) -> Response:
-        return self.custom_team.claim_and_drop_players(add_id, drop_id, faab)
+        return self.team_handle.claim_and_drop_players(add_id, drop_id, faab)
 
     def cancel_waiver_claim(self, player_id: int) -> None:
         pass
