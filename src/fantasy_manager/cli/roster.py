@@ -3,8 +3,11 @@ import copy
 from typing import Any
 
 from fantasy_manager.cli import command
+from fantasy_manager.client.factory import ClientFactory
+from fantasy_manager.config.config import FantasyConfig
 from fantasy_manager.controller.roster import RosterController
-from fantasy_manager.util.cli import cli_arg_to_int, confirm_proceed
+from fantasy_manager.service.roster import RosterService
+from fantasy_manager.util.cli import cli_arg_to_int
 
 
 def format_args(args: dict[str, Any]) -> dict[str, Any]:
@@ -103,7 +106,17 @@ class Roster(command.CliCommand):
 
         args = format_args(args)
 
-        controller = RosterController(league_name=args["--league"])
+        league_abbr = args["--league"]
+
+        fc = FantasyConfig()
+        league = fc.get_league(league_abbr)
+        client = ClientFactory.get_client(
+            platform=league.platform, league=league, config=fc
+        )
+        team = client.get_team()
+
+        service = RosterService(config=fc, league=league, team=team, client=client)
+        controller = RosterController(service=service)
 
         match args:
             case args if args["add"] and args["claim"]:

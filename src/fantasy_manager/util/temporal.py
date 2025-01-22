@@ -78,3 +78,10 @@ def now_pacific() -> datetime:
         datetime: The present datetime in the Pacific timezone.
     """
     return datetime.now(ZoneInfo("America/Los_Angeles"))
+
+
+def get_timeout_end(start: datetime, timeout_seconds: int) -> datetime:
+    now = datetime.now(timezone.utc)
+    if start >= now:
+        return start + timedelta(seconds=timeout_seconds)
+    return now + timedelta(seconds=timeout_seconds)

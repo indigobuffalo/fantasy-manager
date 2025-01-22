@@ -12,8 +12,8 @@ logger = logging.getLogger(__name__)
 
 
 class RosterController:
-    def __init__(self, league_name: str):
-        self.service = RosterService(league_name=league_name)
+    def __init__(self, service: RosterService):
+        self.service = service
 
     def get_player(self, player_id: int) -> str:
         """Gets player data and returns it as a json string

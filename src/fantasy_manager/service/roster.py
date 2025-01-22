@@ -4,6 +4,8 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional
 
+from pytz import timezone
+
 from fantasy_manager.client.base import BaseClient
 from fantasy_manager.client.factory import ClientFactory
 from fantasy_manager.config.config import FantasyConfig
@@ -21,6 +23,7 @@ from fantasy_manager.model.team import Team
 from fantasy_manager.util.log import align_pairs, log_pairs
 from fantasy_manager.util.temporal import (
     duration_to_hours_mins_and_secs,
+    get_timeout_end,
     now_pacific,
     sleep_until,
     sleep_verbose,
@@ -33,17 +36,15 @@ logger = logging.getLogger(__name__)
 
 
 class RosterService:
-    def __init__(self, league_name: str):
-        self.config: FantasyConfig = FantasyConfig()
-        self.league: League = self.config.get_league(league_name)
+    def __init__(
+        self, config: FantasyConfig, league: League, team: Team, client: BaseClient
+    ):
+        self.cfg = config
+        self.league = league
+        self.team = team
 
-        self.client: BaseClient = ClientFactory.get_client(
-            platform=self.league.platform, league=self.league, config=self.config
-        )
-
+        self.client = client
         self.client.refresh()
-        self.team: Team = self.client.get_team()
-        self.timeout_seconds: int = self.config.TIMEOUT_SECONDS
 
     def _check_player_inputs(
         self,
@@ -84,9 +85,7 @@ class RosterService:
             add_player (Optional[ApiPlayer], optional): The player to add. Defaults to None.
             drop_player (Optional[ApiPlayer], optional): The player to drop. Defaults to None.
         """
-        preflight_check_dt = start - timedelta(
-            seconds=self.config.PRE_FLIGHT_CHECK_SECS
-        )
+        preflight_check_dt = start - timedelta(seconds=self.cfg.PRE_FLIGHT_CHECK_SECS)
         sleep_until(preflight_check_dt, logger)
         self.run_preflight_checks(add_player, drop_player)
         sleep_until(start, logger)
@@ -158,14 +157,14 @@ class RosterService:
         self.log_inputs(start, add_player=add_player)
         self.prepare_to_execute(add_player=add_player, start=start)
 
-        end = start + timedelta(seconds=self.timeout_seconds)
+        end = get_timeout_end(start, self.cfg.TIMEOUT_SECONDS)
 
         while True:
             now = now_pacific()
             logger.info(f"The time is {now}.")
             if now > end:
                 raise TimeoutExceededError(
-                    f"Failed to add '{add_player}' within {self.timeout_seconds} second timeout"
+                    f"Failed to add '{add_player}' within {self.cfg.TIMEOUT_SECONDS} second timeout"
                 )
             try:
                 self.client.add_player(add_id=add_id)
@@ -221,13 +220,13 @@ class RosterService:
             add_player=add_player, drop_player=drop_player, start=start
         )
 
-        end = start + timedelta(seconds=self.timeout_seconds)
+        end = get_timeout_end(start, self.cfg.TIMEOUT_SECONDS)
         while True:
             now = now_pacific()
             logger.info(f"The time is {now}")
             if now > end:
                 raise TimeoutExceededError(
-                    f"Failed to add '{add_player}' for '{drop_player}' within {self.timeout_seconds} second timeout"
+                    f"Failed to add '{add_player}' for '{drop_player}' within {self.cfg.TIMEOUT_SECONDS} second timeout"
                 )
             try:
                 self.client.replace_player(add_id=add_id, drop_id=drop_id)
