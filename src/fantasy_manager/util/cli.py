@@ -51,7 +51,4 @@ def get_start(start: Optional[str] = None) -> datetime:
         case _:
             start_dt = datetime.fromisoformat(start)
 
-    if start_dt <= now:
-        confirm_proceed()
-
     return start_dt

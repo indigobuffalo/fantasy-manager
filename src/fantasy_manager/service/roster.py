@@ -1,13 +1,10 @@
 import logging
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Optional
 
-from pytz import timezone
-
 from fantasy_manager.client.base import BaseClient
-from fantasy_manager.client.factory import ClientFactory
 from fantasy_manager.config.config import FantasyConfig
 from fantasy_manager.exceptions import (
     AlreadyAddedError,
@@ -20,6 +17,7 @@ from fantasy_manager.exceptions import (
 from fantasy_manager.model.league import League
 from fantasy_manager.model.player import NhlPlayer
 from fantasy_manager.model.team import Team
+from fantasy_manager.util.cli import confirm_proceed
 from fantasy_manager.util.log import align_pairs, log_pairs
 from fantasy_manager.util.temporal import (
     duration_to_hours_mins_and_secs,
@@ -142,6 +140,9 @@ class RosterService:
         if faab is not None:
             pairs.append(("FAAB", f"${faab}"))
         log_pairs(logger=logger, tuples=pairs, padding=4)
+
+        if start <= datetime.now(timezone.utc):
+            confirm_proceed()
 
     def add_player(self, add_id: str, start: datetime) -> None:
         """Adds a player from free agency to the roster.

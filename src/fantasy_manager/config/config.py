@@ -58,28 +58,6 @@ class FantasyConfig:
             )
         return url
 
-    @staticmethod
-    def get_cookie(platform: Platform) -> str:
-        """Retrieve cookies for the given platform from environment variables."""
-        cookie_env_var = f"{platform.name}_COOKIE"
-        cookie = os.getenv(cookie_env_var)
-        if not cookie:
-            raise ValueError(
-                f"No cookie set for platform '{platform.name}'. Expected env var: {cookie_env_var}"
-            )
-        return cookie
-
-    @staticmethod
-    def get_crumb(platform: Platform) -> str:
-        """Retrieve crumb for the given platform from environment variables."""
-        crumb_env_var = f"{platform.name}_CRUMB"
-        crumb = os.getenv(crumb_env_var)
-        if not crumb:
-            raise ValueError(
-                f"No crumb set for platform '{platform.name}'. Expected env var: {crumb_env_var}"
-            )
-        return crumb
-
     @classmethod
     def get_league(cls, league_name: str) -> League:
         """Load league-specific configuration on demand, considering the current season."""

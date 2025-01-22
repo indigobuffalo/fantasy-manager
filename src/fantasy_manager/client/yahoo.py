@@ -50,10 +50,6 @@ class YahooClient(BaseClient):
 
     def __init__(self, league: League, config: FantasyConfig):
         super().__init__(league=league, config=config)
-        self.session.headers.update(
-            {"cookie": self.config.get_cookie(self.league.platform)}
-        )
-        self.crumb = self.config.get_crumb(self.league.platform)
         self._refresh_context()
 
     @property

@@ -31,7 +31,7 @@ def days_until(until_day: str, from_date: date = date.today()) -> int:
 
 def duration_to_hours_mins_and_secs(duration: timedelta) -> tuple[float, float, float]:
     """Convert a duration represented into hours, minutes and seconds"""
-    seconds = abs(duration.seconds)
+    seconds = abs(duration.total_seconds())
     hours = seconds // 3600
     minutes = (seconds % 3600) // 60
     seconds = seconds % 60
