@@ -15,17 +15,6 @@ class RosterController:
     def __init__(self, service: RosterService):
         self.service = service
 
-    def get_player(self, player_id: int) -> str:
-        """Gets player data and returns it as a json string
-
-        Args:
-            player_id (int): The id of the player to fetch data for.
-
-        Returns:
-            str: Json-serialized dict representing the player.
-        """
-        return self.service.get_player_data(player_id).to_json()
-
     def add_player(
         self,
         add_id: int,
@@ -75,7 +64,7 @@ class RosterController:
             start (Optional[str], optional): The datetime to drop the player. Defaults to midnght Pacific.
         """
         start_dt = get_start(start)
-        self.service.drop_player(drop_id, start_dt)
+        self.service.drop_player(drop_id=drop_id, start=start_dt)
 
     def replace_player(
         self, add_id: int, drop_id: int = None, start: Optional[str] = None

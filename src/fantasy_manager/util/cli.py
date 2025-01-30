@@ -27,7 +27,7 @@ def cli_arg_to_int(arg_name: str, arg_value: str) -> int:
     """
     try:
         return int(arg_value)
-    except ValueError as err:
+    except ValueError:
         raise InputError(f"Expected int for '{arg_name}', got '{arg_value}'")
 
 
@@ -41,14 +41,14 @@ def get_start(start: Optional[str] = None) -> datetime:
         datetime: _description_
     """
     start = start.lower() if start is not None else None
-    now = now_pacific()
-
     match start:
         case None:
             start_dt = upcoming_midnight_pacific()
         case "now":
-            start_dt = now
+            start_dt = now_pacific()
         case _:
-            start_dt = datetime.fromisoformat(start)
-
+            try:
+                start_dt = datetime.fromisoformat(start)
+            except ValueError:
+                raise InputError(f"Invalid start time: {start}")
     return start_dt

@@ -6,6 +6,9 @@ verify_ssl = true
 [dev-packages]
 black = "*"
 ipdb = "*"
+pytest = "*"
+pytest-cov = "*"
+freezegun = "*"
 
 [packages]
 requests = "*"
