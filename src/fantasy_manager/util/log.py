@@ -1,5 +1,4 @@
 from logging import Logger
-from operator import itemgetter
 
 
 def log_line_break(
@@ -28,8 +27,8 @@ def get_key_adjusted_padding(tuples: list[tuple[str, str]], padding: int) -> int
     Returns:
         int: The number of spaces to use in ljust when printing the key-value pairs.
     """
-    longest_label = max(tuples, key=itemgetter(0))[0]
-    return padding + len(longest_label)
+    max_label_len = max(map(len, [t[0] for t in tuples]))
+    return padding + max_label_len
 
 
 def log_pairs(

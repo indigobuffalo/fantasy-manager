@@ -13,7 +13,7 @@ from fantasy_manager.exceptions import InputError
 @pytest.fixture
 def controller():
     mock_svc = Mock(spec=RosterService)
-    return RosterController(mock_svc)
+    yield RosterController(mock_svc)
 
 
 @pytest.fixture
