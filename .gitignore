@@ -1,8 +1,19 @@
+# python
 __pycache__/
-headers.py
+
+# IDE
 .vscode
 
+# local file system
+.swo
+.swp
+
+# local secrets
 .env
 .secrets
+headers.py
 
 local-test/
+
+# unit tests
+.coverage
