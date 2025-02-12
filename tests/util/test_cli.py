@@ -28,8 +28,9 @@ def test_cli_arg_to_int_invalid():
 
 def test_get_start_default():
     with patch("fantasy_manager.util.cli.upcoming_midnight_pacific") as mock_midnight:
-        mock_midnight.return_value = datetime(2025, 1, 1)
-        assert_that(get_start(), equal_to(datetime(2025, 1, 1)))
+        expected_dt = datetime(2025, 1, 1)
+        mock_midnight.return_value = expected_dt
+        assert_that(get_start(), equal_to(expected_dt))
 
 
 def test_get_start_now():

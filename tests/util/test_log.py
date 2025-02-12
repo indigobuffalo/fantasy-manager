@@ -1,4 +1,5 @@
 import logging
+from unittest.mock import Mock, call
 from hamcrest import assert_that, equal_to, has_length, only_contains
 import pytest
 
@@ -12,16 +13,7 @@ from fantasy_manager.util.log import (
 
 @pytest.fixture
 def logger():
-    logger = logging.getLogger("Test Logger")
-    logger.setLevel(logging.INFO)
-    logger.propagate = True
-    yield logger
-
-
-@pytest.fixture
-def caplog_info(caplog, logger):
-    with caplog.at_level(logging.INFO, logger=logger.name):
-        yield caplog
+    return Mock(spec=logging.Logger)
 
 
 @pytest.fixture
@@ -29,11 +21,11 @@ def input_tuples():
     yield [("Name", "Owen Nolan"), ("Team", "San Jose Sharks"), ("Number", "11")]
 
 
-def test_log_line_break(caplog_info, logger):
+def test_log_line_break(logger):
     spacer, count, lines = "*", 5, 3
     log_line_break(logger, spacer=spacer, count=count, lines=lines)
-    assert_that(caplog_info.messages, has_length(3))
-    assert_that(caplog_info.messages, only_contains(spacer * count))
+    assert_that(logger.info.mock_calls, has_length(3))
+    assert_that(logger.info.mock_calls, only_contains(call(spacer * count)))
 
 
 def test_get_key_adjusted_padding(input_tuples):
@@ -52,7 +44,7 @@ def test_align_pairs(input_tuples):
     assert_that(align_pairs(input_tuples), equal_to(expected))
 
 
-def test_log_pairs(caplog, logger, input_tuples):
+def test_log_pairs(logger, input_tuples):
     input_tuples.append(("Contract", None))
     expected = [
         "------------------------------------------------------------",
@@ -63,4 +55,4 @@ def test_log_pairs(caplog, logger, input_tuples):
         "------------------------------------------------------------",
     ]
     log_pairs(logger, input_tuples)
-    assert_that(caplog.messages, equal_to(expected))
+    assert_that(logger.info.mock_calls, equal_to([call(line) for line in expected]))

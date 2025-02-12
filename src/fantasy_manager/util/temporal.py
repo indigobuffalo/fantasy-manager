@@ -1,7 +1,6 @@
-from datetime import date, time, timedelta, datetime, timezone
+from datetime import time, timedelta, datetime, timezone
 import logging
 from time import sleep
-from typing import Iterator
 from zoneinfo import ZoneInfo
 
 DAYS_OF_WEEK = {
@@ -15,20 +14,6 @@ DAYS_OF_WEEK = {
 }
 
 
-def date_range(date1, date2) -> Iterator[date]:
-    for n in range(int((date2 - date1).days) + 1):
-        yield date1 + timedelta(n)
-
-
-def days_until(until_day: str, from_date: date = date.today()) -> int:
-    days_until = 0
-    end_date = from_date
-    while end_date.weekday() != DAYS_OF_WEEK[until_day]:
-        end_date += timedelta(days=1)
-        days_until += 1
-    return days_until
-
-
 def duration_to_hours_mins_and_secs(duration: timedelta) -> tuple[float, float, float]:
     """Convert a duration represented into hours, minutes and seconds"""
     seconds = abs(duration.total_seconds())
@@ -38,11 +23,11 @@ def duration_to_hours_mins_and_secs(duration: timedelta) -> tuple[float, float, 
     return hours, minutes, seconds
 
 
-def sleep_until(dt: datetime, logger: logging.Logger) -> None:
+def sleep_until(dt: datetime, logger: logging.Logger, buffer_secs=0.2) -> None:
     now = now_pacific()
     if now < dt:
         total_duration = dt - now
-        sleep_duration = total_duration - timedelta(seconds=0.2)
+        sleep_duration = total_duration - timedelta(seconds=buffer_secs)
         sleep_hours, sleep_mins, sleep_secs = duration_to_hours_mins_and_secs(
             sleep_duration
         )
