@@ -19,7 +19,7 @@ class LineupService:
             platform=self.league.platform, league=self.league, config=self.config
         )
         self.client.refresh()
-        self.timeout_seconds = self.config.TIMEOUT_SECONDS
+        self.timeout_seconds = self.config.ADD_PLAYER_TIMEOUT_SECONDS
 
     def automate_lineup(self):
         roster = self.client.get_team().roster

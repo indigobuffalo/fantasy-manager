@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Optional
 
 from fantasy_manager.client.base import BaseClient
+from fantasy_manager.client.yahoo import YahooClient
 from fantasy_manager.config.config import FantasyConfig
 from fantasy_manager.exceptions import (
     AlreadyAddedError,
@@ -41,7 +42,7 @@ class RosterService:
         self.league = league
         self.team = team
 
-        self.client = client
+        self.client: YahooClient = client
         self.client.refresh()
 
     def _check_player_inputs(
@@ -144,6 +145,40 @@ class RosterService:
         if start <= datetime.now(timezone.utc):
             confirm_proceed()
 
+    def _execute_with_timeout(
+        self,
+        action: str,
+        add_id: int,
+        start: datetime,
+        drop_id: Optional[int] = None,
+        timeout_seconds: int = FantasyConfig.ADD_PLAYER_TIMEOUT_SECONDS,
+    ) -> None:
+        end = get_timeout_end(start, timeout_seconds)
+
+        while now_pacific() < end:
+            logger.info(f"The time is {now_pacific()}.")
+            try:
+                match action:
+                    case "add":
+                        self.client.add_player(add_id=add_id)
+                    case "replace":
+                        self.client.replace_player(add_id=add_id, drop_id=drop_id)
+                    case _:
+                        raise InputError(f"Invalid action: '{action}'")
+
+                self.refresh_team()
+                if not self.team.has_player(self.get_player_data(add_id)):
+                    raise FantasyUnknownError(
+                        "Failed to add player '{add_id}' despite successful client call."
+                    )
+                return
+            except Exception as err:
+                self._handle_exception(err)
+
+        raise TimeoutExceededError(
+            f"Timeout {action}ing '{self.get_player_data(add_id)}'."
+        )
+
     def add_player(self, add_id: str, start: datetime) -> None:
         """Adds a player from free agency to the roster.
 
@@ -157,34 +192,10 @@ class RosterService:
         add_player = self.get_player_data(add_id)
         self.log_inputs(start, add_player=add_player)
         self.prepare_to_execute(add_player=add_player, start=start)
-
-        end = get_timeout_end(start, self.cfg.TIMEOUT_SECONDS)
-
-        while True:
-            now = now_pacific()
-            logger.info(f"The time is {now}.")
-            if now > end:
-                raise TimeoutExceededError(
-                    f"Failed to add '{add_player}' within {self.cfg.TIMEOUT_SECONDS} second timeout"
-                )
-            try:
-                self.client.add_player(add_id=add_id)
-                self.refresh_team()
-                if not self.team.has_player(add_player):
-                    raise FantasyUnknownError(f"Error adding '{add_player}'.")
-                logger.info(f"Success!  {add_player} is now on roster.")
-                return
-            # TODO: use exception handling private method to reduce code duplication
-            except Exception as err:
-                match err:
-                    case OnAnotherTeamError():
-                        raise
-                    case NotOnRosterError():
-                        raise
-                    case _:
-                        logger.info(str(err))
-                        sleep_verbose(0.1, logger)
-                        continue
+        self._execute_with_timeout(
+            "add", add_id, start, timeout_seconds=self.cfg.ADD_PLAYER_TIMEOUT_SECONDS
+        )
+        logger.info(f"Success! {self.get_player_data(add_id)} is now on roster.")
 
     def add_player_claim(self, add_id: str, faab: int, start: datetime) -> None:
         """Make a waiver claim for a player.
@@ -216,39 +227,23 @@ class RosterService:
         add_player = self.get_player_data(add_id)
         drop_player = self.get_player_data(drop_id)
         self.log_inputs(start, add_player, drop_player)
-
         self.prepare_to_execute(
             add_player=add_player, drop_player=drop_player, start=start
         )
+        self._execute_with_timeout("replace", add_id, start, drop_id=drop_id)
+        logger.info(
+            f"Success! Added '{self.get_player_data(add_id)}' and dropped '{self.get_player_data(drop_id)}'."
+        )
 
-        end = get_timeout_end(start, self.cfg.TIMEOUT_SECONDS)
-        while True:
-            now = now_pacific()
-            logger.info(f"The time is {now}")
-            if now > end:
-                raise TimeoutExceededError(
-                    f"Failed to add '{add_player}' for '{drop_player}' within {self.cfg.TIMEOUT_SECONDS} second timeout"
-                )
-            try:
-                self.client.replace_player(add_id=add_id, drop_id=drop_id)
-                self.refresh_team()
-                if not self.team.has_player(add_player):
-                    raise FantasyUnknownError(
-                        f"Error adding {add_player} for {drop_player}."
-                    )
-                logger.info(f"Success!  {add_player} is now on roster.")
-                return
-            # TODO: use exception handling private method to reduce code duplication
-            except Exception as err:
-                match err:
-                    case OnAnotherTeamError():
-                        raise
-                    case NotOnRosterError():
-                        raise
-                    case _:
-                        logger.info(str(err))
-                        sleep_verbose(0.1, logger)
-                        continue
+    def _handle_exception(self, err: Exception) -> None:
+        match err:
+            case OnAnotherTeamError():
+                raise
+            case NotOnRosterError():
+                raise
+            case _:
+                logger.info(str(err))
+                sleep_verbose(self.cfg.ADD_PLAYER_POLL_SECONDS, logger)
 
     def replace_player_claim(
         self, add_id: str, drop_id: int, faab: int, start: datetime

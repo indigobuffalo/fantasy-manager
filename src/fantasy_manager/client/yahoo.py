@@ -152,6 +152,19 @@ class YahooClient(BaseClient):
             raise
 
     def replace_player(self, add_id: int, drop_id: Optional[int] = None) -> None:
+        """
+        Replace a player in the team by adding a new player and optionally dropping an existing player.
+
+        Args:
+            add_id (int): The ID of the player to be added to the team.
+            drop_id (Optional[int]): The ID of the player to be dropped from the team. Defaults to None.
+
+        Returns:
+            None
+
+        Raises:
+            Exception: If an error occurs during the add and drop operation, it is handled by _handle_client_error.
+        """
         try:
             self.team_handle.add_and_drop_players(
                 add_player_id=add_id, drop_player_id=drop_id
