@@ -5,6 +5,7 @@ import pytest
 from hamcrest import assert_that, equal_to
 
 from conftest import *
+from fantasy_manager.cli import roster
 from fantasy_manager.cli.roster import drop_player
 from fantasy_manager.model.player import NhlPlayer
 from fantasy_manager.exceptions import (
@@ -62,13 +63,25 @@ def test_get_player_data(roster_svc, mock_client):
 
 
 def test_run_preflight_checks(roster_svc, mock_client):
-    roster_svc._check_player_inputs = Mock()
+    roster_svc.team.has_player.side_effect = [False, True]
     assert_that(mock_client.refresh.call_count, equal_to(1))
     roster_svc.run_preflight_checks(NHL_PLAYER_ACTIVE_ONE, NHL_PLAYER_ACTIVE_TWO)
     assert_that(mock_client.refresh.call_count, equal_to(2))
-    roster_svc._check_player_inputs.assert_called_once_with(
-        add_player=NHL_PLAYER_ACTIVE_ONE, drop_player=NHL_PLAYER_ACTIVE_TWO
-    )
+
+
+def test_run_preflight_checks_player_to_add_already_added(roster_svc, mock_client):
+    roster_svc.team.has_player.return_value = True
+    assert_that(mock_client.refresh.call_count, equal_to(1))
+    with pytest.raises(AlreadyAddedError):
+        roster_svc.run_preflight_checks(NHL_PLAYER_ACTIVE_ONE)
+    assert_that(mock_client.refresh.call_count, equal_to(2))
+
+
+def test_run_preflight_checks_player_to_drop_not_on_roster(roster_svc, mock_client):
+    assert_that(mock_client.refresh.call_count, equal_to(1))
+    with pytest.raises(NotOnRosterError):
+        roster_svc.run_preflight_checks(NHL_PLAYER_ACTIVE_ONE, NHL_PLAYER_ACTIVE_TWO)
+    assert_that(mock_client.refresh.call_count, equal_to(2))
 
 
 @patch("fantasy_manager.service.roster.logger")
@@ -91,8 +104,7 @@ def test_prepare_to_execute(mock_sleep_until, mock_logger, roster_svc, start):
 
 @patch("fantasy_manager.service.roster.log_pairs")
 @patch("fantasy_manager.service.roster.logger")
-def test_log_inputs(mock_logger, mock_log_pairs, roster_svc, frozen_time):
-    start = frozen_time + timedelta(seconds=20)
+def test_log_inputs(mock_logger, mock_log_pairs, roster_svc, start):
     pairs = [
         ("League", roster_svc.league.name),
         ("Start", f"0 HOURS 0 MINUTES 20 SECONDS"),
@@ -108,31 +120,37 @@ def test_log_inputs(mock_logger, mock_log_pairs, roster_svc, frozen_time):
 def test_add_player(roster_svc, mock_client, start):
     roster_svc.prepare_to_execute = Mock()
     roster_svc.log_inputs = Mock()
+    roster_svc.refresh_team = Mock()
+    roster_svc.team.has_player.return_value = True
 
     roster_svc.add_player(add_id=ADD_ID, start=start)
 
-    mock_client.add_player.assert_called_once_with(add_id=ADD_ID)
     roster_svc.log_inputs.assert_called_once_with(
         start, add_player=NHL_PLAYER_ACTIVE_ONE
     )
     roster_svc.prepare_to_execute.assert_called_once_with(
         add_player=NHL_PLAYER_ACTIVE_ONE, start=start
     )
+    mock_client.add_player.assert_called_once_with(add_id=ADD_ID)
+    roster_svc.refresh_team.assert_called_once()
 
 
-def test_replace_player_X(roster_svc, mock_client, start):
+def test_replace_player(roster_svc, mock_client, start):
     roster_svc.prepare_to_execute = Mock()
     roster_svc.log_inputs = Mock()
+    roster_svc.refresh_team = Mock()
+    roster_svc.team.has_player.return_value = True
 
     roster_svc.replace_player(ADD_ID, DROP_ID, start)
 
-    mock_client.replace_player.assert_called_once_with(add_id=ADD_ID, drop_id=DROP_ID)
     roster_svc.log_inputs.assert_called_once_with(
         start, add_player=NHL_PLAYER_ACTIVE_ONE, drop_player=NHL_PLAYER_ACTIVE_TWO
     )
     roster_svc.prepare_to_execute.assert_called_once_with(
         add_player=NHL_PLAYER_ACTIVE_ONE, drop_player=NHL_PLAYER_ACTIVE_TWO, start=start
     )
+    mock_client.replace_player.assert_called_once_with(add_id=ADD_ID, drop_id=DROP_ID)
+    roster_svc.refresh_team.assert_called_once()
 
 
 def test_add_player_claim(roster_svc, mock_client, frozen_time):
