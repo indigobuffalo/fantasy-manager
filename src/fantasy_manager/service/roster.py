@@ -151,8 +151,9 @@ class RosterService:
         add_id: int,
         start: datetime,
         drop_id: Optional[int] = None,
-        timeout_seconds: int = FantasyConfig.ADD_PLAYER_TIMEOUT_SECONDS,
+        timeout_seconds: Optional[int] = None,
     ) -> None:
+        timeout_seconds = timeout_seconds or self.cfg.ADD_PLAYER_TIMEOUT_SECONDS
         end = get_timeout_end(start, timeout_seconds)
 
         while now_pacific() < end:
@@ -192,9 +193,7 @@ class RosterService:
         add_player = self.get_player_data(add_id)
         self.log_inputs(start, add_player=add_player)
         self.prepare_to_execute(add_player=add_player, start=start)
-        self._execute_with_timeout(
-            "add", add_id, start, timeout_seconds=self.cfg.ADD_PLAYER_TIMEOUT_SECONDS
-        )
+        self._execute_with_timeout("add", add_id, start)
         logger.info(f"Success! {self.get_player_data(add_id)} is now on roster.")
 
     def add_player_claim(self, add_id: str, faab: int, start: datetime) -> None:
@@ -226,11 +225,13 @@ class RosterService:
         """
         add_player = self.get_player_data(add_id)
         drop_player = self.get_player_data(drop_id)
-        self.log_inputs(start, add_player, drop_player)
+        self.log_inputs(start, add_player=add_player, drop_player=drop_player)
         self.prepare_to_execute(
             add_player=add_player, drop_player=drop_player, start=start
         )
-        self._execute_with_timeout("replace", add_id, start, drop_id=drop_id)
+        self._execute_with_timeout(
+            "replace", add_id=add_id, drop_id=drop_id, start=start
+        )
         logger.info(
             f"Success! Added '{self.get_player_data(add_id)}' and dropped '{self.get_player_data(drop_id)}'."
         )

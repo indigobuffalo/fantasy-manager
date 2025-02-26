@@ -110,7 +110,6 @@ class YahooClient(BaseClient):
         team = self.league_handle.to_team(self.league_handle.team_key())
         raw_data_dto = RawTeamDto.from_raw_data(league_team, team)
         transformed = transform_yfa_team_data_to_team(raw_data_dto)
-        import ipdb
 
         return Team(**transformed)
 

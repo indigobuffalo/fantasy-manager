@@ -77,7 +77,7 @@ NHL_PLAYER_O = NhlPlayer(
 
 @pytest.fixture
 def mock_client():
-    def side_effect_func(player_id: int):
+    def get_player_by_id_side_effect(player_id: int):
         match player_id:
             case 1:
                 return NHL_PLAYER_ACTIVE_ONE
@@ -91,7 +91,7 @@ def mock_client():
                 return NHL_PLAYER_O
 
     client = Mock(spec=BaseClient)
-    client.get_player_by_id = Mock(side_effect=side_effect_func)
+    client.get_player_by_id = Mock(side_effect=get_player_by_id_side_effect)
     client.refresh = Mock()
     yield client
 
