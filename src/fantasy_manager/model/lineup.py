@@ -4,7 +4,7 @@ from datetime import date
 from enum import Enum
 import json
 from typing import List
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass
 
 from fantasy_manager.model.player import LineupPlayer
 

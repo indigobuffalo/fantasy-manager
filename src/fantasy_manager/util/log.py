@@ -33,7 +33,7 @@ def get_key_adjusted_padding(tuples: list[tuple[str, str]], padding: int) -> int
 
 def log_pairs(
     logger: Logger,
-    tuples: list[tuple[str, str]],
+    pairs: list[tuple[str, str]],
     padding: int = 2,
     separator: str = ":",
     default_val: str = "-",
@@ -42,13 +42,13 @@ def log_pairs(
 
     Args:
         logger (Logger):                  The logger to use.
-        tuples (list[tuple[str, str]]):   A list of tuples containing label-value pairs.
+        pairs (list[tuple[str, str]]):    A list of tuples containing label-value pairs.
         padding (int):                    The min padding between the labels and values.
         default (str):                    The default to use when a value is None.
     """
     log_line_break(logger)
-    padding = get_key_adjusted_padding(tuples, padding)
-    for label, val in tuples:
+    padding = get_key_adjusted_padding(pairs, padding)
+    for label, val in pairs:
         logger.info(
             label + separator.ljust(padding - len(label)) + (val or default_val)
         )

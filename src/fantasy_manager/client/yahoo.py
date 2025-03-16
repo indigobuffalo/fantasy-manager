@@ -7,7 +7,7 @@ import yahoo_fantasy_api as yfa
 from requests import Response
 from yahoo_oauth import OAuth2
 
-from fantasy_manager.client.base import BaseClient
+from fantasy_manager.client.base import BaseFantasyClient
 from fantasy_manager.config.config import FantasyConfig
 from fantasy_manager.exceptions import (
     AlreadyPlayedError,
@@ -41,7 +41,7 @@ class TeamDataNotFoundError(Exception):
         super().__init__(self.message)
 
 
-class YahooClient(BaseClient):
+class YahooClient(BaseFantasyClient):
     """Class for interacting with Yahoo APIs
 
     Args:
@@ -99,17 +99,17 @@ class YahooClient(BaseClient):
         # LineupPlayer(player_id=6751, name="Timo Meier", selected_position=Position.BN.value, ranking=85),
         # LineupPlayer(player_id=8654, name="Dylan Holloway", selected_position=Position.LW.value, ranking=82),
         # LineupPlayer(player_id=8654, name="Mark Stone", selected_position=Position.RW.value, ranking=91),
-        # LineupPlayer(player_id=6756, name="Jake Debrusk", selected_position=Position.RW.value, ranking=86),
+        # LineupPlayer(player_id=6756, name="Jake Debrusk", selected_position=Position.RW.value, ranking=84),
         # ]
         # )
         as_json = lineup.to_json()
         self.team_handle.change_positions(lineup_date, json.loads(as_json))
 
     def get_team(self) -> Team:
-        league_team = self.league_handle.teams()[self.league_handle.team_key()]
-        team = self.league_handle.to_team(self.league_handle.team_key())
-        raw_data_dto = RawTeamDto.from_raw_data(league_team, team)
-        transformed = transform_yfa_team_data_to_team(raw_data_dto)
+        yfa_league_team = self.league_handle.teams()[self.league_handle.team_key()]
+        yfa_team = self.league_handle.to_team(self.league_handle.team_key())
+        raw_yfa_dto = RawTeamDto.from_raw_data(yfa_league_team, yfa_team)
+        transformed = transform_yfa_team_data_to_team(raw_yfa_dto)
 
         return Team(**transformed)
 

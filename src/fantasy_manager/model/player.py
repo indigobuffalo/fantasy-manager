@@ -67,7 +67,7 @@ class LineupPlayer(PositionedPlayer):
 
     Attributes:
         selected_position (Position):  The player's currently selected position in the lineup.
-        rank (int):                    The user assigned rank of the player, on a scale of 1-100.
+        rank (int):                    The user assigned rank of the player on a scale of 1-100.
                                        Lowest rank is 1, highest is 100.
     """
 

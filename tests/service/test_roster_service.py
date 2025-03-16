@@ -114,7 +114,7 @@ def test_log_inputs(mock_logger, mock_log_pairs, roster_svc, start):
     roster_svc.log_inputs(
         start=start, add_player=NHL_PLAYER_ACTIVE_ONE, drop_player=NHL_PLAYER_IR
     )
-    mock_log_pairs.assert_called_once_with(logger=mock_logger, tuples=pairs, padding=4)
+    mock_log_pairs.assert_called_once_with(logger=mock_logger, pairs=pairs, padding=4)
 
 
 def test_add_player(roster_svc, mock_client, start):

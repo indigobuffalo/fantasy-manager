@@ -1,3 +1,4 @@
+from fantasy_manager.client.nhl import NhlClient
 from fantasy_manager.client.yahoo import YahooClient
 from fantasy_manager.config.config import FantasyConfig
 from fantasy_manager.model.enums.platform import Platform
@@ -6,7 +7,7 @@ from fantasy_manager.model.league import League
 
 class ClientFactory:
     @staticmethod
-    def get_client(platform: Platform, league: League, config: FantasyConfig):
+    def get_fantasy_client(platform: Platform, league: League, config: FantasyConfig):
         match platform:
             case Platform.YAHOO:
                 return YahooClient(league=league, config=config)
@@ -16,3 +17,7 @@ class ClientFactory:
             # return FantraxClient()
             case _:
                 raise ValueError(f"No client available for platform: {platform}")
+
+    @staticmethod
+    def get_nhl_client(verbose: bool = False):
+        return NhlClient(verbose=verbose)

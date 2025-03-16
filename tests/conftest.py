@@ -8,7 +8,7 @@ from zoneinfo import ZoneInfo
 from freezegun import freeze_time
 import pytest
 
-from fantasy_manager.client.base import BaseClient
+from fantasy_manager.client.base import BaseFantasyClient
 from fantasy_manager.config.config import FantasyConfig
 from fantasy_manager.model.enums.player_status import PlayerStatus
 from fantasy_manager.model.enums.position import Position, PositionType
@@ -90,7 +90,7 @@ def mock_client():
             case 5:
                 return NHL_PLAYER_O
 
-    client = Mock(spec=BaseClient)
+    client = Mock(spec=BaseFantasyClient)
     client.get_player_by_id = Mock(side_effect=get_player_by_id_side_effect)
     client.refresh = Mock()
     yield client

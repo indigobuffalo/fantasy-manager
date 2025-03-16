@@ -4,7 +4,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Optional
 
-from fantasy_manager.client.base import BaseClient
+from fantasy_manager.client.base import BaseFantasyClient
 from fantasy_manager.client.yahoo import YahooClient
 from fantasy_manager.config.config import FantasyConfig
 from fantasy_manager.exceptions import (
@@ -36,7 +36,11 @@ logger = logging.getLogger(__name__)
 
 class RosterService:
     def __init__(
-        self, config: FantasyConfig, league: League, team: Team, client: BaseClient
+        self,
+        config: FantasyConfig,
+        league: League,
+        team: Team,
+        client: BaseFantasyClient,
     ):
         self.cfg = config
         self.league = league
@@ -140,7 +144,7 @@ class RosterService:
         ]
         if faab is not None:
             pairs.append(("FAAB", f"${faab}"))
-        log_pairs(logger=logger, tuples=pairs, padding=4)
+        log_pairs(logger=logger, pairs=pairs, padding=4)
 
         if start <= datetime.now(timezone.utc):
             confirm_proceed()

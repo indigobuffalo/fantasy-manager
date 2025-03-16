@@ -8,7 +8,7 @@ from fantasy_manager.model.league import League
 from fantasy_manager.model.team import Team
 
 
-class BaseClient(ABC):
+class BaseFantasyClient(ABC):
     def __init__(self, league: League, config: FantasyConfig):
         self.config = config
         self.session = requests.Session()

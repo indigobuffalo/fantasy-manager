@@ -110,7 +110,7 @@ class Roster(command.CliCommand):
 
         fc = FantasyConfig()
         league = fc.get_league(league_abbr)
-        client = ClientFactory.get_client(
+        client = ClientFactory.get_fantasy_client(
             platform=league.platform, league=league, config=fc
         )
         team = client.get_team()
