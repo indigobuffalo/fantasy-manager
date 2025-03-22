@@ -13,6 +13,7 @@ from fantasy_manager.config.config import FantasyConfig
 from fantasy_manager.model.enums.player_status import PlayerStatus
 from fantasy_manager.model.enums.position import Position, PositionType
 from fantasy_manager.model.league import League
+from fantasy_manager.model.nhl_team import NhlTeam
 from fantasy_manager.model.player import NhlPlayer, PlayerName
 from fantasy_manager.model.team import Team
 
@@ -28,7 +29,7 @@ NHL_PLAYER_ACTIVE_ONE = NhlPlayer(
     name=PlayerName(first="Owen", last="Nolan", full="Owen Nolan"),
     position_type=PositionType.SKATER,
     eligible_positions=[Position.RW, Position.UTIL],
-    team="San Jose Sharks",
+    team=NhlTeam(name="San Jose Sharks", abbr="SJS", team_id=28),
     team_abbr="SJS",
 )
 
@@ -38,8 +39,7 @@ NHL_PLAYER_ACTIVE_TWO = NhlPlayer(
     name=PlayerName(first="Joe", last="Pavelski", full="Joe Pavelski"),
     position_type=PositionType.SKATER,
     eligible_positions=[Position.C, Position.RW, Position.UTIL],
-    team="San Jose Sharks",
-    team_abbr="SJS",
+    team=NhlTeam(name="San Jose Sharks", abbr="SJS", team_id=28),
 )
 
 
@@ -48,8 +48,7 @@ NHL_PLAYER_DTD = NhlPlayer(
     name=PlayerName(first="Tomas", last="Hertl", full="Tomas Hertl"),
     position_type=PositionType.SKATER,
     eligible_positions=[Position.C, Position.LW, Position.UTIL],
-    team="San Jose Sharks",
-    team_abbr="SJS",
+    team=NhlTeam(name="San Jose Sharks", abbr="SJS", team_id=28),
     status=PlayerStatus.DTD,
 )
 
@@ -59,8 +58,7 @@ NHL_PLAYER_IR = NhlPlayer(
     name=PlayerName(first="Joe", last="Thornton", full="Joe Thornton"),
     position_type=PositionType.SKATER,
     eligible_positions=[Position.C, Position.UTIL, Position.IR],
-    team="San Jose Sharks",
-    team_abbr="SJS",
+    team=NhlTeam(name="San Jose Sharks", abbr="SJS", team_id=28),
     status=PlayerStatus.IR,
 )
 
@@ -70,8 +68,7 @@ NHL_PLAYER_O = NhlPlayer(
     name=PlayerName(first="Patrick", last="Marleau", full="Patrick Marleau"),
     position_type=PositionType.SKATER,
     eligible_positions=[Position.C, Position.UTIL],
-    team="San Jose Sharks",
-    team_abbr="SJS",
+    team=NhlTeam(name="San Jose Sharks", abbr="SJS", team_id=28),
 )
 
 

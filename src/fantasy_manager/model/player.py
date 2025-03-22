@@ -6,6 +6,7 @@ from pydantic.dataclasses import dataclass
 
 from fantasy_manager.model.enums.position import Position, PositionType
 from fantasy_manager.model.enums.player_status import PlayerStatus
+from fantasy_manager.model.nhl_team import NhlTeam
 
 
 @dataclass(frozen=True)
@@ -45,6 +46,7 @@ class PositionedPlayer(BasePlayer):
 
     position_type: PositionType
     eligible_positions: list[Position]
+    status: Optional[PlayerStatus] = PlayerStatus.ACTIVE
 
 
 class NhlPlayer(PositionedPlayer):
@@ -52,13 +54,10 @@ class NhlPlayer(PositionedPlayer):
     This player data is fetched from player-specific api endpoint.
 
     Attrs:
-        team (str):              The player's team.
-        team_abbr (str):         The player's team's abbreviation.
+        team (NhlTeam): The player's NHL team.
     """
 
-    team: str
-    team_abbr: str
-    status: Optional[PlayerStatus] = PlayerStatus.ACTIVE
+    team: NhlTeam
 
 
 class LineupPlayer(PositionedPlayer):

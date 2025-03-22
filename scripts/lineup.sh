@@ -10,9 +10,13 @@ unset LEAGUE
 
 # set defaults for optional args
 START_OPT=""
+END_OPT=""
 
-while getopts "hl:s:" opt; do
+while getopts "e:hl:s:" opt; do
   case $opt in
+    e) # Last date to set lineup.  ISO 8601 date format.
+      END_OPT="--end $OPTARG"
+      ;;
     h) # Display help text.
       usage
       exit 0
@@ -20,7 +24,7 @@ while getopts "hl:s:" opt; do
     l) # The league name.
       LEAGUE="$OPTARG"
       ;;
-    s) # ISO 8601 time stamp which sets the time to add the player.
+    s) # First date to set lineup.  ISO 8601 date format.
       START_OPT="--start $OPTARG"
       ;;
     ?) # Display help.
@@ -36,7 +40,7 @@ check_args(){
 check_args
 
 pushd $PROJECT_DIR
-caffeinate -is pipenv run python src/fantasy_manager/cli/__init__.py lineup automate --league $LEAGUE $START_OPT
+caffeinate -is pipenv run python src/fantasy_manager/cli/__init__.py lineup automate --league $LEAGUE $START_OPT $END_OPT
 exit_code=$?
 popd
 

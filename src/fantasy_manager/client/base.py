@@ -5,6 +5,7 @@ from requests import Response
 
 from fantasy_manager.config.config import FantasyConfig
 from fantasy_manager.model.league import League
+from fantasy_manager.model.player import NhlPlayer
 from fantasy_manager.model.team import Team
 
 
@@ -101,7 +102,7 @@ class BaseFantasyClient(ABC):
 
     # TODO: convert this into a get_player_data method that returns model of all player data
     @abstractmethod
-    def get_player_by_id(self, player_id: int) -> str:
+    def get_player_by_id(self, player_id: int) -> NhlPlayer:
         """Translate a player id into a player name.
 
         Args:
