@@ -42,7 +42,7 @@ check_args(){
 check_args
 
 pushd $PROJECT_DIR
-caffeinate -is pipenv run python src/fantasy_manager/cli/__init__.py roster drop --league $LEAGUE --drop $DROP_ID $START_OPT
+caffeinate -is uv run python src/fantasy_manager/cli/__init__.py roster drop --league $LEAGUE --drop $DROP_ID $START_OPT
 exit_code=$?
 popd
 

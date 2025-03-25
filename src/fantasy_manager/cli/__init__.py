@@ -51,7 +51,7 @@ def main():
             and issubclass(klass, CliCommand)
             and klass is not CliCommand
         )()
-    except ModuleNotFoundError:
+    except ModuleNotFoundError as err:
         logger.info(f"Error: Command '{command_name}' not found.")
         return 1
     except StopIteration:

@@ -50,9 +50,9 @@ check_args
 
 pushd $PROJECT_DIR
 if [[ "$WAIVERS" == "true" ]]; then
-    caffeinate -is pipenv run python src/fantasy_manager/cli/__init__.py roster add claim --league $LEAGUE --add $ADD_ID $FAAB_OPT $START_OPT
+    caffeinate -is uv run python src/fantasy_manager/cli/__init__.py roster add claim --league $LEAGUE --add $ADD_ID $FAAB_OPT $START_OPT
 else
-    caffeinate -is pipenv run python src/fantasy_manager/cli/__init__.py roster add --league $LEAGUE --add $ADD_ID $START_OPT
+    caffeinate -is uv run python src/fantasy_manager/cli/__init__.py roster add --league $LEAGUE --add $ADD_ID $START_OPT
 fi
 exit_code=$?
 popd

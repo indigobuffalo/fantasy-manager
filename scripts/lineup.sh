@@ -40,7 +40,7 @@ check_args(){
 check_args
 
 pushd $PROJECT_DIR
-caffeinate -is pipenv run python src/fantasy_manager/cli/__init__.py lineup automate --league $LEAGUE $START_OPT $END_OPT
+caffeinate -is uv run python src/fantasy_manager/cli/__init__.py lineup automate --league $LEAGUE $START_OPT $END_OPT
 exit_code=$?
 popd
 
