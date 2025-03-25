@@ -4,3 +4,16 @@ repos:
     hooks:
     - id: black
       language_version: python3.13
+-   repo: local
+    hooks:
+      - id: pytest-cov
+        name: Run pytest with coverage
+        entry: ./.venv/bin/pytest
+        language: system
+        types: [python]
+        args:
+          - "--cov=."
+          - "--cov-report=term-missing"
+          - "--cov-fail-under=50"
+        pass_filenames: false
+        always_run: true
