@@ -7,7 +7,7 @@ from hamcrest import assert_that, equal_to
 from conftest import *
 from fantasy_manager.cli import roster
 from fantasy_manager.cli.roster import drop_player
-from fantasy_manager.model.player import NhlPlayer
+from fantasy_manager.model.player import AgnosticPlayer
 from fantasy_manager.exceptions import (
     AlreadyAddedError,
     FantasyUnknownError,
@@ -47,13 +47,13 @@ def mock_now_pacific(start, roster_svc):
 def test__check_player_inputs_add_player_already_added(roster_svc, mock_team):
     mock_team.has_player.return_value = True
     with pytest.raises(AlreadyAddedError):
-        roster_svc._check_player_inputs(add_player=Mock(spec=NhlPlayer))
+        roster_svc._check_player_inputs(add_player=Mock(spec=AgnosticPlayer))
 
 
 def test__check_player_inputs_drop_player_not_on_roster(roster_svc, mock_team):
     mock_team.has_player.return_value = False
     with pytest.raises(NotOnRosterError):
-        roster_svc._check_player_inputs(drop_player=Mock(spec=NhlPlayer))
+        roster_svc._check_player_inputs(drop_player=Mock(spec=AgnosticPlayer))
 
 
 def test_get_player_data(roster_svc, mock_client):

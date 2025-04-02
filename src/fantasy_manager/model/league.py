@@ -3,6 +3,7 @@ from dataclasses import dataclass, asdict
 import json
 
 from fantasy_manager.model.enums.platform import Platform
+from fantasy_manager.model.enums.position import Position
 
 
 @dataclass(frozen=True)
@@ -15,6 +16,7 @@ class League:
     platform: Platform
     team_id: int
     team_name: str
+    roster_configuration: dict[Position, int]
 
     @classmethod
     def from_dict(cls, data: dict) -> League:

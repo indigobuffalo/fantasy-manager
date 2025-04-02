@@ -6,5 +6,15 @@
     "platform": "YAHOO",
     "team_id": 1,
     "team_name": "Larkin Up the Wrong Tree",
-    "locked_players": [6744, 6751, 6877]
+    "locked_players": [6744, 6751, 6877],
+    "roster_configuration": {
+        "C": 2,
+        "LW": 2,
+        "RW": 2,
+        "D": 4,
+        "Util": 2,
+        "G": 2,
+        "BN": 5,
+        "IR+": 4
+    }
 }

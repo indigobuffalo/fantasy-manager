@@ -1,7 +1,7 @@
 import os
 import json
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 import yaml
 
 from dotenv import load_dotenv
@@ -11,6 +11,7 @@ from fantasy_manager.model.league import League
 from fantasy_manager.model.enums.platform import Platform
 from fantasy_manager.model.enums.platform_url import PlatformUrl
 from fantasy_manager.model.lineup import Lineup
+from fantasy_manager.model.player import RankedPlayer
 
 
 load_dotenv()
@@ -44,6 +45,7 @@ class FantasyConfig:
 
     ADD_PLAYER_TIMEOUT_SECONDS = os.getenv("TIMEOUT_SECONDS", 15)
     ADD_PLAYER_POLL_SECONDS = os.getenv("POLL_SECONDS", 0.1)
+    DEFAULT_PLAYER_RANK = os.getenv("DEFAULT_PLAYER_RANK", 70)  # used for streamers
     SEASON = os.getenv("FANTASY_SEASON", "2024_2025")
     YAHOO_CREDS_FILE = os.getenv("YAHOO_CREDS_FILE")
     YEAR = os.getenv("YEAR", "2024")
@@ -92,39 +94,43 @@ class FantasyConfig:
             return Lineup.from_dict(json_data)
 
     @classmethod
-    def get_roster_data(cls, league_name: str, roster_name: str) -> dict[str, Any]:
-        """
-        Load league-specific roster data on demand, considering the current season.
+    def get_player_rankings(
+        cls, league_abbr: str, roster_name: Optional[str] = None
+    ) -> list[RankedPlayer]:
+        """Get player rankings for a specific league and roster.
 
         Args:
-            league_name (str): The name of the league.
-            roster_name (str): The name of the roster.
-
-        Returns:
-            Dict[str, Any]: The loaded roster data.
+            league_abbr (str): Abbreviated name league name.
+            roster_name (Optional[str], optional): Name of the roster (e.g. default, custom_123). Defaults to None.
 
         Raises:
-            FileNotFoundError: If the roster file does not exist.
-            ValueError: If the loaded data is invalid or improperly formatted.
+            FileNotFoundError: _description_
+            ValueError: _description_
+            ValueError: _description_
+
+        Returns:
+            list[RankedPlayer]: _description_
         """
+        suffix = f"_{roster_name}" if roster_name is not None else ""
+        players = []
         roster_file = (
             CONFIG_DIR
-            / f"data/season/{cls.SEASON}/roster/{league_name.lower()}_{roster_name}.yml"
+            / f"data/season/{cls.SEASON}/roster/{league_abbr.lower()}{suffix}.json"
         )
         if not roster_file.exists():
-            raise FileNotFoundError(
-                f"Roster file '{league_name.lower()}_{roster_name}.yml' not found for season '{cls.SEASON}' "
-                f"in directory '{roster_file.parent}'."
-            )
+            raise FileNotFoundError(f"Roster file not found: '{roster_file}'.")
         try:
             with open(roster_file, "r") as f:
-                yaml_data = yaml.safe_load(f)
+                json_data = json.load(f)
 
-            if not isinstance(yaml_data, dict):
+            if not isinstance(json_data, list):
                 raise ValueError(
                     f"Invalid data format in roster file: {roster_file}. Expected a dictionary."
                 )
+        except json.decoder.JSONDecodeError as e:
+            raise ValueError(f"Error parsing JSON file '{roster_file}': {e}")
 
-            return yaml_data
-        except yaml.YAMLError as e:
-            raise ValueError(f"Error parsing YAML file '{roster_file}': {e}")
+        for player_data in json_data:
+            players.append(RankedPlayer.from_roster_file(player_data))
+
+        return players

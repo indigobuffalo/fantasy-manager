@@ -14,7 +14,7 @@ from fantasy_manager.model.enums.player_status import PlayerStatus
 from fantasy_manager.model.enums.position import Position, PositionType
 from fantasy_manager.model.league import League
 from fantasy_manager.model.nhl_team import NhlTeam
-from fantasy_manager.model.player import NhlPlayer, PlayerName
+from fantasy_manager.model.player import AgnosticPlayer, PlayerName
 from fantasy_manager.model.team import Team
 
 
@@ -24,7 +24,7 @@ FROZEN_TIME = datetime(2025, 1, 1, 0, 0, 0)
 FROZEN_TIME_PACIFIC = FROZEN_TIME.astimezone(ZoneInfo("America/Los_Angeles"))
 
 
-NHL_PLAYER_ACTIVE_ONE = NhlPlayer(
+NHL_PLAYER_ACTIVE_ONE = AgnosticPlayer(
     player_id=1,
     name=PlayerName(first="Owen", last="Nolan", full="Owen Nolan"),
     position_type=PositionType.SKATER,
@@ -34,7 +34,7 @@ NHL_PLAYER_ACTIVE_ONE = NhlPlayer(
 )
 
 
-NHL_PLAYER_ACTIVE_TWO = NhlPlayer(
+NHL_PLAYER_ACTIVE_TWO = AgnosticPlayer(
     player_id=2,
     name=PlayerName(first="Joe", last="Pavelski", full="Joe Pavelski"),
     position_type=PositionType.SKATER,
@@ -43,7 +43,7 @@ NHL_PLAYER_ACTIVE_TWO = NhlPlayer(
 )
 
 
-NHL_PLAYER_DTD = NhlPlayer(
+NHL_PLAYER_DTD = AgnosticPlayer(
     player_id=3,
     name=PlayerName(first="Tomas", last="Hertl", full="Tomas Hertl"),
     position_type=PositionType.SKATER,
@@ -53,7 +53,7 @@ NHL_PLAYER_DTD = NhlPlayer(
 )
 
 
-NHL_PLAYER_IR = NhlPlayer(
+NHL_PLAYER_IR = AgnosticPlayer(
     player_id=4,
     name=PlayerName(first="Joe", last="Thornton", full="Joe Thornton"),
     position_type=PositionType.SKATER,
@@ -63,7 +63,7 @@ NHL_PLAYER_IR = NhlPlayer(
 )
 
 
-NHL_PLAYER_O = NhlPlayer(
+NHL_PLAYER_O = AgnosticPlayer(
     player_id=5,
     name=PlayerName(first="Patrick", last="Marleau", full="Patrick Marleau"),
     position_type=PositionType.SKATER,
@@ -119,6 +119,14 @@ def mock_league():
         platform="Test Platform",
         team_id=1,
         team_name="Test Team",
+        roster_configuration={
+            "C": 2,
+            "LW": 2,
+            "RW": 2,
+            "D": 4,
+            "G": 2,
+            "UTIL": 2,
+        },
     )
 
 

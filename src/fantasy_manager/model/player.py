@@ -1,4 +1,5 @@
 from __future__ import annotations
+import logging
 from typing import Optional
 
 from pydantic import BaseModel
@@ -7,6 +8,9 @@ from pydantic.dataclasses import dataclass
 from fantasy_manager.model.enums.position import Position, PositionType
 from fantasy_manager.model.enums.player_status import PlayerStatus
 from fantasy_manager.model.nhl_team import NhlTeam
+
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -49,7 +53,7 @@ class PositionedPlayer(BasePlayer):
     status: Optional[PlayerStatus] = PlayerStatus.ACTIVE
 
 
-class NhlPlayer(PositionedPlayer):
+class AgnosticPlayer(PositionedPlayer):
     """Represents player details outside the context of a specific fantasy team.
     This player data is fetched from player-specific api endpoint.
 
@@ -66,9 +70,44 @@ class LineupPlayer(PositionedPlayer):
 
     Attributes:
         selected_position (Position):  The player's currently selected position in the lineup.
-        rank (int):                    The user assigned rank of the player on a scale of 1-100.
-                                       Lowest rank is 1, highest is 100.
     """
 
     selected_position: Position
-    rank: Optional[int] = None
+
+
+class RankedPlayer(BasePlayer):
+    """Player model representing a fantasy player with a custom assigned rank.
+
+    Attributes:
+        rank (int):  The user assigned rank of the player on a scale of 1-100.
+                     Lowest rank is 1, highest is 100.
+    """
+
+    rank: int
+
+    @staticmethod
+    def from_roster_file(player: dict) -> RankedPlayer:
+        """Create a RankedPlayer instance from a dictionary representation.
+
+        Args:
+            player (dict): Dictionary representation of the player.
+
+        Returns:
+            RankedPlayer: The created RankedPlayer instance.
+        """
+        return RankedPlayer(
+            player_id=player["player_id"],
+            name=PlayerName(full=player["name"]),
+            rank=player["rank"],
+        )
+
+
+class RankedLineupPlayer(LineupPlayer):
+    """Player model representing a player in a fantasy lineup with a custom assigned rank.
+
+    Attributes:
+        rank (int):  The user assigned rank of the player on a scale of 1-100.
+                     Lowest rank is 1, highest is 100.
+    """
+
+    rank: int

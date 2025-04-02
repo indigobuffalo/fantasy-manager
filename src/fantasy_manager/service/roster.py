@@ -16,7 +16,7 @@ from fantasy_manager.exceptions import (
     TimeoutExceededError,
 )
 from fantasy_manager.model.league import League
-from fantasy_manager.model.player import NhlPlayer
+from fantasy_manager.model.player import AgnosticPlayer
 from fantasy_manager.model.team import Team
 from fantasy_manager.util.cli import confirm_proceed
 from fantasy_manager.util.log import align_pairs, log_pairs
@@ -51,19 +51,21 @@ class RosterService:
 
     def _check_player_inputs(
         self,
-        add_player: Optional[NhlPlayer] = None,
-        drop_player: Optional[NhlPlayer] = None,
+        add_player: Optional[AgnosticPlayer] = None,
+        drop_player: Optional[AgnosticPlayer] = None,
     ) -> None:
         if add_player is not None and self.team.has_player(add_player):
             raise AlreadyAddedError(add_player)
         if drop_player is not None and not self.team.has_player(drop_player):
             raise NotOnRosterError(drop_player)
 
-    def get_player_data(self, player_id: int) -> NhlPlayer:
+    def get_player_data(self, player_id: int) -> AgnosticPlayer:
         return self.client.get_player_by_id(player_id)
 
     def run_preflight_checks(
-        self, player_to_add: NhlPlayer, player_to_drop: Optional[NhlPlayer] = None
+        self,
+        player_to_add: AgnosticPlayer,
+        player_to_drop: Optional[AgnosticPlayer] = None,
     ):
         """Run any checks that need to execute before main execution.
 
@@ -77,8 +79,8 @@ class RosterService:
     def prepare_to_execute(
         self,
         start: datetime,
-        add_player: Optional[NhlPlayer] = None,
-        drop_player: Optional[NhlPlayer] = None,
+        add_player: Optional[AgnosticPlayer] = None,
+        drop_player: Optional[AgnosticPlayer] = None,
     ) -> None:
         """Prepares to execute the desired action.  Takes care of things like ensuring the
         client session is authenticated and player inputs are valid.
@@ -95,10 +97,11 @@ class RosterService:
 
     @staticmethod
     def _get_aligned_player_names(
-        add_player: Optional[NhlPlayer] = None, drop_player: Optional[NhlPlayer] = None
+        add_player: Optional[AgnosticPlayer] = None,
+        drop_player: Optional[AgnosticPlayer] = None,
     ) -> tuple[Optional[str], Optional[str]]:
         match add_player, drop_player:
-            case (NhlPlayer(), NhlPlayer()):
+            case (AgnosticPlayer(), AgnosticPlayer()):
                 player_names = align_pairs(
                     tuples=[
                         (add_player.name.full, f"[{add_player.player_id}]"),
@@ -107,9 +110,9 @@ class RosterService:
                     separator=" ",
                 )
                 return player_names[0], player_names[1]
-            case (NhlPlayer(), None):
+            case (AgnosticPlayer(), None):
                 return [str(add_player), None]
-            case (None, NhlPlayer()):
+            case (None, AgnosticPlayer()):
                 return [None, str(drop_player)]
             case _:
                 raise InputError(
@@ -122,8 +125,8 @@ class RosterService:
     def log_inputs(
         self,
         start: datetime,
-        add_player: Optional[NhlPlayer] = None,
-        drop_player: Optional[NhlPlayer] = None,
+        add_player: Optional[AgnosticPlayer] = None,
+        drop_player: Optional[AgnosticPlayer] = None,
         faab: Optional[int] = None,
     ):
         """Logs inputs to enable verification by user.

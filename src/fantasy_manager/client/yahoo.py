@@ -21,7 +21,7 @@ from fantasy_manager.exceptions import (
 from fantasy_manager.model.dto.team import RawTeamDto
 from fantasy_manager.model.enums.platform_url import PlatformUrl
 from fantasy_manager.model.league import League
-from fantasy_manager.model.player import NhlPlayer
+from fantasy_manager.model.player import AgnosticPlayer
 from fantasy_manager.model.lineup import Lineup
 from fantasy_manager.model.team import Team
 from fantasy_manager.transform.yahoo import (
@@ -179,7 +179,7 @@ class YahooClient(BaseFantasyClient):
     def cancel_waiver_claim(self, player_id: int) -> None:
         pass
 
-    def get_player_by_id(self, player_id: int) -> NhlPlayer:
+    def get_player_by_id(self, player_id: int) -> AgnosticPlayer:
         """Fetches player from yfa's League.get_player_details endpoint.
 
         Note: we ignore some data coming back from this endpoint which we may
@@ -193,4 +193,4 @@ class YahooClient(BaseFantasyClient):
         """
         yfa_player = self.league_handle.player_details(player_id)[0]
         transformed = transform_player_by_id_to_api_player(yfa_player)
-        return NhlPlayer(**transformed)
+        return AgnosticPlayer(**transformed)

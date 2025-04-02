@@ -5,8 +5,13 @@
 Setup python environment:
 ```
 brew install uv
+
+# setup virtual environment and install dependencies
 uv venv
 uv sync --dev
+
+# install the project in editable mode for local development
+uv pip install -e
 ```
 
 # Examples
