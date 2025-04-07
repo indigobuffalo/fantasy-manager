@@ -14,7 +14,6 @@ from fantasy_manager.model.player import (
     AgnosticPlayer,
     LineupPlayer,
     RankedLineupPlayer,
-    RankedPlayer,
 )
 from fantasy_manager.model.team import Team
 
@@ -95,13 +94,13 @@ class LineupService:
     def create_ranked_lineup_player(
         self,
         lineup_player: LineupPlayer,
-        ranked_player: Optional[RankedPlayer] = None,
+        ranked_player: Optional[RankedLineupPlayer] = None,
     ) -> RankedLineupPlayer:
-        """Create a RankedLineupPlayer instance from a LineupPlayer and RankedPlayer.
+        """Create a RankedLineupPlayer instance from a LineupPlayer and RankedLineupPlayer.
 
         Args:
             lineup_player (LineupPlayer): The LineupPlayer instance.
-            ranked_player (Optional[RankedPlayer]): The RankedPlayer instance. Defaults to None.
+            ranked_player (Optional[RankedLineupPlayer]): The RankedLineupPlayer instance. Defaults to None.
 
         Returns:
             RankedLineupPlayer: The created RankedLineupPlayer instance.
@@ -121,23 +120,14 @@ class LineupService:
     def set_lineup_for_date(self, date_str: date, lineup_players: list[LineupPlayer]):
         # consider converting open_slots keys to enum instances
         open_slots = copy.deepcopy(self.league.roster_configuration)
-        ranked_players = self.config.get_player_rankings(self.league.name_abbr)
-        ranked_lineup_players = []
-
-        def get_ranked_player_by_id(player_id: int) -> Optional[RankedLineupPlayer]:
-            for rk_player in ranked_players:
-                if rk_player.player_id == player_id:
-                    return rk_player
-            return None
-
-        for lnp_player in lineup_players:
-            ranked_player = get_ranked_player_by_id(lnp_player.player_id)
-            ranked_lineup_players.append(
-                self.create_ranked_lineup_player(
-                    lineup_player=lnp_player, ranked_player=ranked_player
-                )
+        rankings = self.config.get_player_rankings(self.league.name_abbr)
+        ranked_players = [
+            RankedLineupPlayer(
+                rank=rankings.get(player.player_id, self.config.DEFAULT_PLAYER_RANK),
+                **player.model_dump(),
             )
-
+            for player in lineup_players
+        ]
         import ipdb
 
         ipdb.set_trace()

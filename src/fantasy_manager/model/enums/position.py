@@ -2,7 +2,7 @@ from enum import Enum
 
 
 class PositionType(Enum):
-    SKATER = "P"
+    SKATER = "SK"
     GOALIE = "G"
 
 

@@ -11,7 +11,6 @@ from fantasy_manager.model.league import League
 from fantasy_manager.model.enums.platform import Platform
 from fantasy_manager.model.enums.platform_url import PlatformUrl
 from fantasy_manager.model.lineup import Lineup
-from fantasy_manager.model.player import RankedPlayer
 
 
 load_dotenv()
@@ -94,43 +93,32 @@ class FantasyConfig:
             return Lineup.from_dict(json_data)
 
     @classmethod
-    def get_player_rankings(
-        cls, league_abbr: str, roster_name: Optional[str] = None
-    ) -> list[RankedPlayer]:
-        """Get player rankings for a specific league and roster.
+    def get_player_rankings(cls, league_abbr: str) -> dict[int, int]:
+        """Get player rankings for the specified league.
 
         Args:
-            league_abbr (str): Abbreviated name league name.
-            roster_name (Optional[str], optional): Name of the roster (e.g. default, custom_123). Defaults to None.
+            league_abbr (str): Abbreviated name of the league.
 
         Raises:
-            FileNotFoundError: _description_
-            ValueError: _description_
-            ValueError: _description_
+            FileNotFoundError: Error raised if the rankings file is not found.
+            ValueError: Error raised if the rankings file is not a valid YAML file.
 
         Returns:
-            list[RankedPlayer]: _description_
+            dict[int, int]: A mapping of player IDs to their rankings.
         """
-        suffix = f"_{roster_name}" if roster_name is not None else ""
-        players = []
-        roster_file = (
-            CONFIG_DIR
-            / f"data/season/{cls.SEASON}/roster/{league_abbr.lower()}{suffix}.json"
+        rankings_file = (
+            CONFIG_DIR / f"data/season/{cls.SEASON}/rankings/{league_abbr.lower()}.yml"
         )
-        if not roster_file.exists():
-            raise FileNotFoundError(f"Roster file not found: '{roster_file}'.")
+        if not rankings_file.exists():
+            raise FileNotFoundError(f"Rankings file not found: '{rankings_file}'.")
+
         try:
-            with open(roster_file, "r") as f:
-                json_data = json.load(f)
-
-            if not isinstance(json_data, list):
-                raise ValueError(
-                    f"Invalid data format in roster file: {roster_file}. Expected a dictionary."
-                )
-        except json.decoder.JSONDecodeError as e:
-            raise ValueError(f"Error parsing JSON file '{roster_file}': {e}")
-
-        for player_data in json_data:
-            players.append(RankedPlayer.from_roster_file(player_data))
-
-        return players
+            with open(rankings_file, "r") as f:
+                data = yaml.safe_load(f)
+                if "player_rankings" not in data:
+                    raise ValueError(
+                        f"Rankings file '{rankings_file}' does not contain a 'player_rankings' key."
+                    )
+                return data["player_rankings"]
+        except yaml.YAMLError as e:
+            raise ValueError(f"Error parsing YAML file '{rankings_file}': {e}")

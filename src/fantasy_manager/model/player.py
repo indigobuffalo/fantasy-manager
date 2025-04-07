@@ -75,33 +75,6 @@ class LineupPlayer(PositionedPlayer):
     selected_position: Position
 
 
-class RankedPlayer(BasePlayer):
-    """Player model representing a fantasy player with a custom assigned rank.
-
-    Attributes:
-        rank (int):  The user assigned rank of the player on a scale of 1-100.
-                     Lowest rank is 1, highest is 100.
-    """
-
-    rank: int
-
-    @staticmethod
-    def from_roster_file(player: dict) -> RankedPlayer:
-        """Create a RankedPlayer instance from a dictionary representation.
-
-        Args:
-            player (dict): Dictionary representation of the player.
-
-        Returns:
-            RankedPlayer: The created RankedPlayer instance.
-        """
-        return RankedPlayer(
-            player_id=player["player_id"],
-            name=PlayerName(full=player["name"]),
-            rank=player["rank"],
-        )
-
-
 class RankedLineupPlayer(LineupPlayer):
     """Player model representing a player in a fantasy lineup with a custom assigned rank.
 

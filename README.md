@@ -11,7 +11,7 @@ uv venv
 uv sync --dev
 
 # install the project in editable mode for local development
-uv pip install -e
+uv pip install -e .
 ```
 
 # Examples

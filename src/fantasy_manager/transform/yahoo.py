@@ -10,11 +10,17 @@ def transform_nhl_raw_games_to_games(raw: dict) -> dict:
     return tfm
 
 
+def _transform_position_type(position_type: str) -> str:
+    """Transform the position type to a more general type."""
+    return "SK" if position_type.upper() == "P" else position_type.upper()
+
+
 def transform_player_by_id_to_api_player(raw: dict) -> dict:
     tfm = copy.deepcopy(raw)
     tfm["eligible_positions"] = [
         p["position"].upper() for p in tfm["eligible_positions"]
     ]
+    tfm["position_type"] = _transform_position_type(tfm["position_type"])
     tfm["team"] = {
         "name": tfm["editorial_team_full_name"].title(),
         "abbr": tfm["editorial_team_abbr"].upper(),
@@ -41,6 +47,7 @@ def _transform_roster(roster: list[dict[str, Any]]) -> list[dict[str, Any]]:
             **player,
             "name": {"full": player["name"]},
             "eligible_positions": [pos.upper() for pos in player["eligible_positions"]],
+            "position_type": _transform_position_type(player["position_type"]),
             "selected_position": player["selected_position"].upper(),
             "status": player.get("status", ""),
         }
