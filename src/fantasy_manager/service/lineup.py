@@ -3,6 +3,7 @@ from datetime import date, timedelta
 import logging
 
 from pathlib import Path
+import re
 from typing import Optional
 
 from fantasy_manager.client.base import BaseFantasyClient
@@ -117,20 +118,72 @@ class LineupService:
             **lineup_player.model_dump(),
         )
 
+    def _swap_selected_positions(
+        player: RankedLineupPlayer,
+        lineup: list[RankedLineupPlayer],
+        open_slots: dict[str, int],
+    ) -> list[RankedLineupPlayer]:
+        """Swap the selected positions of a player with another player in the lineup."""
+        pass
+
+    def _fill_slot(
+        self,
+        player: RankedLineupPlayer,
+        lineup: list[RankedLineupPlayer],
+        open_slots: dict[str, int],
+    ) -> Optional[RankedLineupPlayer]:
+        """Fill a slot with a player.
+
+        Args:
+            player (RankedLineupPlayer): The player to fill the slot with.
+            lineup (list[RankedLineupPlayer]): The current lineup.
+            open_slots (dict[str, int]): The open slots to fill.
+
+        Returns:
+            Optional[RankedLineupPlayer]: The player that filled a slot with their selected position updated.
+                                          None if no slot was filled.
+        """
+        potential_slots = {}
+        for pos in player.eligible_positions:
+            if open_slots[pos] > 0:
+                potential_slots[pos] = open_slots[pos]
+
+        if len(potential_slots) == 0:
+            self._swap_selected_positions(player, lineup, open_slots)
+            self._fill_slot(player, lineup, open_slots)
+            return
+
+        most_available_pos = max(potential_slots, key=potential_slots.get)
+        player.selected_position = most_available_pos
+        open_slots[most_available_pos] -= 1
+        lineup.append(player)
+        return RankedLineupPlayer
+
     def set_lineup_for_date(self, date_str: date, lineup_players: list[LineupPlayer]):
-        # consider converting open_slots keys to enum instances
+        # TODO: handle injured players
+        roster_full = False
         open_slots = copy.deepcopy(self.league.roster_configuration)
+        lineup = []
         rankings = self.config.get_player_rankings(self.league.name_abbr)
-        ranked_players = [
-            RankedLineupPlayer(
-                rank=rankings.get(player.player_id, self.config.DEFAULT_PLAYER_RANK),
-                **player.model_dump(),
-            )
-            for player in lineup_players
-        ]
+        ranked_players_sorted = sorted(
+            [
+                RankedLineupPlayer(
+                    rank=rankings.get(
+                        player.player_id, self.config.DEFAULT_PLAYER_RANK
+                    ),
+                    **player.model_dump(),
+                )
+                for player in lineup_players
+            ],
+            key=lambda plyr: plyr.rank,
+            reverse=True,
+        )
         import ipdb
 
-        ipdb.set_trace()
+        while not roster_full:
+            ipdb.set_trace()
+            player = ranked_players_sorted.pop(0)
+            player_with_updated_pos = self._fill_slot(player, lineup, open_slots)
         pass
 
     def automate_lineup(self, start: date, end: date):

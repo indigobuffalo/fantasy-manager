@@ -22,6 +22,10 @@ class League:
     def from_dict(cls, data: dict) -> League:
         """Convert a dictionary to a League instance, ensuring correct types."""
         data["platform"] = Platform[data["platform"].upper()]
+        data["roster_configuration"] = {
+            Position[pos.upper()]: count
+            for pos, count in data["roster_configuration"].items()
+        }
         return cls(**data)
 
     def to_json(self) -> str:
@@ -42,4 +46,8 @@ class League:
         """Create a League instance from a JSON string."""
         data = json.loads(json_data)
         data["platform"] = Platform(data["platform"])
+        data["roster_configuration"] = {
+            Position[pos.upper()]: count
+            for pos, count in data["roster_configuration"].items()
+        }
         return cls(**data)
