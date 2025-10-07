@@ -45,7 +45,7 @@ class FantasyConfig:
     ADD_PLAYER_TIMEOUT_SECONDS = os.getenv("TIMEOUT_SECONDS", 15)
     ADD_PLAYER_POLL_SECONDS = os.getenv("POLL_SECONDS", 0.1)
     DEFAULT_PLAYER_RANK = os.getenv("DEFAULT_PLAYER_RANK", 70)  # used for streamers
-    SEASON = os.getenv("FANTASY_SEASON", "2024_2025")
+    SEASON = os.getenv("FANTASY_SEASON", "2025_2026")
     YAHOO_CREDS_FILE = os.getenv("YAHOO_CREDS_FILE")
     YEAR = os.getenv("YEAR", "2024")
 
