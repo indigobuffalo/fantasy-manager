@@ -1,0 +1,53 @@
+from __future__ import annotations
+from dataclasses import dataclass, asdict
+import json
+
+from fantasy_manager.model.enums.platform import Platform
+from fantasy_manager.model.enums.position import Position
+
+
+@dataclass(frozen=True)
+class League:
+    id: str
+    key: str
+    locked_players: tuple[int]
+    name: str
+    name_abbr: str
+    platform: Platform
+    team_id: int
+    team_name: str
+    roster_configuration: dict[Position, int]
+
+    @classmethod
+    def from_dict(cls, data: dict) -> League:
+        """Convert a dictionary to a League instance, ensuring correct types."""
+        data["platform"] = Platform[data["platform"].upper()]
+        data["roster_configuration"] = {
+            Position[pos.upper()]: count
+            for pos, count in data["roster_configuration"].items()
+        }
+        return cls(**data)
+
+    def to_json(self) -> str:
+        """Convert the League instance to a JSON string."""
+
+        def custom_encoder(obj):
+            if isinstance(obj, Platform):
+                return obj.value
+            # TODO: use custom exception
+            raise TypeError(
+                f"Object of type {type(obj).__name__} is not JSON serializable"
+            )
+
+        return json.dumps(asdict(self), default=custom_encoder)
+
+    @classmethod
+    def from_json(cls, json_data: str) -> League:
+        """Create a League instance from a JSON string."""
+        data = json.loads(json_data)
+        data["platform"] = Platform(data["platform"])
+        data["roster_configuration"] = {
+            Position[pos.upper()]: count
+            for pos, count in data["roster_configuration"].items()
+        }
+        return cls(**data)

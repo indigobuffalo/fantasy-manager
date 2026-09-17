@@ -1,0 +1,22 @@
+"""Represents the data accepted by yfa calls to change roster positions.  Similar to model.Team, but slimmer"""
+from __future__ import annotations
+from datetime import date
+from enum import Enum
+import json
+from typing import List
+from dataclasses import dataclass
+
+from fantasy_manager.model.player import LineupPlayer
+
+
+@dataclass
+class Lineup:
+    day: date
+    players: List[LineupPlayer]
+
+    def to_json(self) -> str:
+        """Convert the Roster instance to a JSON string for the lineup API."""
+        return json.dumps(
+            [json.loads(player.to_json()) for player in self.players],
+            default=lambda o: o.value if isinstance(o, Enum) else o,
+        )

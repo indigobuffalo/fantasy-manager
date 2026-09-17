@@ -1,4 +1,38 @@
+# python
 __pycache__/
-headers.py
+
+# IDE
 .vscode
 
+# local file system
+.swo
+.swp
+
+# local secrets
+.env
+.secrets
+headers.py
+
+local-test/
+
+# unit tests
+.coverage
+
+# python packages
+*.egg-info/
+dist/
+build/
+*.egg
+*.whl
+# mypy
+.mypy_cache/
+.mypy/
+# pytype
+.pytype/
+# pyright
+.pyright/
+# pyre
+.pyre/
+# pyre-check
+.pyre/
+# pyre-check
