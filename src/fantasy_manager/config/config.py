@@ -47,6 +47,8 @@ class FantasyConfig:
     DEFAULT_PLAYER_RANK = os.getenv("DEFAULT_PLAYER_RANK", 70)  # used for streamers
     SEASON = os.getenv("FANTASY_SEASON", "2025_2026")
     YAHOO_CREDS_FILE = os.getenv("YAHOO_CREDS_FILE")
+    YAHOO_COOKIE = os.getenv("YAHOO_COOKIE")  # browser-harvested; used by the cookie write transport
+    YAHOO_CRUMB = os.getenv("YAHOO_CRUMB")  # browser-harvested; used by the cookie write transport
     YEAR = os.getenv("YEAR", "2024")
 
     @classmethod
