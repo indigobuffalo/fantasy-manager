@@ -45,11 +45,11 @@ class FantasyConfig:
     ADD_PLAYER_TIMEOUT_SECONDS = os.getenv("TIMEOUT_SECONDS", 15)
     ADD_PLAYER_POLL_SECONDS = os.getenv("POLL_SECONDS", 0.1)
     DEFAULT_PLAYER_RANK = os.getenv("DEFAULT_PLAYER_RANK", 70)  # used for streamers
-    SEASON = os.getenv("FANTASY_SEASON", "2025_2026")
+    SEASON = os.getenv("FANTASY_SEASON", "2026_2027")
     YAHOO_CREDS_FILE = os.getenv("YAHOO_CREDS_FILE")
     YAHOO_COOKIE = os.getenv("YAHOO_COOKIE")  # browser-harvested; used by the cookie write transport
     YAHOO_CRUMB = os.getenv("YAHOO_CRUMB")  # browser-harvested; used by the cookie write transport
-    YEAR = os.getenv("YEAR", "2024")
+    YEAR = os.getenv("YEAR", "2026")
 
     @classmethod
     def get_platform_url(cls, platform: Platform, key: PlatformUrl) -> str:

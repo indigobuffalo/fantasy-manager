@@ -31,8 +31,8 @@ cp .env.example .env
 | `YAHOO_COOKIE`      | for writes | Browser-harvested cookie header for the cookie write transport.         |
 | `YAHOO_CRUMB`       | for writes | Browser-harvested crumb form token for the cookie write transport.      |
 | `LOG_LEVEL`         | no         | `DEBUG`/`INFO`/`WARNING`/`ERROR`/`CRITICAL` (defaults to `INFO`).        |
-| `FANTASY_SEASON`    | no         | Season directory under `config/data/season` (defaults to `2025_2026`).   |
-| `YEAR`              | no         | Defaults to `2024`.                                                      |
+| `FANTASY_SEASON`    | no         | Season directory under `config/data/season` (defaults to `2026_2027`).   |
+| `YEAR`              | no         | Defaults to `2026`.                                                      |
 
 Yahoo app tokens grant read-only access, so **writes** (add/drop/replace,
 waivers, lineups) impersonate a logged-in browser session using `YAHOO_COOKIE`
