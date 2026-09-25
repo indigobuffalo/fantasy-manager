@@ -39,6 +39,26 @@ waivers, lineups) impersonate a logged-in browser session using `YAHOO_COOKIE`
 and `YAHOO_CRUMB`. These are harvested manually from the browser and expire
 periodically — see `docs/hybrid-auth-plan.md`.
 
+### Yahoo app registration
+
+Reads authenticate through a Yahoo app registered in the [Yahoo Developer
+Network](https://developer.yahoo.com/apps/):
+
+| Field              | Value                                   |
+|--------------------|-----------------------------------------|
+| App name           | `draft-tracker`                         |
+| Description        | Monitoring and Interacting with Live Drafts |
+| Homepage URL       | `https://localhost`                     |
+| Redirect URI       | `https://localhost`                     |
+| OAuth client type  | Confidential Client                     |
+| API permissions    | Fantasy Sports (Read); OpenID Connect (Email, Profile) |
+
+The app's **Client ID** and **Client Secret** map to `consumer_key` and
+`consumer_secret` in the OAuth2 credentials JSON pointed to by
+`YAHOO_CREDS_FILE`. Keep that file outside any git worktree (e.g.
+`~/.config/fantasy-manager/yahoo_oauth2.json`) so cached tokens are shared
+across worktrees and survive teardown.
+
 # Examples
 
 See scripts under the scripts directory
