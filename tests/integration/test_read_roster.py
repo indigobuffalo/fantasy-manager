@@ -5,7 +5,7 @@ RUN_YAHOO_INTEGRATION=1 and have the app's secrets configured (YAHOO_COOKIE /
 YAHOO_CRUMB and/or YAHOO_CREDS_FILE, e.g. via a local .env).
 
 Run it with:
-    RUN_YAHOO_INTEGRATION=1 python -m pytest tests/integration/test_read_roster.py -v -s
+    RUN_YAHOO_INTEGRATION=1 uv run pytest tests/integration/test_read_roster.py -v -s
 
 Point it at a different league/season with:
     YAHOO_INTEGRATION_LEAGUE=kkupfl FANTASY_SEASON=2026_2027 ...

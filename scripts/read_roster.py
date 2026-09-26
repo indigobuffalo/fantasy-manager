@@ -9,7 +9,7 @@ the probe latches on carries the read, and the cookie scrapers get run against
 live Yahoo HTML.
 
 Usage:
-    python scripts/read_roster.py [league_name]     # default: kkupfl
+    uv run python scripts/read_roster.py [league_name]     # default: kkupfl
 
 Requires the same env/secrets as the app (see .env.example):
   - YAHOO_COOKIE / YAHOO_CRUMB  (cookie transport — needed for the fallback)

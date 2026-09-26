@@ -62,7 +62,12 @@ across worktrees and survive teardown.
 
 # Examples
 
-See scripts under the scripts directory
+See scripts under the scripts directory. For example, read a team's roster
+end-to-end (a live smoke test of the read path) with:
+
+```
+uv run python scripts/read_roster.py kkupfl   # or: pa
+```
 
 ## Misc
 
