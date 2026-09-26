@@ -9,6 +9,10 @@ Run it with:
 
 Point it at a different league/season with:
     YAHOO_INTEGRATION_LEAGUE=kkupfl FANTASY_SEASON=2026_2027 ...
+
+YAHOO_INTEGRATION_LEAGUE accepts any league name configured for the season —
+i.e. a ``<name>.json`` under config/data/season/<FANTASY_SEASON>/league/
+(currently: kkupfl, pa). Defaults to kkupfl.
 """
 import os
 

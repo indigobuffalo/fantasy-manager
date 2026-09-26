@@ -11,6 +11,10 @@ live Yahoo HTML.
 Usage:
     uv run python scripts/read_roster.py [league_name]     # default: kkupfl
 
+The accepted league names are the config files under
+``config/data/season/<FANTASY_SEASON>/league/`` (one name per ``<name>.json``).
+Run with no valid name to see the list for the active season.
+
 Requires the same env/secrets as the app (see .env.example):
   - YAHOO_COOKIE / YAHOO_CRUMB  (cookie transport — needed for the fallback)
   - YAHOO_CREDS_FILE            (OAuth transport)
@@ -21,7 +25,13 @@ import logging
 import sys
 
 from fantasy_manager.client.factory import ClientFactory
-from fantasy_manager.config.config import FantasyConfig
+from fantasy_manager.config.config import CONFIG_DIR, FantasyConfig
+
+
+def available_leagues(fc: FantasyConfig) -> list[str]:
+    """League names configured for the active season (the league config stems)."""
+    league_dir = CONFIG_DIR / f"data/season/{fc.SEASON}/league"
+    return sorted(p.stem for p in league_dir.glob("*.json"))
 
 
 def main() -> int:
@@ -30,9 +40,18 @@ def main() -> int:
         format="%(levelname)s %(name)s: %(message)s",
     )
 
-    league_name = sys.argv[1] if len(sys.argv) > 1 else "kkupfl"
-
     fc = FantasyConfig()
+    leagues = available_leagues(fc)
+    default_league = "kkupfl" if "kkupfl" in leagues else (leagues[0] if leagues else "")
+    league_name = sys.argv[1] if len(sys.argv) > 1 else default_league
+
+    if league_name not in leagues:
+        print(
+            f"Unknown league '{league_name}' for season {fc.SEASON}.\n"
+            f"Accepted league names: {', '.join(leagues) or '(none configured)'}"
+        )
+        return 2
+
     print(f"\nReading '{league_name}' roster (season {fc.SEASON})\n" + "=" * 50)
 
     league = fc.get_league(league_name)

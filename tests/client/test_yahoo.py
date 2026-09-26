@@ -452,6 +452,23 @@ def test_scrape_roster_player_ids_returns_empty_without_anchor():
     assert YahooClient._scrape_roster_player_ids("<html>no roster here</html>") == []
 
 
+def test_scrape_selected_positions_reads_selected_option():
+    # Selected slot per player, upper-cased to match Position values
+    # (Util -> UTIL, IR+ stays IR+); unselected options are ignored.
+    html = (
+        '<select name="6877"><option value="LW">LW</option>'
+        '<option value="Util">Util</option>'
+        '<option value="BN" selected>BN</option></select>'
+        '<select name="6817"><option value="G">G</option>'
+        '<option value="IR+" selected>IR+</option></select>'
+    )
+    assert YahooClient._scrape_selected_positions(html) == {6877: "BN", 6817: "IR+"}
+
+
+def test_scrape_selected_positions_empty_without_selects():
+    assert YahooClient._scrape_selected_positions("<html>nothing</html>") == {}
+
+
 def test_refresh_context_forced_cookie_skips_oauth_construction(mock_league):
     # With reads forced to cookie, _refresh_context must not construct the OAuth
     # transport at all (constructing OAuth2 with no creds prompts interactively).

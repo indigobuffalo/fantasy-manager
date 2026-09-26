@@ -69,6 +69,13 @@ _AUTH_ERROR_MARKERS = (
 # transport.
 _ROSTER_JS_ANCHOR = "PRCurrTeamPlayers"
 
+# On the team page each rostered player has a position-picker
+# `<select name="<player_id>">` whose currently-selected `<option>` is the
+# player's assigned slot (C/LW/RW/D/G/Util/BN/IR/IR+). We scrape that selection
+# to recover real lineup positions over the cookie transport.
+_POSITION_SELECT_RE = re.compile(r'<select name="(\d+)".*?</select>', re.DOTALL)
+_SELECTED_OPTION_RE = re.compile(r'<option value="([^"]+)"\s+selected')
+
 T = TypeVar("T")
 
 
@@ -404,8 +411,8 @@ class YahooClient(BaseFantasyClient):
         what the browser team page exposes. The rostered player ids are embedded
         in an inline JS blob anchored on ``PRCurrTeamPlayers``; we extract those
         ids and hydrate each player via ``get_player_by_id`` (which itself routes
-        through the fallback dispatch). Fields the page doesn't expose (e.g. the
-        selected lineup position) are defaulted.
+        through the fallback dispatch). The assigned lineup slot (incl. IR/IR+)
+        is scraped from each player's position `<select>` on the page.
 
         Raises:
             FantasyAuthError: If the page looks logged-out/stale (our
@@ -421,6 +428,7 @@ class YahooClient(BaseFantasyClient):
             )
 
         player_ids = self._scrape_roster_player_ids(html)
+        selected_positions = self._scrape_selected_positions(html)
 
         roster: list[dict] = []
         for pid in player_ids:
@@ -434,9 +442,9 @@ class YahooClient(BaseFantasyClient):
                         pos.value for pos in player.eligible_positions
                     ],
                     "position_type": player.position_type.value,
-                    # Selected lineup position isn't reliably scrapable here;
-                    # default to bench as a best-effort placeholder.
-                    "selected_position": "BN",
+                    # Real assigned slot scraped from the page; fall back to
+                    # bench only if the player's position select isn't found.
+                    "selected_position": selected_positions.get(pid, "BN"),
                     "status": player.status.value if player.status else "",
                 }
             )
@@ -485,6 +493,28 @@ class YahooClient(BaseFantasyClient):
                 seen.add(pid)
                 ordered.append(pid)
         return ordered
+
+    @staticmethod
+    def _scrape_selected_positions(html: str) -> dict[int, str]:
+        """Map each rostered player id to its selected lineup slot (best-effort).
+
+        Each player's position picker on the team page is a
+        ``<select name="<player_id>">`` whose ``selected`` ``<option>`` is the
+        assigned slot, e.g.::
+
+            <select name="6817"><option value="G">G</option>
+              <option value="IR+" selected>IR+</option></select>
+
+        Values are upper-cased so they line up with ``Position`` enum values
+        (``Util`` → ``UTIL``, ``IR+`` stays ``IR+``). Markup-dependent and
+        fallback-only.
+        """
+        positions: dict[int, str] = {}
+        for match in _POSITION_SELECT_RE.finditer(html):
+            selected = _SELECTED_OPTION_RE.search(match.group(0))
+            if selected:
+                positions[int(match.group(1))] = selected.group(1).upper()
+        return positions
 
     @staticmethod
     def _handle_client_error(add_id: int, err: Exception):
