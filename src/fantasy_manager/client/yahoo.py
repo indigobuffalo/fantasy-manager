@@ -1,8 +1,10 @@
 import datetime
 import json
 import logging
+import urllib.parse
 from typing import Optional
 
+import requests
 import yahoo_fantasy_api as yfa
 from requests import Response
 from yahoo_oauth import OAuth2
@@ -17,6 +19,7 @@ from fantasy_manager.exceptions import (
     MaxAddsError,
     NotOnRosterError,
     OnAnotherTeamError,
+    UnintendedWaiverAddError,
 )
 from fantasy_manager.model.dto.team import RawTeamDto
 from fantasy_manager.model.enums.platform_url import PlatformUrl
@@ -31,6 +34,16 @@ from fantasy_manager.transform.yahoo import (
 
 
 logger = logging.getLogger(__name__)
+
+
+# Markers scanned in the write-transport responses so Yahoo's form-based failures
+# map onto the same exceptions the OAuth path already raises. Matched against a
+# URL-decoded haystack (redirect URL + body) so they hold regardless of Yahoo's
+# encoding — the waiver-claim signal arrives URL-encoded in the redirect's
+# `_global_alerts` param, the others as plain text in the body.
+ALREADY_PLAYED_MARKER = "player has already played and is no longer"
+WEEKLY_LIMIT_MARKER = "You have reached the weekly limit"
+WAIVER_CLAIM_PLACED_MARKER = "created a waiver claim for"
 
 
 class TeamDataNotFoundError(Exception):
@@ -60,7 +73,14 @@ class YahooClient(BaseFantasyClient):
         return f"{platform_url}/{self.league.id}/{self.league.team_id}"
 
     def _refresh_context(self):
-        """Sets up the session context and related handles."""
+        """Sets up the read and write transports and related handles.
+
+        Reads use the official OAuth2 API (``session_context`` + yfa handles).
+        Writes use a cookie-backed ``requests.Session``: Yahoo's OAuth app
+        tokens are read-only, so writes impersonate a logged-in browser via a
+        harvested cookie header plus the ``crumb`` form token replayed on each
+        write POST. No write method is routed here yet (see epic #16).
+        """
         self.session_context = OAuth2(
             None, None, from_file=self.config.YAHOO_CREDS_FILE
         )
@@ -68,6 +88,10 @@ class YahooClient(BaseFantasyClient):
             self.league.key
         )
         self.team_handle = self.league_handle.to_team(self.league_handle.team_key())
+
+        self.crumb = self.config.YAHOO_CRUMB
+        self.write_session = requests.Session()
+        self.write_session.headers.update({"cookie": self.config.YAHOO_COOKIE})
 
     def _check_locked_players(self) -> None:
         """Ensure all expected players are on roster.
@@ -79,6 +103,56 @@ class YahooClient(BaseFantasyClient):
         locked_player_ids = self.league.locked_players
         if not all(locked in rostered_players_ids for locked in locked_player_ids):
             raise FantasyAuthError("Failed to load team. Check auth.")
+
+    def _check_cookie_auth(self) -> None:
+        """Ensure the harvested cookie still authenticates the write transport.
+
+        Mirrors the OAuth ``_check_locked_players`` heuristic against the raw
+        team-page HTML: a stale cookie makes Yahoo serve a logged-out page that
+        omits our ``locked_players``, so their absence signals a dead cookie.
+
+        Raises:
+            FantasyAuthError: If the cookie no longer yields a logged-in team page.
+        """
+        resp = self.write_session.get(self.team_url)
+        if not all(str(pid) in resp.text for pid in self.league.locked_players):
+            raise FantasyAuthError(
+                "Failed to load team via cookie. Check YAHOO_COOKIE."
+            )
+
+    def _post_write(self, path: str, data: dict) -> Response:
+        """POST a single write to a Yahoo HTML form endpoint via the cookie transport.
+
+        Injects the stored ``crumb``, POSTs form-encoded to ``{team_url}/{path}``,
+        then scans the returned HTML for known failure markers and raises the
+        mapped exception. This is a single-shot call: the poll/retry/timeout loop
+        stays owned by ``RosterService._execute_with_timeout``.
+
+        Args:
+            path (str): Form endpoint under the team URL, e.g. ``"addplayer"``.
+            data (dict): Form fields; the ``crumb`` is added automatically.
+
+        Returns:
+            Response: The raw POST response, for any further caller inspection.
+
+        Raises:
+            AlreadyPlayedError: If the player has already played and is locked.
+            MaxAddsError: If the weekly add limit has been reached.
+            UnintendedWaiverAddError: If the add unintentionally placed a waiver claim.
+        """
+        payload = {"crumb": self.crumb, **data}
+        resp = self.write_session.post(f"{self.team_url}/{path}", data=payload)
+        # Yahoo signals some outcomes only in the redirect URL (a placed waiver
+        # claim lands URL-encoded in `_global_alerts`), others in the body HTML.
+        # Decode and concatenate both so markers match regardless of encoding.
+        haystack = urllib.parse.unquote_plus(resp.url) + resp.text
+        if ALREADY_PLAYED_MARKER in haystack:
+            raise AlreadyPlayedError(str(data.get("apid")))
+        if WEEKLY_LIMIT_MARKER in haystack:
+            raise MaxAddsError()
+        if WAIVER_CLAIM_PLACED_MARKER in haystack:
+            raise UnintendedWaiverAddError()
+        return resp
 
     def refresh(self):
         """Refresh client auth and related handles."""
