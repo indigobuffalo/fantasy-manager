@@ -119,10 +119,10 @@ class YahooClient(BaseFantasyClient):
         self.write_session = requests.Session()
         self.write_session.headers.update({"cookie": self.config.YAHOO_COOKIE})
 
-        # Decide once, at startup, whether OAuth reads work for this app/token.
-        # Yahoo may gate Fantasy Sports API reads at the app level; when it does,
-        # reads fall back to the cookie transport (see `_probe_oauth_reads`).
-        self._probe_oauth_reads()
+        # At startup, confirm the read auth situation for both transports: pick
+        # the read transport (OAuth vs cookie) and hard-fail if neither works, so
+        # a broken setup surfaces immediately rather than on the first read.
+        self._verify_read_auth()
 
     @staticmethod
     def _is_auth_error(err: Exception) -> bool:
@@ -136,34 +136,104 @@ class YahooClient(BaseFantasyClient):
         msg = str(err).lower()
         return any(marker in msg for marker in _AUTH_ERROR_MARKERS)
 
-    def _probe_oauth_reads(self) -> None:
+    def _probe_oauth_reads(self) -> str:
         """Run one lightweight OAuth read and cache whether it works.
 
         Sets ``self._oauth_reads_ok`` so the read dispatch can route directly to
-        the working transport without repeatedly retrying a gated OAuth call.
+        the working transport without repeatedly retrying a gated OAuth call, and
+        returns a diagnostic status for the startup auth check:
 
-        - success            → OAuth reads work; latch on.
-        - auth error         → Yahoo is denying the app; latch to cookie.
-        - transient / other  → stay optimistic (leave OAuth on) so a real auth
-                               error can still flip the flag mid-session; this
-                               avoids permanently falling back on a flaky probe.
+        - ``"forced"``    → skipped the probe; latched to cookie (env override).
+        - ``"ok"``        → OAuth reads work; latch on.
+        - ``"auth_error"``→ Yahoo is denying the app; latch to cookie.
+        - ``"transient"`` → probe failed but not with an auth marker, so stay
+                            optimistic (leave OAuth on) — a real auth error can
+                            still flip the flag mid-session. Avoids permanently
+                            falling back on a flaky probe.
         """
+        # An operator who knows OAuth reads are gated can skip the probe (and its
+        # guaranteed-failing OAuth call) by setting YAHOO_FORCE_COOKIE_READS.
+        if self.config.YAHOO_FORCE_COOKIE_READS:
+            self._oauth_reads_ok = False
+            logger.info(
+                "Yahoo reads via cookie fallback (forced by YAHOO_FORCE_COOKIE_READS)"
+            )
+            return "forced"
         try:
             self.team_handle.roster()
             self._oauth_reads_ok = True
             logger.info("Yahoo reads via OAuth")
+            return "ok"
         except Exception as err:
             if self._is_auth_error(err):
                 self._oauth_reads_ok = False
                 logger.info("Yahoo reads via cookie fallback")
-            else:
-                # Transient/unknown failure: don't permanently latch to cookie.
-                self._oauth_reads_ok = True
-                logger.warning(
-                    "OAuth read probe failed transiently (%s); keeping OAuth "
-                    "with a mid-session cookie fallback",
-                    err,
+                return "auth_error"
+            # Transient/unknown failure: don't permanently latch to cookie.
+            self._oauth_reads_ok = True
+            logger.warning(
+                "OAuth read probe failed transiently (%s); keeping OAuth "
+                "with a mid-session cookie fallback",
+                err,
+            )
+            return "transient"
+
+    def _check_cookie_reads(self) -> bool:
+        """Return whether the cookie transport can currently read the team page.
+
+        Wraps ``_check_cookie_auth`` (which raises on a stale/logged-out cookie)
+        into a boolean so the startup auth check can report on both transports
+        without short-circuiting on the first failure.
+        """
+        try:
+            self._check_cookie_auth()
+            return True
+        except Exception as err:
+            logger.debug("Cookie read check failed: %s", err)
+            return False
+
+    def _verify_read_auth(self) -> None:
+        """Confirm the read-auth situation for both transports at startup.
+
+        Runs the OAuth probe (unless forced to cookie) and a cookie read check,
+        logs the combined state so the auth picture is obvious up front, and
+        hard-fails when *neither* transport can read.
+
+        - both work        → INFO, reads use OAuth (writes' cookie also healthy).
+        - only OAuth works  → WARNING, cookie transport is down (writes will fail).
+        - only cookie works → INFO/WARNING, reads use the cookie fallback.
+        - neither works     → raise ``FantasyAuthError`` (fail fast).
+        """
+        probe_status = self._probe_oauth_reads()
+        oauth_reads_ok = probe_status == "ok"
+        cookie_reads_ok = self._check_cookie_reads()
+
+        if oauth_reads_ok and cookie_reads_ok:
+            logger.info(
+                "Yahoo auth OK: OAuth and cookie read transports both working"
+            )
+        elif oauth_reads_ok:
+            logger.warning(
+                "Yahoo auth: OAuth reads working, but cookie transport is NOT — "
+                "writes (add/drop/waivers/lineup) will fail. Check YAHOO_COOKIE."
+            )
+        elif cookie_reads_ok:
+            if probe_status == "forced":
+                logger.info(
+                    "Yahoo auth OK: cookie read transport working "
+                    "(OAuth probe skipped via YAHOO_FORCE_COOKIE_READS)"
                 )
+            else:
+                logger.warning(
+                    "Yahoo auth: OAuth reads NOT working; using cookie read "
+                    "fallback. Reads and writes both depend on YAHOO_COOKIE."
+                )
+        else:
+            raise FantasyAuthError(
+                "Yahoo auth failed: neither the OAuth nor the cookie read "
+                "transport is working. Check YAHOO_CREDS_FILE (OAuth) and "
+                "YAHOO_COOKIE/YAHOO_CRUMB (cookie)."
+            )
 
     def _dispatch_read(
         self,

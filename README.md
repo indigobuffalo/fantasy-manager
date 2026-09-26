@@ -30,6 +30,7 @@ cp .env.example .env
 | `YAHOO_CREDS_FILE`  | yes        | Path to the Yahoo OAuth2 credentials file. Used for **reads** (rosters, teams, player lookups). |
 | `YAHOO_COOKIE`      | for writes | Browser-harvested cookie header for the cookie write transport.         |
 | `YAHOO_CRUMB`       | for writes | Browser-harvested crumb form token for the cookie write transport.      |
+| `YAHOO_FORCE_COOKIE_READS` | no  | Truthy (`1`/`true`/`yes`/`on`) to skip the startup OAuth read probe and route **reads** straight to the cookie transport. Use when OAuth reads are known-gated by Yahoo. |
 | `LOG_LEVEL`         | no         | `DEBUG`/`INFO`/`WARNING`/`ERROR`/`CRITICAL` (defaults to `INFO`).        |
 | `FANTASY_SEASON`    | no         | Season directory under `config/data/season` (defaults to `2026_2027`).   |
 | `YEAR`              | no         | Defaults to `2026`.                                                      |

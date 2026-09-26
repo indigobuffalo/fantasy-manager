@@ -68,9 +68,23 @@ token, returning `oauth_problem="additional_authorization_required"` /
 reverted by Yahoo later, or not — so reads are OAuth-preferred with a cookie
 fallback, selected by a startup probe rather than assumed:
 
-- **Startup probe** — `_refresh_context` runs `_probe_oauth_reads()`, which
-  performs one lightweight OAuth read (`team_handle.roster()`) and caches the
-  outcome on `self._oauth_reads_ok`:
+- **Force-cookie override** — set `YAHOO_FORCE_COOKIE_READS` (truthy:
+  `1`/`true`/`yes`/`on`) to skip the probe entirely and latch reads to the cookie
+  transport at startup. Use this when OAuth reads are known-gated (Yahoo hasn't
+  granted the app the Fantasy Sports read scope) so there's no point paying for a
+  guaranteed-failing probe on every run. Unset it once OAuth reads are restored.
+- **Startup auth self-check** — `_refresh_context` runs `_verify_read_auth()`,
+  which combines the OAuth probe with a cookie read check
+  (`_check_cookie_reads`) and logs the state of **both** transports up front:
+  both working → INFO; only OAuth → WARNING (cookie/writes down); only cookie →
+  INFO if forced / WARNING if OAuth unexpectedly failed. If **neither** transport
+  can read, it raises `FantasyAuthError` immediately so a broken setup fails fast
+  at startup rather than on the first read.
+- **Startup probe** — when not forced, `_verify_read_auth` runs
+  `_probe_oauth_reads()`, which performs one lightweight OAuth read
+  (`team_handle.roster()`) and caches the outcome on `self._oauth_reads_ok`:
+  - forced (env) → `_oauth_reads_ok = False`, no OAuth call ("... forced by
+    YAHOO_FORCE_COOKIE_READS").
   - success → `_oauth_reads_ok = True` ("Yahoo reads via OAuth").
   - auth error → `_oauth_reads_ok = False` ("Yahoo reads via cookie fallback").
   - transient/other error → stays optimistic (`True`) and logs a warning, so a

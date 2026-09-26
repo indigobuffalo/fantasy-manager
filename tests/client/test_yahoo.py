@@ -33,6 +33,7 @@ def yahoo_client(mock_league):
     config = Mock(spec=FantasyConfig)
     config.YAHOO_COOKIE = "cookie-header"
     config.YAHOO_CRUMB = CRUMB
+    config.YAHOO_FORCE_COOKIE_READS = False
     config.get_platform_url = Mock(
         return_value="https://hockey.fantasysports.yahoo.com/hockey"
     )
@@ -173,6 +174,78 @@ def test_probe_stays_optimistic_on_transient_error(yahoo_client):
 
     # Transient failure must NOT permanently latch to cookie.
     assert yahoo_client._oauth_reads_ok is True
+
+
+def test_probe_forced_cookie_skips_oauth_read(yahoo_client):
+    yahoo_client.config.YAHOO_FORCE_COOKIE_READS = True
+    yahoo_client.team_handle = Mock()
+
+    status = yahoo_client._probe_oauth_reads()
+
+    # Forced cookie mode latches to cookie without touching OAuth at all.
+    assert status == "forced"
+    assert yahoo_client._oauth_reads_ok is False
+    yahoo_client.team_handle.roster.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# _verify_read_auth (startup auth self-check)
+# ---------------------------------------------------------------------------
+
+
+def test_verify_read_auth_passes_when_both_transports_work(yahoo_client):
+    yahoo_client._probe_oauth_reads = Mock(return_value="ok")
+    yahoo_client._check_cookie_reads = Mock(return_value=True)
+
+    # Should not raise when at least one transport works.
+    yahoo_client._verify_read_auth()
+
+
+def test_verify_read_auth_passes_when_only_oauth_works(yahoo_client):
+    yahoo_client._probe_oauth_reads = Mock(return_value="ok")
+    yahoo_client._check_cookie_reads = Mock(return_value=False)
+
+    yahoo_client._verify_read_auth()
+
+
+def test_verify_read_auth_passes_when_only_cookie_works(yahoo_client):
+    yahoo_client._probe_oauth_reads = Mock(return_value="auth_error")
+    yahoo_client._check_cookie_reads = Mock(return_value=True)
+
+    yahoo_client._verify_read_auth()
+
+
+def test_verify_read_auth_passes_when_forced_cookie_works(yahoo_client):
+    yahoo_client._probe_oauth_reads = Mock(return_value="forced")
+    yahoo_client._check_cookie_reads = Mock(return_value=True)
+
+    yahoo_client._verify_read_auth()
+
+
+def test_verify_read_auth_hard_fails_when_neither_transport_works(yahoo_client):
+    yahoo_client._probe_oauth_reads = Mock(return_value="auth_error")
+    yahoo_client._check_cookie_reads = Mock(return_value=False)
+
+    with pytest.raises(FantasyAuthError):
+        yahoo_client._verify_read_auth()
+
+
+def test_verify_read_auth_hard_fails_when_forced_but_cookie_dead(yahoo_client):
+    yahoo_client._probe_oauth_reads = Mock(return_value="forced")
+    yahoo_client._check_cookie_reads = Mock(return_value=False)
+
+    with pytest.raises(FantasyAuthError):
+        yahoo_client._verify_read_auth()
+
+
+def test_check_cookie_reads_returns_false_on_stale_cookie(yahoo_client):
+    yahoo_client.write_session.get.return_value = _response("logged out; only 1 and 2")
+    assert yahoo_client._check_cookie_reads() is False
+
+
+def test_check_cookie_reads_returns_true_when_authed(yahoo_client):
+    yahoo_client.write_session.get.return_value = _response("roster has 1, 2 and 3")
+    assert yahoo_client._check_cookie_reads() is True
 
 
 # ---------------------------------------------------------------------------
