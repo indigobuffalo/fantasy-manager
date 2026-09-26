@@ -332,10 +332,23 @@ class YahooClient(BaseFantasyClient):
         return resp
 
     def refresh(self):
-        """Refresh client auth and related handles."""
+        """Refresh client auth and related handles.
+
+        ``_refresh_context`` already runs the startup read-auth self-check
+        (``_verify_read_auth``), which hard-fails if neither transport can read.
+        We then re-assert that *our* team actually loads, over whichever read
+        transport is active: OAuth when the probe latched it on, otherwise the
+        cookie transport. Checking OAuth unconditionally would raise in the
+        gated scenario (Yahoo denying app reads) even when the cookie path is
+        healthy — which would block every write, the exact thing this transport
+        split exists to keep working.
+        """
         self._refresh_context()
-        # TODO: moved locked players check to service
-        self._check_locked_players()
+        # TODO: move the locked-players check into the service layer.
+        if self._oauth_reads_ok:
+            self._check_locked_players()
+        else:
+            self._check_cookie_auth()
 
     def set_lineup(self, lineup: Lineup, lineup_date: datetime.date) -> None:
         """Set lineup for the given date.

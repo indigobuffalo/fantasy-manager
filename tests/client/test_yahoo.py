@@ -249,6 +249,37 @@ def test_check_cookie_reads_returns_true_when_authed(yahoo_client):
 
 
 # ---------------------------------------------------------------------------
+# refresh (write-path auth check honors the active read transport)
+# ---------------------------------------------------------------------------
+
+
+def test_refresh_checks_oauth_when_reads_ok(yahoo_client):
+    yahoo_client._refresh_context = Mock()
+    yahoo_client._oauth_reads_ok = True
+    yahoo_client._check_locked_players = Mock()
+    yahoo_client._check_cookie_auth = Mock()
+
+    yahoo_client.refresh()
+
+    yahoo_client._check_locked_players.assert_called_once()
+    yahoo_client._check_cookie_auth.assert_not_called()
+
+
+def test_refresh_checks_cookie_when_oauth_gated(yahoo_client):
+    # The gated scenario: OAuth reads are off, so refresh must NOT touch the
+    # OAuth locked-players check (it would raise) and must verify the cookie.
+    yahoo_client._refresh_context = Mock()
+    yahoo_client._oauth_reads_ok = False
+    yahoo_client._check_locked_players = Mock()
+    yahoo_client._check_cookie_auth = Mock()
+
+    yahoo_client.refresh()
+
+    yahoo_client._check_cookie_auth.assert_called_once()
+    yahoo_client._check_locked_players.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
 # _dispatch_read
 # ---------------------------------------------------------------------------
 
