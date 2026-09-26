@@ -43,9 +43,10 @@ def yahoo_client(mock_league):
     yield client
 
 
-def _response(text: str) -> Mock:
+def _response(text: str, url: str = "") -> Mock:
     resp = Mock()
     resp.text = text
+    resp.url = url
     return resp
 
 
@@ -99,3 +100,18 @@ def test_post_write_raises_unintended_waiver(yahoo_client):
     )
     with pytest.raises(UnintendedWaiverAddError):
         yahoo_client._post_write("addplayer", {"apid": 6751})
+
+
+def test_post_write_detects_waiver_claim_in_url_encoded_redirect(yahoo_client):
+    # Yahoo signals a placed claim only in the redirect URL, URL-encoded (the
+    # form observed live: `_global_alerts=...created+a+waiver+claim+for+...`).
+    yahoo_client.write_session.post.return_value = _response(
+        "clean body, no marker here",
+        url=(
+            "https://hockey.fantasysports.yahoo.com/hockey/121147/11"
+            "?_global_alerts=x%7C%5B%7B%22params%22%3A%5B%22"
+            "created+a+waiver+claim+for+Braden+Schneider%22%5D%7D%5D"
+        ),
+    )
+    with pytest.raises(UnintendedWaiverAddError):
+        yahoo_client._post_write("addplayer", {"apid": 8659})

@@ -1,6 +1,7 @@
 import datetime
 import json
 import logging
+import urllib.parse
 from typing import Optional
 
 import requests
@@ -35,12 +36,14 @@ from fantasy_manager.transform.yahoo import (
 logger = logging.getLogger(__name__)
 
 
-# Markers scanned in the write-transport HTML responses so Yahoo's form-based
-# failures map onto the same exceptions the OAuth path already raises. Recovered
-# from the pre-refactor cookie tool (commit 2fe2fa3).
+# Markers scanned in the write-transport responses so Yahoo's form-based failures
+# map onto the same exceptions the OAuth path already raises. Matched against a
+# URL-decoded haystack (redirect URL + body) so they hold regardless of Yahoo's
+# encoding — the waiver-claim signal arrives URL-encoded in the redirect's
+# `_global_alerts` param, the others as plain text in the body.
 ALREADY_PLAYED_MARKER = "player has already played and is no longer"
 WEEKLY_LIMIT_MARKER = "You have reached the weekly limit"
-WAIVER_CLAIM_PLACED_MARKER = "created%2520a%2520waiver%2520claim%2520for"
+WAIVER_CLAIM_PLACED_MARKER = "created a waiver claim for"
 
 
 class TeamDataNotFoundError(Exception):
@@ -139,12 +142,15 @@ class YahooClient(BaseFantasyClient):
         """
         payload = {"crumb": self.crumb, **data}
         resp = self.write_session.post(f"{self.team_url}/{path}", data=payload)
-        body = resp.text
-        if ALREADY_PLAYED_MARKER in body:
+        # Yahoo signals some outcomes only in the redirect URL (a placed waiver
+        # claim lands URL-encoded in `_global_alerts`), others in the body HTML.
+        # Decode and concatenate both so markers match regardless of encoding.
+        haystack = urllib.parse.unquote_plus(resp.url) + resp.text
+        if ALREADY_PLAYED_MARKER in haystack:
             raise AlreadyPlayedError(str(data.get("apid")))
-        if WEEKLY_LIMIT_MARKER in body:
+        if WEEKLY_LIMIT_MARKER in haystack:
             raise MaxAddsError()
-        if WAIVER_CLAIM_PLACED_MARKER in body:
+        if WAIVER_CLAIM_PLACED_MARKER in haystack:
             raise UnintendedWaiverAddError()
         return resp
 
