@@ -101,23 +101,36 @@ class YahooClient(BaseFantasyClient):
     def _refresh_context(self):
         """Sets up the read and write transports and related handles.
 
-        Reads use the official OAuth2 API (``session_context`` + yfa handles).
-        Writes use a cookie-backed ``requests.Session``: Yahoo's OAuth app
-        tokens are read-only, so writes impersonate a logged-in browser via a
-        harvested cookie header plus the ``crumb`` form token replayed on each
-        write POST. No write method is routed here yet (see epic #16).
+        Reads prefer the official OAuth2 API (``session_context`` + yfa handles),
+        falling back to the cookie transport. Writes use a cookie-backed
+        ``requests.Session``: Yahoo's OAuth app tokens are read-only, so writes
+        impersonate a logged-in browser via a harvested cookie header plus the
+        ``crumb`` form token replayed on each write POST.
         """
-        self.session_context = OAuth2(
-            None, None, from_file=self.config.YAHOO_CREDS_FILE
-        )
-        self.league_handle = yfa.Game(self.session_context, "nhl").to_league(
-            self.league.key
-        )
-        self.team_handle = self.league_handle.to_team(self.league_handle.team_key())
-
+        # Cookie/crumb transport: powers writes and the read fallback.
         self.crumb = self.config.YAHOO_CRUMB
         self.write_session = requests.Session()
         self.write_session.headers.update({"cookie": self.config.YAHOO_COOKIE})
+
+        # OAuth read transport. Constructing OAuth2 performs the token handshake
+        # and, with no creds file, drops into an interactive verifier prompt — so
+        # when reads are forced onto the cookie transport there's no OAuth path to
+        # build, and we skip it entirely. The read dispatch never touches these
+        # handles while `_oauth_reads_ok` is False.
+        if self.config.YAHOO_FORCE_COOKIE_READS:
+            self.session_context = None
+            self.league_handle = None
+            self.team_handle = None
+        else:
+            self.session_context = OAuth2(
+                None, None, from_file=self.config.YAHOO_CREDS_FILE
+            )
+            self.league_handle = yfa.Game(self.session_context, "nhl").to_league(
+                self.league.key
+            )
+            self.team_handle = self.league_handle.to_team(
+                self.league_handle.team_key()
+            )
 
         # At startup, confirm the read auth situation for both transports: pick
         # the read transport (OAuth vs cookie) and hard-fail if neither works, so
@@ -435,7 +448,8 @@ class YahooClient(BaseFantasyClient):
             team_key=self.league.key,
             name=self.league.team_name,
             league_id=self.league.id,
-            faab_balance=0,
+            # Team.convert_to_int only coerces str input, so pass "0" not 0.
+            faab_balance="0",
             roster=roster,
         )
 
@@ -444,14 +458,23 @@ class YahooClient(BaseFantasyClient):
         """Extract rostered player ids from the team-page JS blob (best-effort).
 
         Anchored on the ``PRCurrTeamPlayers`` inline JS var the pre-refactor tool
-        keyed off. Yahoo's exact serialization varies, so we pull the ids from
-        the segment of markup following that anchor. This is intentionally
-        forgiving and markup-dependent; it is the fallback path only.
+        keyed off. Yahoo serializes it as a JSON array of player ids, e.g.::
+
+            "varPRCurrTeamPlayers" : [6877, 7905, 6368, ...],
+
+        so we take only the ids between the ``[`` and ``]`` that follow the
+        anchor — bounding the parse to this one array (grabbing the wider markup
+        would also pull in adjacent vars like ``varPROppTeamID``). Markup-
+        dependent and fallback-only.
         """
         anchor_idx = html.find(_ROSTER_JS_ANCHOR)
-        segment = html[anchor_idx:] if anchor_idx != -1 else html
-        # Grab the assignment blob up to the statement terminator, then the ids.
-        blob = segment.split(";", 1)[0]
+        if anchor_idx == -1:
+            return []
+        open_idx = html.find("[", anchor_idx)
+        close_idx = html.find("]", open_idx)
+        if open_idx == -1 or close_idx == -1:
+            return []
+        blob = html[open_idx + 1 : close_idx]
         ids = re.findall(r"\d+", blob)
         # De-dupe while preserving order.
         seen: set[int] = set()

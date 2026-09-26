@@ -436,3 +436,40 @@ def test_get_player_by_id_via_cookie_scrapes_name(yahoo_client):
 
     assert player.player_id == 1
     assert player.name.full == "Owen Nolan"
+
+
+def test_scrape_roster_player_ids_reads_only_the_array():
+    # Yahoo serializes the roster as a JSON array; adjacent vars (e.g. the
+    # opponent team id) must NOT bleed into the parse.
+    html = (
+        'x"varPRCurrTeamPlayers" : [6877, 7905, 6368, 30546],\n'
+        '"varPROppTeamID" : 99121147,\n'
+    )
+    assert YahooClient._scrape_roster_player_ids(html) == [6877, 7905, 6368, 30546]
+
+
+def test_scrape_roster_player_ids_returns_empty_without_anchor():
+    assert YahooClient._scrape_roster_player_ids("<html>no roster here</html>") == []
+
+
+def test_refresh_context_forced_cookie_skips_oauth_construction(mock_league):
+    # With reads forced to cookie, _refresh_context must not construct the OAuth
+    # transport at all (constructing OAuth2 with no creds prompts interactively).
+    config = Mock(spec=FantasyConfig)
+    config.YAHOO_COOKIE = "cookie-header"
+    config.YAHOO_CRUMB = CRUMB
+    config.YAHOO_CREDS_FILE = None
+    config.YAHOO_FORCE_COOKIE_READS = True
+    config.get_platform_url = Mock(
+        return_value="https://hockey.fantasysports.yahoo.com/hockey"
+    )
+    with patch("fantasy_manager.client.yahoo.OAuth2") as mock_oauth, patch(
+        "fantasy_manager.client.yahoo.yfa"
+    ) as mock_yfa, patch.object(YahooClient, "_verify_read_auth"):
+        client = YahooClient(league=mock_league, config=config)
+
+    mock_oauth.assert_not_called()
+    mock_yfa.Game.assert_not_called()
+    assert client.session_context is None
+    assert client.league_handle is None
+    assert client.team_handle is None
