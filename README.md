@@ -66,7 +66,8 @@ See scripts under the scripts directory. For example, read a team's roster
 end-to-end (a live smoke test of the read path) with:
 
 ```
-uv run python scripts/read_roster.py kkupfl   # or: pa
+./scripts/read_roster.sh kkupfl               # or: pa
+# equivalent to: uv run python scripts/read_roster.py kkupfl
 ```
 
 ## Misc
