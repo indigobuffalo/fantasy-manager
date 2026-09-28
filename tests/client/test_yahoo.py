@@ -469,6 +469,23 @@ def test_scrape_selected_positions_empty_without_selects():
     assert YahooClient._scrape_selected_positions("<html>nothing</html>") == {}
 
 
+def test_scrape_eligible_positions_excludes_bench_and_ir_slots():
+    # Eligible positions are the select's options minus lineup-only slots
+    # (BN/IR/IR+/IR-); values are upper-cased (Util -> UTIL).
+    html = (
+        '<select name="6877"><option value="LW">LW</option>'
+        '<option value="Util">Util</option>'
+        '<option value="BN" selected>BN</option></select>'
+        '<select name="6817"><option value="G">G</option>'
+        '<option value="BN">BN</option>'
+        '<option value="IR+" selected>IR+</option></select>'
+    )
+    assert YahooClient._scrape_eligible_positions(html) == {
+        6877: ["LW", "UTIL"],
+        6817: ["G"],
+    }
+
+
 def test_refresh_context_forced_cookie_skips_oauth_construction(mock_league):
     # With reads forced to cookie, _refresh_context must not construct the OAuth
     # transport at all (constructing OAuth2 with no creds prompts interactively).

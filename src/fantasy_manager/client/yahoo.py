@@ -75,6 +75,11 @@ _ROSTER_JS_ANCHOR = "PRCurrTeamPlayers"
 # to recover real lineup positions over the cookie transport.
 _POSITION_SELECT_RE = re.compile(r'<select name="(\d+)".*?</select>', re.DOTALL)
 _SELECTED_OPTION_RE = re.compile(r'<option value="([^"]+)"\s+selected')
+_OPTION_VALUE_RE = re.compile(r'<option value="([^"]+)"')
+
+# Lineup slots offered by the position `<select>` that aren't position
+# eligibilities — filtered out when recovering a player's eligible positions.
+_NON_ELIGIBLE_SLOTS = frozenset({"BN", "IR", "IR+", "IR-"})
 
 T = TypeVar("T")
 
@@ -429,18 +434,22 @@ class YahooClient(BaseFantasyClient):
 
         player_ids = self._scrape_roster_player_ids(html)
         selected_positions = self._scrape_selected_positions(html)
+        eligible_positions = self._scrape_eligible_positions(html)
 
         roster: list[dict] = []
         for pid in player_ids:
-            # Reuse the player read (best-effort) to hydrate name/positions.
+            # Reuse the player read (best-effort) to hydrate the name; positions
+            # come from the team page's per-player position <select>.
             player = self.get_player_by_id(pid)
             roster.append(
                 {
                     "player_id": player.player_id,
                     "name": {"full": player.name.full},
-                    "eligible_positions": [
-                        pos.value for pos in player.eligible_positions
-                    ],
+                    # Real eligibilities scraped from the page; fall back to the
+                    # player read's default only if the select wasn't found.
+                    "eligible_positions": eligible_positions.get(
+                        pid, [pos.value for pos in player.eligible_positions]
+                    ),
                     "position_type": player.position_type.value,
                     # Real assigned slot scraped from the page; fall back to
                     # bench only if the player's position select isn't found.
@@ -515,6 +524,26 @@ class YahooClient(BaseFantasyClient):
             if selected:
                 positions[int(match.group(1))] = selected.group(1).upper()
         return positions
+
+    @staticmethod
+    def _scrape_eligible_positions(html: str) -> dict[int, list[str]]:
+        """Map each player id to its eligible positions (best-effort).
+
+        The same position ``<select>`` lists every slot a player can fill; the
+        real position eligibilities are those options minus the bench/IR lineup
+        slots (``BN``/``IR``/``IR+``/``IR-``). Values are upper-cased to match
+        ``Position`` (e.g. ``Util`` → ``UTIL``). Markup-dependent, fallback-only.
+        """
+        eligible: dict[int, list[str]] = {}
+        for match in _POSITION_SELECT_RE.finditer(html):
+            values: list[str] = []
+            for value in _OPTION_VALUE_RE.findall(match.group(0)):
+                upper = value.upper()
+                if upper not in _NON_ELIGIBLE_SLOTS and upper not in values:
+                    values.append(upper)
+            if values:
+                eligible[int(match.group(1))] = values
+        return eligible
 
     @staticmethod
     def _handle_client_error(add_id: int, err: Exception):
