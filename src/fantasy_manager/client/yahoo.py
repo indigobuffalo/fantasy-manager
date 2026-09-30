@@ -3,6 +3,7 @@ import json
 import logging
 import re
 import urllib.parse
+from enum import Enum
 from typing import Callable, Optional, TypeVar
 
 import requests
@@ -84,6 +85,25 @@ _NON_ELIGIBLE_SLOTS = frozenset({"BN", "IR", "IR+", "IR-"})
 T = TypeVar("T")
 
 
+class ReadProbeStatus(Enum):
+    """Outcome of the startup OAuth read probe (``_probe_oauth_reads``).
+
+    Distinguishes the reasons the read path did (or didn't) latch onto OAuth, so
+    callers branch on a named member instead of a bare string:
+
+    - ``FORCED``     → probe skipped; latched to cookie (``YAHOO_FORCE_COOKIE_READS``).
+    - ``OK``         → OAuth reads work; latch on.
+    - ``AUTH_ERROR`` → Yahoo is denying the app; latch to cookie.
+    - ``TRANSIENT``  → probe failed on a non-auth error, so stay optimistic and
+                       leave OAuth on (a real auth error can still flip it later).
+    """
+
+    FORCED = "forced"
+    OK = "ok"
+    AUTH_ERROR = "auth_error"
+    TRANSIENT = "transient"
+
+
 class TeamDataNotFoundError(Exception):
     """Error thrown when the team response does not contain expected data"""
 
@@ -161,20 +181,13 @@ class YahooClient(BaseFantasyClient):
         msg = str(err).lower()
         return any(marker in msg for marker in _AUTH_ERROR_MARKERS)
 
-    def _probe_oauth_reads(self) -> str:
+    def _probe_oauth_reads(self) -> ReadProbeStatus:
         """Run one lightweight OAuth read and cache whether it works.
 
         Sets ``self._oauth_reads_ok`` so the read dispatch can route directly to
         the working transport without repeatedly retrying a gated OAuth call, and
-        returns a diagnostic status for the startup auth check:
-
-        - ``"forced"``    → skipped the probe; latched to cookie (env override).
-        - ``"ok"``        → OAuth reads work; latch on.
-        - ``"auth_error"``→ Yahoo is denying the app; latch to cookie.
-        - ``"transient"`` → probe failed but not with an auth marker, so stay
-                            optimistic (leave OAuth on) — a real auth error can
-                            still flip the flag mid-session. Avoids permanently
-                            falling back on a flaky probe.
+        returns a ``ReadProbeStatus`` describing the outcome for the startup auth
+        check.
         """
         # An operator who knows OAuth reads are gated can skip the probe (and its
         # guaranteed-failing OAuth call) by setting YAHOO_FORCE_COOKIE_READS.
@@ -183,17 +196,17 @@ class YahooClient(BaseFantasyClient):
             logger.info(
                 "Yahoo reads via cookie fallback (forced by YAHOO_FORCE_COOKIE_READS)"
             )
-            return "forced"
+            return ReadProbeStatus.FORCED
         try:
             self.team_handle.roster()
             self._oauth_reads_ok = True
             logger.info("Yahoo reads via OAuth")
-            return "ok"
+            return ReadProbeStatus.OK
         except Exception as err:
             if self._is_auth_error(err):
                 self._oauth_reads_ok = False
                 logger.info("Yahoo reads via cookie fallback")
-                return "auth_error"
+                return ReadProbeStatus.AUTH_ERROR
             # Transient/unknown failure: don't permanently latch to cookie.
             self._oauth_reads_ok = True
             logger.warning(
@@ -201,7 +214,7 @@ class YahooClient(BaseFantasyClient):
                 "with a mid-session cookie fallback",
                 err,
             )
-            return "transient"
+            return ReadProbeStatus.TRANSIENT
 
     def _check_cookie_reads(self) -> bool:
         """Return whether the cookie transport can currently read the team page.
@@ -230,7 +243,7 @@ class YahooClient(BaseFantasyClient):
         - neither works     → raise ``FantasyAuthError`` (fail fast).
         """
         probe_status = self._probe_oauth_reads()
-        oauth_reads_ok = probe_status == "ok"
+        oauth_reads_ok = probe_status == ReadProbeStatus.OK
         cookie_reads_ok = self._check_cookie_reads()
 
         if oauth_reads_ok and cookie_reads_ok:
@@ -243,7 +256,7 @@ class YahooClient(BaseFantasyClient):
                 "writes (add/drop/waivers/lineup) will fail. Check YAHOO_COOKIE."
             )
         elif cookie_reads_ok:
-            if probe_status == "forced":
+            if probe_status == ReadProbeStatus.FORCED:
                 logger.info(
                     "Yahoo auth OK: cookie read transport working "
                     "(OAuth probe skipped via YAHOO_FORCE_COOKIE_READS)"

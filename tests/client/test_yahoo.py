@@ -7,6 +7,7 @@ from fantasy_manager.client.yahoo import (
     ALREADY_PLAYED_MARKER,
     WAIVER_CLAIM_PLACED_MARKER,
     WEEKLY_LIMIT_MARKER,
+    ReadProbeStatus,
     YahooClient,
 )
 from fantasy_manager.config.config import FantasyConfig
@@ -149,8 +150,9 @@ def test_probe_sets_flag_true_on_success(yahoo_client):
     yahoo_client.team_handle = Mock()
     yahoo_client.team_handle.roster.return_value = [{"player_id": 1}]
 
-    yahoo_client._probe_oauth_reads()
+    status = yahoo_client._probe_oauth_reads()
 
+    assert status is ReadProbeStatus.OK
     assert yahoo_client._oauth_reads_ok is True
     yahoo_client.team_handle.roster.assert_called_once()
 
@@ -161,8 +163,9 @@ def test_probe_latches_cookie_on_auth_error(yahoo_client):
         "This application is not authorized to perform this action."
     )
 
-    yahoo_client._probe_oauth_reads()
+    status = yahoo_client._probe_oauth_reads()
 
+    assert status is ReadProbeStatus.AUTH_ERROR
     assert yahoo_client._oauth_reads_ok is False
 
 
@@ -170,9 +173,10 @@ def test_probe_stays_optimistic_on_transient_error(yahoo_client):
     yahoo_client.team_handle = Mock()
     yahoo_client.team_handle.roster.side_effect = Exception("connection timed out")
 
-    yahoo_client._probe_oauth_reads()
+    status = yahoo_client._probe_oauth_reads()
 
     # Transient failure must NOT permanently latch to cookie.
+    assert status is ReadProbeStatus.TRANSIENT
     assert yahoo_client._oauth_reads_ok is True
 
 
@@ -183,7 +187,7 @@ def test_probe_forced_cookie_skips_oauth_read(yahoo_client):
     status = yahoo_client._probe_oauth_reads()
 
     # Forced cookie mode latches to cookie without touching OAuth at all.
-    assert status == "forced"
+    assert status is ReadProbeStatus.FORCED
     assert yahoo_client._oauth_reads_ok is False
     yahoo_client.team_handle.roster.assert_not_called()
 
@@ -194,7 +198,7 @@ def test_probe_forced_cookie_skips_oauth_read(yahoo_client):
 
 
 def test_verify_read_auth_passes_when_both_transports_work(yahoo_client):
-    yahoo_client._probe_oauth_reads = Mock(return_value="ok")
+    yahoo_client._probe_oauth_reads = Mock(return_value=ReadProbeStatus.OK)
     yahoo_client._check_cookie_reads = Mock(return_value=True)
 
     # Should not raise when at least one transport works.
@@ -202,28 +206,28 @@ def test_verify_read_auth_passes_when_both_transports_work(yahoo_client):
 
 
 def test_verify_read_auth_passes_when_only_oauth_works(yahoo_client):
-    yahoo_client._probe_oauth_reads = Mock(return_value="ok")
+    yahoo_client._probe_oauth_reads = Mock(return_value=ReadProbeStatus.OK)
     yahoo_client._check_cookie_reads = Mock(return_value=False)
 
     yahoo_client._verify_read_auth()
 
 
 def test_verify_read_auth_passes_when_only_cookie_works(yahoo_client):
-    yahoo_client._probe_oauth_reads = Mock(return_value="auth_error")
+    yahoo_client._probe_oauth_reads = Mock(return_value=ReadProbeStatus.AUTH_ERROR)
     yahoo_client._check_cookie_reads = Mock(return_value=True)
 
     yahoo_client._verify_read_auth()
 
 
 def test_verify_read_auth_passes_when_forced_cookie_works(yahoo_client):
-    yahoo_client._probe_oauth_reads = Mock(return_value="forced")
+    yahoo_client._probe_oauth_reads = Mock(return_value=ReadProbeStatus.FORCED)
     yahoo_client._check_cookie_reads = Mock(return_value=True)
 
     yahoo_client._verify_read_auth()
 
 
 def test_verify_read_auth_hard_fails_when_neither_transport_works(yahoo_client):
-    yahoo_client._probe_oauth_reads = Mock(return_value="auth_error")
+    yahoo_client._probe_oauth_reads = Mock(return_value=ReadProbeStatus.AUTH_ERROR)
     yahoo_client._check_cookie_reads = Mock(return_value=False)
 
     with pytest.raises(FantasyAuthError):
@@ -231,7 +235,7 @@ def test_verify_read_auth_hard_fails_when_neither_transport_works(yahoo_client):
 
 
 def test_verify_read_auth_hard_fails_when_forced_but_cookie_dead(yahoo_client):
-    yahoo_client._probe_oauth_reads = Mock(return_value="forced")
+    yahoo_client._probe_oauth_reads = Mock(return_value=ReadProbeStatus.FORCED)
     yahoo_client._check_cookie_reads = Mock(return_value=False)
 
     with pytest.raises(FantasyAuthError):
