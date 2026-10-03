@@ -103,6 +103,7 @@ def frozen_time():
 def mock_config():
     config = Mock(spec=FantasyConfig)
     config.PRE_FLIGHT_CHECK_SECS = 10
+    config.FIRE_EARLY_BUFFER_SECS = 0.2
     config.ADD_PLAYER_TIMEOUT_SECONDS = 1
     config.ADD_PLAYER_POLL_SECONDS = 0.2
     yield config
