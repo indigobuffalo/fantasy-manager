@@ -219,12 +219,12 @@ class YahooClient(BaseFantasyClient):
     def _check_cookie_reads(self) -> bool:
         """Return whether the cookie transport can currently read the team page.
 
-        Wraps ``_check_cookie_auth`` (which raises on a stale/logged-out cookie)
+        Wraps ``_check_locked_players_via_cookie`` (which raises on a stale/logged-out cookie)
         into a boolean so the startup auth check can report on both transports
         without short-circuiting on the first failure.
         """
         try:
-            self._check_cookie_auth()
+            self._check_locked_players_via_cookie()
             return True
         except Exception as err:
             logger.debug("Cookie read check failed: %s", err)
@@ -319,7 +319,7 @@ class YahooClient(BaseFantasyClient):
         if not all(locked in rostered_players_ids for locked in locked_player_ids):
             raise FantasyAuthError("Failed to load team. Check auth.")
 
-    def _check_cookie_auth(self) -> None:
+    def _check_locked_players_via_cookie(self) -> None:
         """Ensure the harvested cookie still authenticates the write transport.
 
         Mirrors the OAuth ``_check_locked_players`` heuristic against the raw
@@ -386,7 +386,7 @@ class YahooClient(BaseFantasyClient):
         if self._oauth_reads_ok:
             self._check_locked_players()
         else:
-            self._check_cookie_auth()
+            self._check_locked_players_via_cookie()
 
     def set_lineup(self, lineup: Lineup, lineup_date: datetime.date) -> None:
         """Set lineup for the given date.
@@ -434,7 +434,7 @@ class YahooClient(BaseFantasyClient):
 
         Raises:
             FantasyAuthError: If the page looks logged-out/stale (our
-                ``locked_players`` absent), mirroring ``_check_cookie_auth``.
+                ``locked_players`` absent), mirroring ``_check_locked_players_via_cookie``.
         """
         resp = self.write_session.get(self.team_url)
         html = resp.text

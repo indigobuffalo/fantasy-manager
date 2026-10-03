@@ -52,19 +52,19 @@ def _response(text: str, url: str = "") -> Mock:
     return resp
 
 
-def test_check_cookie_auth_passes_when_locked_players_present(yahoo_client):
+def test_check_locked_players_via_cookie_passes_when_locked_players_present(yahoo_client):
     # mock_league.locked_players == (1, 2, 3)
     yahoo_client.write_session.get.return_value = _response(
         "roster contains 1, 2 and 3"
     )
-    yahoo_client._check_cookie_auth()
+    yahoo_client._check_locked_players_via_cookie()
     yahoo_client.write_session.get.assert_called_once_with(TEAM_URL)
 
 
-def test_check_cookie_auth_raises_on_stale_cookie(yahoo_client):
+def test_check_locked_players_via_cookie_raises_on_stale_cookie(yahoo_client):
     yahoo_client.write_session.get.return_value = _response("logged out; only 1 and 2")
     with pytest.raises(FantasyAuthError):
-        yahoo_client._check_cookie_auth()
+        yahoo_client._check_locked_players_via_cookie()
 
 
 def test_post_write_injects_crumb_and_returns_response(yahoo_client):
@@ -261,12 +261,12 @@ def test_refresh_checks_oauth_when_reads_ok(yahoo_client):
     yahoo_client._refresh_context = Mock()
     yahoo_client._oauth_reads_ok = True
     yahoo_client._check_locked_players = Mock()
-    yahoo_client._check_cookie_auth = Mock()
+    yahoo_client._check_locked_players_via_cookie = Mock()
 
     yahoo_client.refresh()
 
     yahoo_client._check_locked_players.assert_called_once()
-    yahoo_client._check_cookie_auth.assert_not_called()
+    yahoo_client._check_locked_players_via_cookie.assert_not_called()
 
 
 def test_refresh_checks_cookie_when_oauth_gated(yahoo_client):
@@ -275,11 +275,11 @@ def test_refresh_checks_cookie_when_oauth_gated(yahoo_client):
     yahoo_client._refresh_context = Mock()
     yahoo_client._oauth_reads_ok = False
     yahoo_client._check_locked_players = Mock()
-    yahoo_client._check_cookie_auth = Mock()
+    yahoo_client._check_locked_players_via_cookie = Mock()
 
     yahoo_client.refresh()
 
-    yahoo_client._check_cookie_auth.assert_called_once()
+    yahoo_client._check_locked_players_via_cookie.assert_called_once()
     yahoo_client._check_locked_players.assert_not_called()
 
 
