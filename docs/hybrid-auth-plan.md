@@ -100,12 +100,16 @@ fallback, selected by a startup probe rather than assumed:
   *non-auth* OAuth error propagates unchanged. If both transports fail, a clear
   `FantasyAuthError` naming both is raised.
 - **Cookie readers** — `_get_team_via_cookie` / `_get_player_by_id_via_cookie`
-  are best-effort, markup-dependent scrapes over the cookie `requests.Session`
-  (roster ids from the `PRCurrTeamPlayers` team-page JS blob; player name from
-  the public player page). They fill unscrapable fields with sensible defaults
-  and raise `FantasyAuthError` on a logged-out/stale page (mirroring
-  `_check_cookie_auth`). Structured team data is richer over OAuth; the cookie
-  path is a functional fallback, not a pixel-perfect replica.
+  are best-effort, markup-dependent scrapes over the cookie `requests.Session`.
+  `_get_team_via_cookie` recovers everything from a *single* team-page request:
+  roster ids from the `PRCurrTeamPlayers` JS blob, names from each player's
+  `/nhl/players/<id>/…` link, and selected/eligible positions from the per-player
+  position `<select>`. `_get_player_by_id_via_cookie` (used for standalone player
+  reads) scrapes the name from the public player page. They fill unscrapable
+  fields with sensible defaults and raise `FantasyAuthError` on a logged-out/stale
+  page (mirroring `_check_locked_players_via_cookie`). Structured team data is
+  richer over OAuth; the cookie path is a functional fallback, not a
+  pixel-perfect replica.
 
 If Yahoo restores app-level read access, the probe simply latches OAuth on and
 the cookie read path is never exercised.

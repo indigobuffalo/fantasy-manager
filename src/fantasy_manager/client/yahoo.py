@@ -4,6 +4,7 @@ import logging
 import re
 import urllib.parse
 from enum import Enum
+from html import unescape
 from typing import Callable, Optional, TypeVar
 
 import requests
@@ -77,6 +78,12 @@ _ROSTER_JS_ANCHOR = "PRCurrTeamPlayers"
 _POSITION_SELECT_RE = re.compile(r'<select name="(\d+)".*?</select>', re.DOTALL)
 _SELECTED_OPTION_RE = re.compile(r'<option value="([^"]+)"\s+selected')
 _OPTION_VALUE_RE = re.compile(r'<option value="([^"]+)"')
+
+# Each rostered player links to its public player page; the link text is the
+# player's name, e.g. `<a href="/nhl/players/6877/…">Kirill Kaprizov</a>`. The
+# `[^>]*>` consumes the rest of the opening tag so an image-only link (no text
+# before the next `<`) simply doesn't match. Markup-dependent, fallback-only.
+_PLAYER_NAME_RE = re.compile(r"/nhl/players/(\d+)[^>]*>([^<]{2,40})</a>")
 
 # Lineup slots offered by the position `<select>` that aren't position
 # eligibilities — filtered out when recovering a player's eligible positions.
@@ -284,9 +291,12 @@ class YahooClient(BaseFantasyClient):
         When OAuth is enabled, tries it first; a mid-session auth error flips the
         latch to the cookie transport and retries there (subsequent reads then go
         straight to cookie). Non-auth OAuth errors propagate unchanged. If both
-        transports fail, raises a ``FantasyAuthError`` naming both.
+        transports fail, raises a ``FantasyAuthError`` naming the transports that
+        were actually tried.
         """
+        oauth_attempted = False
         if self._oauth_reads_ok:
+            oauth_attempted = True
             try:
                 return oauth_fn()
             except Exception as err:
@@ -304,8 +314,11 @@ class YahooClient(BaseFantasyClient):
         except FantasyAuthError:
             raise
         except Exception as err:
+            # Name only the transports we actually exercised: when OAuth was
+            # latched off, it was never tried, so "both failed" would mislead.
+            tried = "OAuth and cookie" if oauth_attempted else "cookie"
             raise FantasyAuthError(
-                f"Both OAuth and cookie read transports failed for '{label}': {err}"
+                f"The {tried} read transport(s) failed for '{label}': {err}"
             )
 
     def _check_locked_players(self) -> None:
@@ -320,11 +333,13 @@ class YahooClient(BaseFantasyClient):
             raise FantasyAuthError("Failed to load team. Check auth.")
 
     def _check_locked_players_via_cookie(self) -> None:
-        """Ensure the harvested cookie still authenticates the write transport.
+        """Ensure the harvested cookie still authenticates the cookie transport.
 
-        Mirrors the OAuth ``_check_locked_players`` heuristic against the raw
-        team-page HTML: a stale cookie makes Yahoo serve a logged-out page that
-        omits our ``locked_players``, so their absence signals a dead cookie.
+        Backs both the cookie *read* fallback and the cookie *write* path, which
+        share the same ``YAHOO_COOKIE`` session. Mirrors the OAuth
+        ``_check_locked_players`` heuristic against the raw team-page HTML: a
+        stale cookie makes Yahoo serve a logged-out page that omits our
+        ``locked_players``, so their absence signals a dead cookie.
 
         Raises:
             FantasyAuthError: If the cookie no longer yields a logged-in team page.
@@ -426,11 +441,16 @@ class YahooClient(BaseFantasyClient):
 
         This is a markup-dependent scrape: the official OAuth read returns fully
         structured team data, but when Yahoo gates the API we can only recover
-        what the browser team page exposes. The rostered player ids are embedded
-        in an inline JS blob anchored on ``PRCurrTeamPlayers``; we extract those
-        ids and hydrate each player via ``get_player_by_id`` (which itself routes
-        through the fallback dispatch). The assigned lineup slot (incl. IR/IR+)
-        is scraped from each player's position `<select>` on the page.
+        what the browser team page exposes — and everything we need is on that
+        single page, so this issues exactly one request:
+
+        - rostered player ids from the ``PRCurrTeamPlayers`` inline JS blob;
+        - each player's name from its ``/nhl/players/<id>/…>NAME</a>`` link;
+        - the assigned lineup slot (incl. IR/IR+) and eligible positions from the
+          per-player position ``<select>``.
+
+        Fields the page doesn't expose (``position_type``, ``status``) are
+        defaulted, matching the structured model's own defaults.
 
         Raises:
             FantasyAuthError: If the page looks logged-out/stale (our
@@ -446,28 +466,31 @@ class YahooClient(BaseFantasyClient):
             )
 
         player_ids = self._scrape_roster_player_ids(html)
+        names = self._scrape_player_names(html)
         selected_positions = self._scrape_selected_positions(html)
         eligible_positions = self._scrape_eligible_positions(html)
 
         roster: list[dict] = []
         for pid in player_ids:
-            # Reuse the player read (best-effort) to hydrate the name; positions
-            # come from the team page's per-player position <select>.
-            player = self.get_player_by_id(pid)
+            # Everything is scraped from the one team page; fields it doesn't
+            # expose fall back to the model's own defaults.
             roster.append(
                 {
-                    "player_id": player.player_id,
-                    "name": {"full": player.name.full},
-                    # Real eligibilities scraped from the page; fall back to the
-                    # player read's default only if the select wasn't found.
+                    "player_id": pid,
+                    "name": {"full": names.get(pid, str(pid))},
+                    # Eligibilities scraped from the position <select>; a locked/
+                    # played player has static text (no select), so default to a
+                    # safe non-empty eligibility.
                     "eligible_positions": eligible_positions.get(
-                        pid, [pos.value for pos in player.eligible_positions]
+                        pid, [Position.UTIL.value]
                     ),
-                    "position_type": player.position_type.value,
-                    # Real assigned slot scraped from the page; fall back to
-                    # bench only if the player's position select isn't found.
+                    # Not exposed on the page; default to skater.
+                    "position_type": PositionType.SKATER.value,
+                    # Assigned slot scraped from the select; default to bench
+                    # when the player's select isn't present.
                     "selected_position": selected_positions.get(pid, "BN"),
-                    "status": player.status.value if player.status else "",
+                    # Not exposed on the page; default to active.
+                    "status": PlayerStatus.ACTIVE.value,
                 }
             )
 
@@ -517,6 +540,23 @@ class YahooClient(BaseFantasyClient):
         return ordered
 
     @staticmethod
+    def _scrape_player_names(html: str) -> dict[int, str]:
+        """Map each player id to its name from the team-page links (best-effort).
+
+        Every rostered player links to its public player page with the name as
+        the link text (see ``_PLAYER_NAME_RE``). This recovers all names from the
+        single team page, so the cookie team read needs no per-player requests.
+        HTML entities in names (e.g. accents) are unescaped. First link wins if a
+        player id somehow appears more than once. Markup-dependent, fallback-only.
+        """
+        names: dict[int, str] = {}
+        for pid_str, raw_name in _PLAYER_NAME_RE.findall(html):
+            pid = int(pid_str)
+            if pid not in names:
+                names[pid] = unescape(raw_name).strip()
+        return names
+
+    @staticmethod
     def _scrape_selected_positions(html: str) -> dict[int, str]:
         """Map each rostered player id to its selected lineup slot (best-effort).
 
@@ -546,6 +586,11 @@ class YahooClient(BaseFantasyClient):
         real position eligibilities are those options minus the bench/IR lineup
         slots (``BN``/``IR``/``IR+``/``IR-``). Values are upper-cased to match
         ``Position`` (e.g. ``Util`` → ``UTIL``). Markup-dependent, fallback-only.
+
+        Note a deliberate divergence from the OAuth path: the OAuth transform
+        passes Yahoo's ``eligible_positions`` through verbatim (which can include
+        bench/IR slots), whereas this scrape strips them so eligibilities mean
+        only real positions. ``UTIL`` is kept by both paths.
         """
         eligible: dict[int, list[str]] = {}
         for match in _POSITION_SELECT_RE.finditer(html):
@@ -662,12 +707,23 @@ class YahooClient(BaseFantasyClient):
         - ``team``             → placeholder NhlTeam (page doesn't expose it here)
 
         This is intentionally markup-dependent and best-effort.
+
+        Raises:
+            FantasyAuthError: If the player page carries no ``<title>`` (a
+                logged-out/redirected page), so a stale session surfaces as a
+                clear auth error rather than an opaque ``IndexError``.
         """
         resp = self.write_session.get(
             f"https://sports.yahoo.com/nhl/players/{player_id}/"
         )
         # Player page title carries the name, e.g. "<title>Owen Nolan (...)".
-        name = resp.text.split("title>")[1].split("(")[0].strip()
+        parts = resp.text.split("title>")
+        if len(parts) < 2:
+            raise FantasyAuthError(
+                f"Failed to read player {player_id} via cookie (no page title; "
+                "session may be stale). Check YAHOO_COOKIE."
+            )
+        name = parts[1].split("(")[0].strip()
 
         return AgnosticPlayer(
             player_id=player_id,

@@ -359,6 +359,19 @@ def test_dispatch_raises_fantasy_auth_error_when_both_fail(yahoo_client):
     assert "OAuth" in msg and "cookie" in msg and "get_team" in msg
 
 
+def test_dispatch_error_names_only_cookie_when_oauth_not_attempted(yahoo_client):
+    # Latched off at probe: OAuth is never tried, so the failure message must
+    # not claim OAuth was attempted.
+    yahoo_client._oauth_reads_ok = False
+    cookie_fn = Mock(side_effect=Exception("cookie broke"))
+
+    with pytest.raises(FantasyAuthError) as exc_info:
+        yahoo_client._dispatch_read(Mock(), cookie_fn, "get_team")
+
+    msg = str(exc_info.value)
+    assert "cookie" in msg and "OAuth" not in msg and "get_team" in msg
+
+
 def test_dispatch_preserves_cookie_fantasy_auth_error(yahoo_client):
     yahoo_client._oauth_reads_ok = False
     cookie_fn = Mock(side_effect=FantasyAuthError("stale cookie"))
@@ -440,6 +453,74 @@ def test_get_player_by_id_via_cookie_scrapes_name(yahoo_client):
 
     assert player.player_id == 1
     assert player.name.full == "Owen Nolan"
+
+
+def test_get_player_by_id_via_cookie_raises_on_titleless_page(yahoo_client):
+    # A logged-out/redirected page with no <title> must surface as a clear
+    # auth error, not an opaque IndexError from the title split.
+    yahoo_client.write_session.get.return_value = _response("<html>logged out</html>")
+    with pytest.raises(FantasyAuthError):
+        yahoo_client._get_player_by_id_via_cookie(1)
+
+
+def test_get_team_via_cookie_builds_team_from_one_page(yahoo_client):
+    # mock_league.locked_players == (1, 2, 3); the team page must contain those
+    # ids to pass the stale-session guard. Everything is scraped from this one
+    # page: roster ids from the JS blob, names from the player links, and the
+    # selected/eligible positions from the per-player selects — no extra GETs.
+    html = (
+        '"varPRCurrTeamPlayers" : [1, 2, 3],\n'
+        '<a href="/nhl/players/1/" class="name">Player One</a>'
+        '<a href="/nhl/players/2/" class="name">Player Two</a>'
+        '<a href="/nhl/players/3/" class="name">Player Three</a>'
+        '<select name="1"><option value="C">C</option>'
+        '<option value="Util">Util</option>'
+        '<option value="C" selected>C</option></select>'
+        '<select name="2"><option value="LW">LW</option>'
+        '<option value="BN" selected>BN</option></select>'
+        '<select name="3"><option value="G">G</option>'
+        '<option value="IR+" selected>IR+</option></select>'
+    )
+    yahoo_client.write_session.get.return_value = _response(html)
+    # No per-player hydration anymore: assert we never make extra reads.
+    yahoo_client.get_player_by_id = Mock(side_effect=AssertionError("extra read"))
+
+    team = yahoo_client._get_team_via_cookie()
+
+    # Exactly one request — the team page itself.
+    yahoo_client.write_session.get.assert_called_once_with(TEAM_URL)
+    # Team metadata comes from league config; roster order matches the blob.
+    assert team.name == "Test Team"
+    assert [p.player_id for p in team.roster] == [1, 2, 3]
+    assert [p.name.full for p in team.roster] == [
+        "Player One",
+        "Player Two",
+        "Player Three",
+    ]
+    assert [p.selected_position for p in team.roster] == [
+        Position.C,
+        Position.BN,
+        Position.IR_PLUS,
+    ]
+    # Eligible positions scraped from the selects, minus bench/IR lineup slots.
+    by_id = {p.player_id: p for p in team.roster}
+    assert by_id[1].eligible_positions == [Position.C, Position.UTIL]
+    assert by_id[2].eligible_positions == [Position.LW]
+    assert by_id[3].eligible_positions == [Position.G]
+
+
+def test_scrape_player_names_reads_links_and_unescapes():
+    # Names come from the player-page link text; HTML entities are decoded and
+    # image-only links (no text) are ignored. First link wins on duplicates.
+    html = (
+        '<a href="/nhl/players/6877/foo">Kirill Kaprizov</a>'
+        '<a href="/nhl/players/8477/"><img src="x.png"></a>'  # image-only: skip
+        '<a href="/nhl/players/9999/">Tim St&uuml;tzle</a>'
+    )
+    assert YahooClient._scrape_player_names(html) == {
+        6877: "Kirill Kaprizov",
+        9999: "Tim Stützle",
+    }
 
 
 def test_scrape_roster_player_ids_reads_only_the_array():
