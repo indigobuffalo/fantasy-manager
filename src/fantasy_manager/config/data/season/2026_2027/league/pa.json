@@ -1,0 +1,20 @@
+{
+    "id": "6427",
+    "key": "453.l.6427",
+    "name": "Puckin' Around",
+    "name_abbr": "PA",
+    "platform": "YAHOO",
+    "team_id": 1,
+    "team_name": "Nurse Sharks",
+    "locked_players": [5425, 7905, 6368],
+    "roster_configuration": {
+        "C": 2,
+        "LW": 2,
+        "RW": 2,
+        "D": 4,
+        "Util": 2,
+        "G": 2,
+        "BN": 5,
+        "IR_PLUS": 4
+    }
+}

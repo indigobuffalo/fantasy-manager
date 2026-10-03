@@ -49,6 +49,15 @@ class FantasyConfig:
     YAHOO_CREDS_FILE = os.getenv("YAHOO_CREDS_FILE")
     YAHOO_COOKIE = os.getenv("YAHOO_COOKIE")  # browser-harvested; used by the cookie write transport
     YAHOO_CRUMB = os.getenv("YAHOO_CRUMB")  # browser-harvested; used by the cookie write transport
+    # When set, skip the startup OAuth read probe and route reads straight to the
+    # cookie transport. Useful when OAuth reads are known-gated (Yahoo hasn't
+    # granted the app Fantasy Sports read scope) so there's no point probing.
+    YAHOO_FORCE_COOKIE_READS = os.getenv("YAHOO_FORCE_COOKIE_READS", "").strip().lower() in (
+        "1",
+        "true",
+        "yes",
+        "on",
+    )
     YEAR = os.getenv("YEAR", "2026")
 
     @classmethod

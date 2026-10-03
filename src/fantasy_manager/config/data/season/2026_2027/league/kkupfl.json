@@ -1,0 +1,20 @@
+{
+    "id": "121147",
+    "key": "453.l.121147",
+    "name": "KKUPFL - T2 San Jose",
+    "name_abbr": "KKUPFL",
+    "platform": "YAHOO",
+    "team_id": 11,
+    "team_name": "Nurse Sharks",
+    "locked_players": [6877, 7905, 6368],
+    "roster_configuration": {
+        "C": 2,
+        "LW": 2,
+        "RW": 2,
+        "D": 4,
+        "Util": 2,
+        "G": 2,
+        "BN": 4,
+        "IR_PLUS": 4
+    }
+}

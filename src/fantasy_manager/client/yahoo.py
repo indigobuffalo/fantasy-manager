@@ -1,8 +1,11 @@
 import datetime
 import json
 import logging
+import re
 import urllib.parse
-from typing import Optional
+from enum import Enum
+from html import unescape
+from typing import Callable, Optional, TypeVar
 
 import requests
 import yahoo_fantasy_api as yfa
@@ -23,8 +26,11 @@ from fantasy_manager.exceptions import (
 )
 from fantasy_manager.model.dto.team import RawTeamDto
 from fantasy_manager.model.enums.platform_url import PlatformUrl
+from fantasy_manager.model.enums.player_status import PlayerStatus
+from fantasy_manager.model.enums.position import Position, PositionType
 from fantasy_manager.model.league import League
-from fantasy_manager.model.player import AgnosticPlayer
+from fantasy_manager.model.nhl_team import NhlTeam
+from fantasy_manager.model.player import AgnosticPlayer, PlayerName
 from fantasy_manager.model.lineup import Lineup
 from fantasy_manager.model.team import Team
 from fantasy_manager.transform.yahoo import (
@@ -44,6 +50,65 @@ logger = logging.getLogger(__name__)
 ALREADY_PLAYED_MARKER = "player has already played and is no longer"
 WEEKLY_LIMIT_MARKER = "You have reached the weekly limit"
 WAIVER_CLAIM_PLACED_MARKER = "created a waiver claim for"
+
+# Substrings that identify an OAuth *authorization* failure (Yahoo denying the
+# app / a dead token) as opposed to a transient/network error. When any of
+# these appear in an error, the read path latches over to the cookie transport.
+# Yahoo currently gates Fantasy Sports API reads at the app level, returning
+# `oauth_problem="additional_authorization_required"` /
+# "This application is not authorized to perform this action.".
+_AUTH_ERROR_MARKERS = (
+    "not authorized",
+    "additional_authorization_required",
+    "authorization",
+    "token_expired",
+    "oauth_problem",
+)
+
+# Anchor for the roster player-id blob embedded in the Yahoo team page. The
+# pre-refactor tool matched player rows against `var PRCurrTeamPlayers` in the
+# page's inline JS; we reuse it to recover rostered player ids over the cookie
+# transport.
+_ROSTER_JS_ANCHOR = "PRCurrTeamPlayers"
+
+# On the team page each rostered player has a position-picker
+# `<select name="<player_id>">` whose currently-selected `<option>` is the
+# player's assigned slot (C/LW/RW/D/G/Util/BN/IR/IR+). We scrape that selection
+# to recover real lineup positions over the cookie transport.
+_POSITION_SELECT_RE = re.compile(r'<select name="(\d+)".*?</select>', re.DOTALL)
+_SELECTED_OPTION_RE = re.compile(r'<option value="([^"]+)"\s+selected')
+_OPTION_VALUE_RE = re.compile(r'<option value="([^"]+)"')
+
+# Each rostered player links to its public player page; the link text is the
+# player's name, e.g. `<a href="/nhl/players/6877/…">Kirill Kaprizov</a>`. The
+# `[^>]*>` consumes the rest of the opening tag so an image-only link (no text
+# before the next `<`) simply doesn't match. Markup-dependent, fallback-only.
+_PLAYER_NAME_RE = re.compile(r"/nhl/players/(\d+)[^>]*>([^<]{2,40})</a>")
+
+# Lineup slots offered by the position `<select>` that aren't position
+# eligibilities — filtered out when recovering a player's eligible positions.
+_NON_ELIGIBLE_SLOTS = frozenset({"BN", "IR", "IR+", "IR-"})
+
+T = TypeVar("T")
+
+
+class ReadProbeStatus(Enum):
+    """Outcome of the startup OAuth read probe (``_probe_oauth_reads``).
+
+    Distinguishes the reasons the read path did (or didn't) latch onto OAuth, so
+    callers branch on a named member instead of a bare string:
+
+    - ``FORCED``     → probe skipped; latched to cookie (``YAHOO_FORCE_COOKIE_READS``).
+    - ``OK``         → OAuth reads work; latch on.
+    - ``AUTH_ERROR`` → Yahoo is denying the app; latch to cookie.
+    - ``TRANSIENT``  → probe failed on a non-auth error, so stay optimistic and
+                       leave OAuth on (a real auth error can still flip it later).
+    """
+
+    FORCED = "forced"
+    OK = "ok"
+    AUTH_ERROR = "auth_error"
+    TRANSIENT = "transient"
 
 
 class TeamDataNotFoundError(Exception):
@@ -75,23 +140,186 @@ class YahooClient(BaseFantasyClient):
     def _refresh_context(self):
         """Sets up the read and write transports and related handles.
 
-        Reads use the official OAuth2 API (``session_context`` + yfa handles).
-        Writes use a cookie-backed ``requests.Session``: Yahoo's OAuth app
-        tokens are read-only, so writes impersonate a logged-in browser via a
-        harvested cookie header plus the ``crumb`` form token replayed on each
-        write POST. No write method is routed here yet (see epic #16).
+        Reads prefer the official OAuth2 API (``session_context`` + yfa handles),
+        falling back to the cookie transport. Writes use a cookie-backed
+        ``requests.Session``: Yahoo's OAuth app tokens are read-only, so writes
+        impersonate a logged-in browser via a harvested cookie header plus the
+        ``crumb`` form token replayed on each write POST.
         """
-        self.session_context = OAuth2(
-            None, None, from_file=self.config.YAHOO_CREDS_FILE
-        )
-        self.league_handle = yfa.Game(self.session_context, "nhl").to_league(
-            self.league.key
-        )
-        self.team_handle = self.league_handle.to_team(self.league_handle.team_key())
-
+        # Cookie/crumb transport: powers writes and the read fallback.
         self.crumb = self.config.YAHOO_CRUMB
         self.write_session = requests.Session()
         self.write_session.headers.update({"cookie": self.config.YAHOO_COOKIE})
+
+        # OAuth read transport. Constructing OAuth2 performs the token handshake
+        # and, with no creds file, drops into an interactive verifier prompt — so
+        # when reads are forced onto the cookie transport there's no OAuth path to
+        # build, and we skip it entirely. The read dispatch never touches these
+        # handles while `_oauth_reads_ok` is False.
+        if self.config.YAHOO_FORCE_COOKIE_READS:
+            self.session_context = None
+            self.league_handle = None
+            self.team_handle = None
+        else:
+            self.session_context = OAuth2(
+                None, None, from_file=self.config.YAHOO_CREDS_FILE
+            )
+            self.league_handle = yfa.Game(self.session_context, "nhl").to_league(
+                self.league.key
+            )
+            self.team_handle = self.league_handle.to_team(
+                self.league_handle.team_key()
+            )
+
+        # At startup, confirm the read auth situation for both transports: pick
+        # the read transport (OAuth vs cookie) and hard-fail if neither works, so
+        # a broken setup surfaces immediately rather than on the first read.
+        self._verify_read_auth()
+
+    @staticmethod
+    def _is_auth_error(err: Exception) -> bool:
+        """Classify an exception as an OAuth authorization failure.
+
+        Scans the stringified error for markers that indicate Yahoo denying the
+        app or an expired/invalid token (as opposed to a transient network
+        blip). Such errors mean OAuth reads won't succeed until auth changes, so
+        the read path should latch onto the cookie transport.
+        """
+        msg = str(err).lower()
+        return any(marker in msg for marker in _AUTH_ERROR_MARKERS)
+
+    def _probe_oauth_reads(self) -> ReadProbeStatus:
+        """Run one lightweight OAuth read and cache whether it works.
+
+        Sets ``self._oauth_reads_ok`` so the read dispatch can route directly to
+        the working transport without repeatedly retrying a gated OAuth call, and
+        returns a ``ReadProbeStatus`` describing the outcome for the startup auth
+        check.
+        """
+        # An operator who knows OAuth reads are gated can skip the probe (and its
+        # guaranteed-failing OAuth call) by setting YAHOO_FORCE_COOKIE_READS.
+        if self.config.YAHOO_FORCE_COOKIE_READS:
+            self._oauth_reads_ok = False
+            logger.info(
+                "Yahoo reads via cookie fallback (forced by YAHOO_FORCE_COOKIE_READS)"
+            )
+            return ReadProbeStatus.FORCED
+        try:
+            self.team_handle.roster()
+            self._oauth_reads_ok = True
+            logger.info("Yahoo reads via OAuth")
+            return ReadProbeStatus.OK
+        except Exception as err:
+            if self._is_auth_error(err):
+                self._oauth_reads_ok = False
+                logger.info("Yahoo reads via cookie fallback")
+                return ReadProbeStatus.AUTH_ERROR
+            # Transient/unknown failure: don't permanently latch to cookie.
+            self._oauth_reads_ok = True
+            logger.warning(
+                "OAuth read probe failed transiently (%s); keeping OAuth "
+                "with a mid-session cookie fallback",
+                err,
+            )
+            return ReadProbeStatus.TRANSIENT
+
+    def _check_cookie_reads(self) -> bool:
+        """Return whether the cookie transport can currently read the team page.
+
+        Wraps ``_check_locked_players_via_cookie`` (which raises on a stale/logged-out cookie)
+        into a boolean so the startup auth check can report on both transports
+        without short-circuiting on the first failure.
+        """
+        try:
+            self._check_locked_players_via_cookie()
+            return True
+        except Exception as err:
+            logger.debug("Cookie read check failed: %s", err)
+            return False
+
+    def _verify_read_auth(self) -> None:
+        """Confirm the read-auth situation for both transports at startup.
+
+        Runs the OAuth probe (unless forced to cookie) and a cookie read check,
+        logs the combined state so the auth picture is obvious up front, and
+        hard-fails when *neither* transport can read.
+
+        - both work        → INFO, reads use OAuth (writes' cookie also healthy).
+        - only OAuth works  → WARNING, cookie transport is down (writes will fail).
+        - only cookie works → INFO/WARNING, reads use the cookie fallback.
+        - neither works     → raise ``FantasyAuthError`` (fail fast).
+        """
+        probe_status = self._probe_oauth_reads()
+        oauth_reads_ok = probe_status == ReadProbeStatus.OK
+        cookie_reads_ok = self._check_cookie_reads()
+
+        if oauth_reads_ok and cookie_reads_ok:
+            logger.info(
+                "Yahoo auth OK: OAuth and cookie read transports both working"
+            )
+        elif oauth_reads_ok:
+            logger.warning(
+                "Yahoo auth: OAuth reads working, but cookie transport is NOT — "
+                "writes (add/drop/waivers/lineup) will fail. Check YAHOO_COOKIE."
+            )
+        elif cookie_reads_ok:
+            if probe_status == ReadProbeStatus.FORCED:
+                logger.info(
+                    "Yahoo auth OK: cookie read transport working "
+                    "(OAuth probe skipped via YAHOO_FORCE_COOKIE_READS)"
+                )
+            else:
+                logger.warning(
+                    "Yahoo auth: OAuth reads NOT working; using cookie read "
+                    "fallback. Reads and writes both depend on YAHOO_COOKIE."
+                )
+        else:
+            raise FantasyAuthError(
+                "Yahoo auth failed: neither the OAuth nor the cookie read "
+                "transport is working. Check YAHOO_CREDS_FILE (OAuth) and "
+                "YAHOO_COOKIE/YAHOO_CRUMB (cookie)."
+            )
+
+    def _dispatch_read(
+        self,
+        oauth_fn: Callable[[], T],
+        cookie_fn: Callable[[], T],
+        label: str,
+    ) -> T:
+        """Route a read to OAuth or cookie based on the latched probe flag.
+
+        When OAuth is enabled, tries it first; a mid-session auth error flips the
+        latch to the cookie transport and retries there (subsequent reads then go
+        straight to cookie). Non-auth OAuth errors propagate unchanged. If both
+        transports fail, raises a ``FantasyAuthError`` naming the transports that
+        were actually tried.
+        """
+        oauth_attempted = False
+        if self._oauth_reads_ok:
+            oauth_attempted = True
+            try:
+                return oauth_fn()
+            except Exception as err:
+                if not self._is_auth_error(err):
+                    raise
+                logger.warning(
+                    "OAuth read '%s' failed mid-session; flipping to cookie "
+                    "fallback",
+                    label,
+                )
+                self._oauth_reads_ok = False
+        # Cookie path (either latched off at probe, or just flipped above).
+        try:
+            return cookie_fn()
+        except FantasyAuthError:
+            raise
+        except Exception as err:
+            # Name only the transports we actually exercised: when OAuth was
+            # latched off, it was never tried, so "both failed" would mislead.
+            tried = "OAuth and cookie" if oauth_attempted else "cookie"
+            raise FantasyAuthError(
+                f"The {tried} read transport(s) failed for '{label}': {err}"
+            )
 
     def _check_locked_players(self) -> None:
         """Ensure all expected players are on roster.
@@ -104,12 +332,14 @@ class YahooClient(BaseFantasyClient):
         if not all(locked in rostered_players_ids for locked in locked_player_ids):
             raise FantasyAuthError("Failed to load team. Check auth.")
 
-    def _check_cookie_auth(self) -> None:
-        """Ensure the harvested cookie still authenticates the write transport.
+    def _check_locked_players_via_cookie(self) -> None:
+        """Ensure the harvested cookie still authenticates the cookie transport.
 
-        Mirrors the OAuth ``_check_locked_players`` heuristic against the raw
-        team-page HTML: a stale cookie makes Yahoo serve a logged-out page that
-        omits our ``locked_players``, so their absence signals a dead cookie.
+        Backs both the cookie *read* fallback and the cookie *write* path, which
+        share the same ``YAHOO_COOKIE`` session. Mirrors the OAuth
+        ``_check_locked_players`` heuristic against the raw team-page HTML: a
+        stale cookie makes Yahoo serve a logged-out page that omits our
+        ``locked_players``, so their absence signals a dead cookie.
 
         Raises:
             FantasyAuthError: If the cookie no longer yields a logged-in team page.
@@ -155,10 +385,23 @@ class YahooClient(BaseFantasyClient):
         return resp
 
     def refresh(self):
-        """Refresh client auth and related handles."""
+        """Refresh client auth and related handles.
+
+        ``_refresh_context`` already runs the startup read-auth self-check
+        (``_verify_read_auth``), which hard-fails if neither transport can read.
+        We then re-assert that *our* team actually loads, over whichever read
+        transport is active: OAuth when the probe latched it on, otherwise the
+        cookie transport. Checking OAuth unconditionally would raise in the
+        gated scenario (Yahoo denying app reads) even when the cookie path is
+        healthy — which would block every write, the exact thing this transport
+        split exists to keep working.
+        """
         self._refresh_context()
-        # TODO: moved locked players check to service
-        self._check_locked_players()
+        # TODO: move the locked-players check into the service layer.
+        if self._oauth_reads_ok:
+            self._check_locked_players()
+        else:
+            self._check_locked_players_via_cookie()
 
     def set_lineup(self, lineup: Lineup, lineup_date: datetime.date) -> None:
         """Set lineup for the given date.
@@ -180,12 +423,185 @@ class YahooClient(BaseFantasyClient):
         self.team_handle.change_positions(lineup_date, json.loads(as_json))
 
     def get_team(self) -> Team:
-        yfa_league_team = self.league_handle.teams()[self.league_handle.team_key()]
-        yfa_team = self.league_handle.to_team(self.league_handle.team_key())
-        raw_yfa_dto = RawTeamDto.from_raw_data(yfa_league_team, yfa_team)
-        transformed = transform_yfa_team_data_to_team(raw_yfa_dto)
+        """Fetch the team, preferring OAuth and falling back to cookie scraping."""
 
-        return Team(**transformed)
+        def oauth_fn() -> Team:
+            yfa_league_team = self.league_handle.teams()[
+                self.league_handle.team_key()
+            ]
+            yfa_team = self.league_handle.to_team(self.league_handle.team_key())
+            raw_yfa_dto = RawTeamDto.from_raw_data(yfa_league_team, yfa_team)
+            transformed = transform_yfa_team_data_to_team(raw_yfa_dto)
+            return Team(**transformed)
+
+        return self._dispatch_read(oauth_fn, self._get_team_via_cookie, "get_team")
+
+    def _get_team_via_cookie(self) -> Team:
+        """Best-effort team read over the cookie transport (fallback path).
+
+        This is a markup-dependent scrape: the official OAuth read returns fully
+        structured team data, but when Yahoo gates the API we can only recover
+        what the browser team page exposes — and everything we need is on that
+        single page, so this issues exactly one request:
+
+        - rostered player ids from the ``PRCurrTeamPlayers`` inline JS blob;
+        - each player's name from its ``/nhl/players/<id>/…>NAME</a>`` link;
+        - the assigned lineup slot (incl. IR/IR+) and eligible positions from the
+          per-player position ``<select>``.
+
+        Fields the page doesn't expose (``position_type``, ``status``) are
+        defaulted, matching the structured model's own defaults.
+
+        Raises:
+            FantasyAuthError: If the page looks logged-out/stale (our
+                ``locked_players`` absent), mirroring ``_check_locked_players_via_cookie``.
+        """
+        resp = self.write_session.get(self.team_url)
+        html = resp.text
+
+        # A stale cookie yields a logged-out page that omits our locked players.
+        if not all(str(pid) in html for pid in self.league.locked_players):
+            raise FantasyAuthError(
+                "Failed to load team via cookie. Check YAHOO_COOKIE."
+            )
+
+        player_ids = self._scrape_roster_player_ids(html)
+        names = self._scrape_player_names(html)
+        selected_positions = self._scrape_selected_positions(html)
+        eligible_positions = self._scrape_eligible_positions(html)
+
+        roster: list[dict] = []
+        for pid in player_ids:
+            # Everything is scraped from the one team page; fields it doesn't
+            # expose fall back to the model's own defaults.
+            roster.append(
+                {
+                    "player_id": pid,
+                    "name": {"full": names.get(pid, str(pid))},
+                    # Eligibilities scraped from the position <select>; a locked/
+                    # played player has static text (no select), so default to a
+                    # safe non-empty eligibility.
+                    "eligible_positions": eligible_positions.get(
+                        pid, [Position.UTIL.value]
+                    ),
+                    # Not exposed on the page; default to skater.
+                    "position_type": PositionType.SKATER.value,
+                    # Assigned slot scraped from the select; default to bench
+                    # when the player's select isn't present.
+                    "selected_position": selected_positions.get(pid, "BN"),
+                    # Not exposed on the page; default to active.
+                    "status": PlayerStatus.ACTIVE.value,
+                }
+            )
+
+        # The browser page doesn't expose the structured team metadata the
+        # OAuth path returns, so fill from the known league config best-effort.
+        return Team(
+            team_id=str(self.league.team_id),
+            team_key=self.league.key,
+            name=self.league.team_name,
+            league_id=self.league.id,
+            # Team.convert_to_int only coerces str input, so pass "0" not 0.
+            faab_balance="0",
+            roster=roster,
+        )
+
+    @staticmethod
+    def _scrape_roster_player_ids(html: str) -> list[int]:
+        """Extract rostered player ids from the team-page JS blob (best-effort).
+
+        Anchored on the ``PRCurrTeamPlayers`` inline JS var the pre-refactor tool
+        keyed off. Yahoo serializes it as a JSON array of player ids, e.g.::
+
+            "varPRCurrTeamPlayers" : [6877, 7905, 6368, ...],
+
+        so we take only the ids between the ``[`` and ``]`` that follow the
+        anchor — bounding the parse to this one array (grabbing the wider markup
+        would also pull in adjacent vars like ``varPROppTeamID``). Markup-
+        dependent and fallback-only.
+        """
+        anchor_idx = html.find(_ROSTER_JS_ANCHOR)
+        if anchor_idx == -1:
+            return []
+        open_idx = html.find("[", anchor_idx)
+        close_idx = html.find("]", open_idx)
+        if open_idx == -1 or close_idx == -1:
+            return []
+        blob = html[open_idx + 1 : close_idx]
+        ids = re.findall(r"\d+", blob)
+        # De-dupe while preserving order.
+        seen: set[int] = set()
+        ordered: list[int] = []
+        for raw in ids:
+            pid = int(raw)
+            if pid not in seen:
+                seen.add(pid)
+                ordered.append(pid)
+        return ordered
+
+    @staticmethod
+    def _scrape_player_names(html: str) -> dict[int, str]:
+        """Map each player id to its name from the team-page links (best-effort).
+
+        Every rostered player links to its public player page with the name as
+        the link text (see ``_PLAYER_NAME_RE``). This recovers all names from the
+        single team page, so the cookie team read needs no per-player requests.
+        HTML entities in names (e.g. accents) are unescaped. First link wins if a
+        player id somehow appears more than once. Markup-dependent, fallback-only.
+        """
+        names: dict[int, str] = {}
+        for pid_str, raw_name in _PLAYER_NAME_RE.findall(html):
+            pid = int(pid_str)
+            if pid not in names:
+                names[pid] = unescape(raw_name).strip()
+        return names
+
+    @staticmethod
+    def _scrape_selected_positions(html: str) -> dict[int, str]:
+        """Map each rostered player id to its selected lineup slot (best-effort).
+
+        Each player's position picker on the team page is a
+        ``<select name="<player_id>">`` whose ``selected`` ``<option>`` is the
+        assigned slot, e.g.::
+
+            <select name="6817"><option value="G">G</option>
+              <option value="IR+" selected>IR+</option></select>
+
+        Values are upper-cased so they line up with ``Position`` enum values
+        (``Util`` → ``UTIL``, ``IR+`` stays ``IR+``). Markup-dependent and
+        fallback-only.
+        """
+        positions: dict[int, str] = {}
+        for match in _POSITION_SELECT_RE.finditer(html):
+            selected = _SELECTED_OPTION_RE.search(match.group(0))
+            if selected:
+                positions[int(match.group(1))] = selected.group(1).upper()
+        return positions
+
+    @staticmethod
+    def _scrape_eligible_positions(html: str) -> dict[int, list[str]]:
+        """Map each player id to its eligible positions (best-effort).
+
+        The same position ``<select>`` lists every slot a player can fill; the
+        real position eligibilities are those options minus the bench/IR lineup
+        slots (``BN``/``IR``/``IR+``/``IR-``). Values are upper-cased to match
+        ``Position`` (e.g. ``Util`` → ``UTIL``). Markup-dependent, fallback-only.
+
+        Note a deliberate divergence from the OAuth path: the OAuth transform
+        passes Yahoo's ``eligible_positions`` through verbatim (which can include
+        bench/IR slots), whereas this scrape strips them so eligibilities mean
+        only real positions. ``UTIL`` is kept by both paths.
+        """
+        eligible: dict[int, list[str]] = {}
+        for match in _POSITION_SELECT_RE.finditer(html):
+            values: list[str] = []
+            for value in _OPTION_VALUE_RE.findall(match.group(0)):
+                upper = value.upper()
+                if upper not in _NON_ELIGIBLE_SLOTS and upper not in values:
+                    values.append(upper)
+            if values:
+                eligible[int(match.group(1))] = values
+        return eligible
 
     @staticmethod
     def _handle_client_error(add_id: int, err: Exception):
@@ -265,6 +681,55 @@ class YahooClient(BaseFantasyClient):
         Returns:
             ApiPlayer: an ApiPlayer model instance.
         """
-        yfa_player = self.league_handle.player_details(player_id)[0]
-        transformed = transform_player_by_id_to_api_player(yfa_player)
-        return AgnosticPlayer(**transformed)
+        def oauth_fn() -> AgnosticPlayer:
+            yfa_player = self.league_handle.player_details(player_id)[0]
+            transformed = transform_player_by_id_to_api_player(yfa_player)
+            return AgnosticPlayer(**transformed)
+
+        return self._dispatch_read(
+            oauth_fn,
+            lambda: self._get_player_by_id_via_cookie(player_id),
+            "get_player_by_id",
+        )
+
+    def _get_player_by_id_via_cookie(self, player_id: int) -> AgnosticPlayer:
+        """Best-effort player read over the cookie transport (fallback path).
+
+        The OAuth endpoint returns rich, structured player data; when Yahoo gates
+        the API all we can reliably recover is the player's name by scraping the
+        public player page (``sports.yahoo.com/nhl/players/<id>/`` — the pattern
+        the pre-refactor tool used). Everything the page doesn't expose is
+        defaulted so a valid ``AgnosticPlayer`` can still be constructed:
+
+        - ``position_type``    → SKATER (page doesn't cleanly expose it)
+        - ``eligible_positions`` → [UTIL] (a safe, non-empty default)
+        - ``status``           → ACTIVE (model default)
+        - ``team``             → placeholder NhlTeam (page doesn't expose it here)
+
+        This is intentionally markup-dependent and best-effort.
+
+        Raises:
+            FantasyAuthError: If the player page carries no ``<title>`` (a
+                logged-out/redirected page), so a stale session surfaces as a
+                clear auth error rather than an opaque ``IndexError``.
+        """
+        resp = self.write_session.get(
+            f"https://sports.yahoo.com/nhl/players/{player_id}/"
+        )
+        # Player page title carries the name, e.g. "<title>Owen Nolan (...)".
+        parts = resp.text.split("title>")
+        if len(parts) < 2:
+            raise FantasyAuthError(
+                f"Failed to read player {player_id} via cookie (no page title; "
+                "session may be stale). Check YAHOO_COOKIE."
+            )
+        name = parts[1].split("(")[0].strip()
+
+        return AgnosticPlayer(
+            player_id=player_id,
+            name=PlayerName(full=name),
+            position_type=PositionType.SKATER,
+            eligible_positions=[Position.UTIL],
+            status=PlayerStatus.ACTIVE,
+            team=NhlTeam(name="", abbr="", team_id=0),
+        )

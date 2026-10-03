@@ -21,9 +21,18 @@ We keep the refactor and reintroduce the cookie transport *behind the existing
 client interface* — the abstraction (`BaseFantasyClient` + `client/factory.py` +
 `transform/`) was built for exactly this swap.
 
-- **Reads** (`get_team`, `get_player_by_id`, roster reads) → stay on the
-  official **OAuth2** API. Still allowed, typed, robust. (Player rankings are
-  loaded from local YAML config, not Yahoo, so they're unaffected regardless.)
+- **Reads** (`get_team`, `get_player_by_id`, roster reads) → **prefer** the
+  official **OAuth2** API (typed, robust) but **fall back to cookie-based
+  scraping** when needed. Yahoo has begun gating Fantasy Sports API access at
+  the *app* level, so even a valid OAuth token can be rejected for reads with
+  `oauth_problem="additional_authorization_required"` /
+  "This application is not authorized to perform this action.". To stay working
+  regardless, the transport used for reads is selected **once at startup by a
+  capability probe** (a single lightweight OAuth read) and latched on
+  `_oauth_reads_ok`, with a **mid-session flip safety net** if a live OAuth read
+  later hits an auth error. (Player rankings are loaded from local YAML config,
+  not Yahoo, so they're unaffected regardless.) See "Read-path probe & fallback"
+  below.
 - **Writes** (`add_player`, `drop_player`, `replace_player`,
   `add_player_claim`, `replace_player_claim`, `cancel_waiver_claim`,
   `set_lineup`) → move to a **cookie + crumb** `requests.Session`.
@@ -50,6 +59,60 @@ strings, e.g. `player has already played and is no longer` → `AlreadyPlayedErr
 `created%2520a%2520waiver%2520claim%2520for` → unintended-waiver. These map onto
 the existing `exceptions.py` types (the same errors `_handle_client_error`
 already raises), so the service layer sees no difference.
+
+### Read-path probe & fallback
+
+Yahoo may deny an app's OAuth *read* calls at the app level even with a valid
+token, returning `oauth_problem="additional_authorization_required"` /
+"This application is not authorized to perform this action.". This may be
+reverted by Yahoo later, or not — so reads are OAuth-preferred with a cookie
+fallback, selected by a startup probe rather than assumed:
+
+- **Force-cookie override** — set `YAHOO_FORCE_COOKIE_READS` (truthy:
+  `1`/`true`/`yes`/`on`) to skip the probe entirely and latch reads to the cookie
+  transport at startup. Use this when OAuth reads are known-gated (Yahoo hasn't
+  granted the app the Fantasy Sports read scope) so there's no point paying for a
+  guaranteed-failing probe on every run. Unset it once OAuth reads are restored.
+- **Startup auth self-check** — `_refresh_context` runs `_verify_read_auth()`,
+  which combines the OAuth probe with a cookie read check
+  (`_check_cookie_reads`) and logs the state of **both** transports up front:
+  both working → INFO; only OAuth → WARNING (cookie/writes down); only cookie →
+  INFO if forced / WARNING if OAuth unexpectedly failed. If **neither** transport
+  can read, it raises `FantasyAuthError` immediately so a broken setup fails fast
+  at startup rather than on the first read.
+- **Startup probe** — when not forced, `_verify_read_auth` runs
+  `_probe_oauth_reads()`, which performs one lightweight OAuth read
+  (`team_handle.roster()`) and caches the outcome on `self._oauth_reads_ok`:
+  - forced (env) → `_oauth_reads_ok = False`, no OAuth call ("... forced by
+    YAHOO_FORCE_COOKIE_READS").
+  - success → `_oauth_reads_ok = True` ("Yahoo reads via OAuth").
+  - auth error → `_oauth_reads_ok = False` ("Yahoo reads via cookie fallback").
+  - transient/other error → stays optimistic (`True`) and logs a warning, so a
+    flaky probe doesn't permanently strand reads on the fallback.
+- **Auth-error classification** — `_is_auth_error(err)` scans `str(err).lower()`
+  for markers (`not authorized`, `additional_authorization_required`,
+  `authorization`, `token_expired`, `oauth_problem`) to distinguish Yahoo
+  denying the app from a transient failure.
+- **Dispatch + mid-session flip** — `get_team`/`get_player_by_id` route through
+  `_dispatch_read(oauth_fn, cookie_fn, label)`: when `_oauth_reads_ok`, it tries
+  OAuth first; an *auth* error flips the latch to `False` and retries on cookie
+  (subsequent reads then go straight to cookie — no repeated gated attempts). A
+  *non-auth* OAuth error propagates unchanged. If both transports fail, a clear
+  `FantasyAuthError` naming both is raised.
+- **Cookie readers** — `_get_team_via_cookie` / `_get_player_by_id_via_cookie`
+  are best-effort, markup-dependent scrapes over the cookie `requests.Session`.
+  `_get_team_via_cookie` recovers everything from a *single* team-page request:
+  roster ids from the `PRCurrTeamPlayers` JS blob, names from each player's
+  `/nhl/players/<id>/…` link, and selected/eligible positions from the per-player
+  position `<select>`. `_get_player_by_id_via_cookie` (used for standalone player
+  reads) scrapes the name from the public player page. They fill unscrapable
+  fields with sensible defaults and raise `FantasyAuthError` on a logged-out/stale
+  page (mirroring `_check_locked_players_via_cookie`). Structured team data is
+  richer over OAuth; the cookie path is a functional fallback, not a
+  pixel-perfect replica.
+
+If Yahoo restores app-level read access, the probe simply latches OAuth on and
+the cookie read path is never exercised.
 
 ### Known trade-offs (accepted)
 
