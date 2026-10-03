@@ -624,42 +624,68 @@ class YahooClient(BaseFantasyClient):
                 )
 
     def add_player(self, add_id: int) -> None:
-        try:
-            self.team_handle.add_player(add_id)
-            self.league.name_abbr
-        except Exception as err:
-            self._handle_client_error(add_id=add_id, err=err)
+        """Add a free agent to the roster over the cookie write transport.
+
+        POSTs Yahoo's ``addplayer`` form (``stage=3, stat1=P, stat2=P``). This is
+        a single-shot call; ``RosterService._execute_with_timeout`` owns the
+        poll/retry/timeout loop and the post-add roster verification.
+
+        Args:
+            add_id (int): The id of the player to add.
+
+        Raises:
+            AlreadyPlayedError, MaxAddsError, UnintendedWaiverAddError: As mapped
+                from the response markers by ``_post_write``.
+        """
+        self._post_write(
+            "addplayer",
+            {"stage": "3", "stat1": "P", "stat2": "P", "apid": add_id},
+        )
 
     def add_player_claim(self, add_id, faab=None):
         self.team_handle.claim_player(add_id, faab)
 
     def drop_player(self, drop_id: int) -> None:
-        try:
-            self.team_handle.drop_player(drop_id)
-        except Exception as err:
-            logging.info(f"Error dropping player: {err}")
-            raise
+        """Drop a rostered player over the cookie write transport.
 
-    def replace_player(self, add_id: int, drop_id: Optional[int] = None) -> None:
-        """
-        Replace a player in the team by adding a new player and optionally dropping an existing player.
+        POSTs Yahoo's ``dropplayer`` form. The commit stage differs from the add
+        form (``stage=2, stat1=S, stat2=D``, observed live on the drop
+        confirmation page), and the submit button must be present for Yahoo to
+        commit the drop rather than re-render the confirmation page.
 
         Args:
-            add_id (int): The ID of the player to be added to the team.
-            drop_id (Optional[int]): The ID of the player to be dropped from the team. Defaults to None.
+            drop_id (int): The id of the player to drop.
+        """
+        self._post_write(
+            "dropplayer",
+            {
+                "stage": "2",
+                "stat1": "S",
+                "stat2": "D",
+                "dpid": drop_id,
+                "submit_drop_player": "Drop",
+            },
+        )
 
-        Returns:
-            None
+    def replace_player(self, add_id: int, drop_id: Optional[int] = None) -> None:
+        """Add a player and, optionally, drop one in the same transaction.
+
+        Rides the same ``addplayer`` form as :meth:`add_player`; supplying
+        ``dpid`` makes Yahoo drop that player as part of the add. Single-shot:
+        the retry/timeout loop stays in ``RosterService``.
+
+        Args:
+            add_id (int): The id of the player to add.
+            drop_id (Optional[int]): The id of the player to drop. Defaults to None.
 
         Raises:
-            Exception: If an error occurs during the add and drop operation, it is handled by _handle_client_error.
+            AlreadyPlayedError, MaxAddsError, UnintendedWaiverAddError: As mapped
+                from the response markers by ``_post_write``.
         """
-        try:
-            self.team_handle.add_and_drop_players(
-                add_player_id=add_id, drop_player_id=drop_id
-            )
-        except Exception as err:
-            self._handle_client_error(add_id=add_id, err=err)
+        data = {"stage": "3", "stat1": "P", "stat2": "P", "apid": add_id}
+        if drop_id is not None:
+            data["dpid"] = drop_id
+        self._post_write("addplayer", data)
 
     def replace_player_claim(
         self, add_id: int, drop_id: int, faab: int = None

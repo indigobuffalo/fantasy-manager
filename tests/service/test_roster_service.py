@@ -91,7 +91,7 @@ def test_prepare_to_execute(mock_sleep_until, mock_logger, roster_svc, start):
     preflight_check_dt = start - timedelta(seconds=roster_svc.cfg.PRE_FLIGHT_CHECK_SECS)
     expected_sleep_until_calls = [
         call(preflight_check_dt, mock_logger),
-        call(start, mock_logger),
+        call(start, mock_logger, buffer_secs=roster_svc.cfg.FIRE_EARLY_BUFFER_SECS),
     ]
     roster_svc.prepare_to_execute(
         start=start, add_player=NHL_PLAYER_ACTIVE_ONE, drop_player=NHL_PLAYER_DTD
