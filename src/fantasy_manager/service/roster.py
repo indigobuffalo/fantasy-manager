@@ -292,7 +292,7 @@ class RosterService:
         self.log_inputs(start, drop_player=drop_player)
         self.prepare_to_execute(drop_player=drop_player, start=start)
 
-        self.client.drop_player(drop_player.player_id)
+        self.client.drop_player(drop_player.player_id, drop_player.name.full)
 
         self.refresh_team()
         if self.team.has_player(drop_player):

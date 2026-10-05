@@ -144,9 +144,10 @@ def test_add_player_posts_addplayer_form(yahoo_client):
 def test_drop_player_posts_dropplayer_form(yahoo_client):
     # Drop commits on stage=2 with stat1=S/stat2=D and the submit button present
     # (captured live from the drop confirmation page) — distinct from the add form.
+    # The submit value reproduces Yahoo's live button label, "Drop <Player Name>".
     yahoo_client.write_session.post.return_value = _response("player dropped")
 
-    yahoo_client.drop_player(33425)
+    yahoo_client.drop_player(33425, "Vincent Trocheck")
 
     yahoo_client.write_session.post.assert_called_once_with(
         f"{TEAM_URL}/dropplayer",
@@ -156,8 +157,20 @@ def test_drop_player_posts_dropplayer_form(yahoo_client):
             "stat1": "S",
             "stat2": "D",
             "dpid": 33425,
-            "submit_drop_player": "Drop",
+            "submit_drop_player": "Drop Vincent Trocheck",
         },
+    )
+
+
+def test_drop_player_without_name_falls_back_to_bare_drop(yahoo_client):
+    # No name supplied -> bare "Drop" submit value.
+    yahoo_client.write_session.post.return_value = _response("player dropped")
+
+    yahoo_client.drop_player(33425)
+
+    assert (
+        yahoo_client.write_session.post.call_args.kwargs["data"]["submit_drop_player"]
+        == "Drop"
     )
 
 

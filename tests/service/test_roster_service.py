@@ -259,7 +259,9 @@ def test_drop_player(roster_svc, mock_client, frozen_time):
 
     start = frozen_time + timedelta(seconds=20)
     roster_svc.drop_player(DROP_ID, start)
-    mock_client.drop_player.assert_called_once_with(DROP_ID)
+    mock_client.drop_player.assert_called_once_with(
+        DROP_ID, NHL_PLAYER_ACTIVE_TWO.name.full
+    )
 
 
 def test_drop_player_unsuccessful(roster_svc, mock_client, frozen_time):
@@ -271,4 +273,6 @@ def test_drop_player_unsuccessful(roster_svc, mock_client, frozen_time):
     start = frozen_time + timedelta(seconds=20)
     with pytest.raises(FantasyUnknownError):
         roster_svc.drop_player(DROP_ID, start)
-    mock_client.drop_player.assert_called_once_with(DROP_ID)
+    mock_client.drop_player.assert_called_once_with(
+        DROP_ID, NHL_PLAYER_ACTIVE_TWO.name.full
+    )

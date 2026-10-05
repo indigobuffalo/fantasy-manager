@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from typing import Optional
 
 import requests
 from requests import Response
@@ -54,11 +55,13 @@ class BaseFantasyClient(ABC):
         pass
 
     @abstractmethod
-    def drop_player(self, drop_id: int) -> None:
+    def drop_player(self, drop_id: int, drop_name: Optional[str] = None) -> None:
         """Drops a player from the roster.
 
         Args:
             drop_id (int): The id of the player to drop.
+            drop_name (Optional[str]): The player's full name, used by cookie
+                transports to match the live submit-button value. Defaults to None.
         """
         pass
 

@@ -17,11 +17,7 @@ from fantasy_manager.config.config import FantasyConfig
 from fantasy_manager.exceptions import (
     AlreadyPlayedError,
     FantasyAuthError,
-    FantasyUnknownError,
-    InvalidRosterPosition,
     MaxAddsError,
-    NotOnRosterError,
-    OnAnotherTeamError,
     UnintendedWaiverAddError,
 )
 from fantasy_manager.model.dto.team import RawTeamDto
@@ -603,26 +599,10 @@ class YahooClient(BaseFantasyClient):
                 eligible[int(match.group(1))] = values
         return eligible
 
-    @staticmethod
-    def _handle_client_error(add_id: int, err: Exception):
-        add_id_str = str(add_id)
-        msg = str(err)
-        match msg:
-            case str() if "no longer qualifies for that position" in msg:
-                raise InvalidRosterPosition(add_id_str, msg)
-            case str() if "player has already played" in msg:
-                raise AlreadyPlayedError(add_id_str)
-            case str() if "player is currently on another team" in msg:
-                raise OnAnotherTeamError(add_id_str)
-            case str() if "reached the weekly limit" in msg:
-                raise MaxAddsError()
-            case str() if f"is not on team" in msg:
-                raise NotOnRosterError(add_id_str, msg)
-            case _:
-                raise FantasyUnknownError(
-                    f"Error adding player '{add_id_str}':\n\n{msg}"
-                )
-
+    # add/drop/replace ride the cookie transport because Yahoo has OAuth writes
+    # gated. The prior OAuth implementations (yfa team_handle.add_player /
+    # drop_player / add_and_drop_players, plus the _handle_client_error string
+    # mapper) live in commit b510c64 if Yahoo ever reopens OAuth write access.
     def add_player(self, add_id: int) -> None:
         """Add a free agent to the roster over the cookie write transport.
 
@@ -645,7 +625,7 @@ class YahooClient(BaseFantasyClient):
     def add_player_claim(self, add_id, faab=None):
         self.team_handle.claim_player(add_id, faab)
 
-    def drop_player(self, drop_id: int) -> None:
+    def drop_player(self, drop_id: int, drop_name: Optional[str] = None) -> None:
         """Drop a rostered player over the cookie write transport.
 
         POSTs Yahoo's ``dropplayer`` form. The commit stage differs from the add
@@ -653,9 +633,17 @@ class YahooClient(BaseFantasyClient):
         confirmation page), and the submit button must be present for Yahoo to
         commit the drop rather than re-render the confirmation page.
 
+        Yahoo renders the submit button's value as the full label ``"Drop
+        <Player Name>"`` (verified against the live confirmation form), so when a
+        name is supplied we reproduce it exactly; otherwise we fall back to a
+        bare ``"Drop"``.
+
         Args:
             drop_id (int): The id of the player to drop.
+            drop_name (Optional[str]): The player's full name, used to match the
+                live submit-button value. Defaults to None.
         """
+        submit_value = f"Drop {drop_name}" if drop_name else "Drop"
         self._post_write(
             "dropplayer",
             {
@@ -663,7 +651,7 @@ class YahooClient(BaseFantasyClient):
                 "stat1": "S",
                 "stat2": "D",
                 "dpid": drop_id,
-                "submit_drop_player": "Drop",
+                "submit_drop_player": submit_value,
             },
         )
 
