@@ -1,16 +1,27 @@
 #!/usr/bin/env bash
 
-usage() { echo "$0 usage:" && grep " .)\ #" $0; exit 0; }
+usage() { echo "$0 usage:" && grep " .)\ #" $0 && echo "  --now      Shortcut for '-s now' (execute immediately)."; exit 0; }
 [ $# -eq 0 ] && usage
 
 PROJECT_DIR="$(dirname "$(dirname "$0")")"
+
+# Translate the convenience flag `--now` into `-s now` and strip it from the
+# args before getopts (which only understands short options) sees it.
+NOW="false"
+args=()
+for arg in "$@"; do
+  case "$arg" in
+    --now) NOW="true" ;;
+    *) args+=("$arg") ;;
+  esac
+done
+set -- "${args[@]}"
 
 # unset required args
 unset DROP_ID
 unset LEAGUE
 
 # set defaults for optional args
-NOW_OPT=""
 START_OPT=""
 
 while getopts "d:hl:s:" opt; do
@@ -38,8 +49,11 @@ done
 check_args(){
   [ "${LEAGUE}x" == "x" ] && echo -e "ERROR: Must specify league!\n" && usage && exit 1
   [ "${DROP_ID}x" == "x" ] && echo -e "ERROR: Must specify id of player to drop!\n" && usage && exit 1
+  [ "$NOW" == "true" ] && [ -n "$START_OPT" ] && echo -e "ERROR: Cannot use --now together with -s!\n" && usage && exit 1
 }
 check_args
+
+[ "$NOW" == "true" ] && START_OPT="--start now"
 
 pushd $PROJECT_DIR
 caffeinate -is uv run python src/fantasy_manager/cli/__init__.py roster drop --league $LEAGUE --drop $DROP_ID $START_OPT

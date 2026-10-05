@@ -1,9 +1,21 @@
 #!/usr/bin/env bash
 
-usage() { echo "$0 usage:" && grep " .)\ #" $0; exit 0; }
+usage() { echo "$0 usage:" && grep " .)\ #" $0 && echo "  --now      Shortcut for '-s now' (execute immediately)."; exit 0; }
 [ $# -eq 0 ] && usage
 
 PROJECT_DIR="$(dirname "$(dirname "$0")")"
+
+# Translate the convenience flag `--now` into `-s now` and strip it from the
+# args before getopts (which only understands short options) sees it.
+NOW="false"
+args=()
+for arg in "$@"; do
+  case "$arg" in
+    --now) NOW="true" ;;
+    *) args+=("$arg") ;;
+  esac
+done
+set -- "${args[@]}"
 
 # unset required args
 unset ADD_ID
@@ -45,8 +57,11 @@ done
 check_args(){
   [ "${LEAGUE}x" == "x" ] && echo -e "ERROR: Must specify league!\n" && usage && exit 1
   [ "${ADD_ID}x" == "x" ] && echo -e "ERROR: Must specify id of player to add!\n" && usage && exit 1
+  [ "$NOW" == "true" ] && [ -n "$START_OPT" ] && echo -e "ERROR: Cannot use --now together with -s!\n" && usage && exit 1
 }
 check_args
+
+[ "$NOW" == "true" ] && START_OPT="--start now"
 
 pushd $PROJECT_DIR
 if [[ "$WAIVERS" == "true" ]]; then

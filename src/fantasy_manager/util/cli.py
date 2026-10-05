@@ -3,7 +3,11 @@
 from datetime import datetime
 from typing import Optional
 from fantasy_manager.exceptions import InputError, UserAbortError
-from fantasy_manager.util.temporal import now_pacific, upcoming_midnight_pacific
+from fantasy_manager.util.temporal import (
+    PACIFIC_TZ,
+    now_pacific,
+    upcoming_midnight_pacific,
+)
 
 
 def confirm_proceed() -> None:
@@ -51,4 +55,9 @@ def get_start(start: Optional[str] = None) -> datetime:
                 start_dt = datetime.fromisoformat(start)
             except ValueError:
                 raise InputError(f"Invalid start time: {start}")
+            # fromisoformat yields a naive datetime unless the string carries an
+            # offset; anchor those to Pacific so an explicit --start is comparable
+            # to now_pacific() (the None/"now" paths are already tz-aware).
+            if start_dt.tzinfo is None:
+                start_dt = start_dt.replace(tzinfo=PACIFIC_TZ)
     return start_dt
