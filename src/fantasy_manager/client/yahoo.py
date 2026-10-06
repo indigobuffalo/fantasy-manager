@@ -346,7 +346,9 @@ class YahooClient(BaseFantasyClient):
                 "Failed to load team via cookie. Check YAHOO_COOKIE."
             )
 
-    def _post_write(self, path: str, data: dict) -> Response:
+    def _post_write(
+        self, path: str, data: dict, allow_waiver_claim: bool = False
+    ) -> Response:
         """POST a single write to a Yahoo HTML form endpoint via the cookie transport.
 
         Injects the stored ``crumb``, POSTs form-encoded to ``{team_url}/{path}``,
@@ -357,6 +359,14 @@ class YahooClient(BaseFantasyClient):
         Args:
             path (str): Form endpoint under the team URL, e.g. ``"addplayer"``.
             data (dict): Form fields; the ``crumb`` is added automatically.
+            allow_waiver_claim (bool): When ``True``, the
+                ``WAIVER_CLAIM_PLACED_MARKER`` ("created a waiver claim for") is
+                treated as success rather than raising ``UnintendedWaiverAddError``.
+                A deliberate waiver claim (``add_player_claim`` /
+                ``replace_player_claim``) rides the same ``addplayer`` form as a
+                plain add, so that marker is the *expected* outcome and must not
+                be mapped to the "unintended" error. ``AlreadyPlayedError`` and
+                ``MaxAddsError`` are still raised regardless. Defaults to False.
 
         Returns:
             Response: The raw POST response, for any further caller inspection.
@@ -364,7 +374,8 @@ class YahooClient(BaseFantasyClient):
         Raises:
             AlreadyPlayedError: If the player has already played and is locked.
             MaxAddsError: If the weekly add limit has been reached.
-            UnintendedWaiverAddError: If the add unintentionally placed a waiver claim.
+            UnintendedWaiverAddError: If the add unintentionally placed a waiver
+                claim (suppressed when ``allow_waiver_claim`` is True).
         """
         payload = {"crumb": self.crumb, **data}
         resp = self.write_session.post(f"{self.team_url}/{path}", data=payload)
@@ -376,7 +387,7 @@ class YahooClient(BaseFantasyClient):
             raise AlreadyPlayedError(str(data.get("apid")))
         if WEEKLY_LIMIT_MARKER in haystack:
             raise MaxAddsError()
-        if WAIVER_CLAIM_PLACED_MARKER in haystack:
+        if WAIVER_CLAIM_PLACED_MARKER in haystack and not allow_waiver_claim:
             raise UnintendedWaiverAddError()
         return resp
 
@@ -599,9 +610,11 @@ class YahooClient(BaseFantasyClient):
                 eligible[int(match.group(1))] = values
         return eligible
 
-    # add/drop/replace ride the cookie transport because Yahoo has OAuth writes
-    # gated. The prior OAuth implementations (yfa team_handle.add_player /
-    # drop_player / add_and_drop_players, plus the _handle_client_error string
+    # add/drop/replace and the waiver-claim methods (add_player_claim /
+    # replace_player_claim / cancel_waiver_claim) ride the cookie transport
+    # because Yahoo has OAuth writes gated. The prior OAuth implementations (yfa
+    # team_handle.add_player / drop_player / add_and_drop_players and
+    # claim_player / claim_and_drop_players, plus the _handle_client_error string
     # mapper) live in commit b510c64 if Yahoo ever reopens OAuth write access.
     def add_player(self, add_id: int) -> None:
         """Add a free agent to the roster over the cookie write transport.
@@ -622,8 +635,29 @@ class YahooClient(BaseFantasyClient):
             {"stage": "3", "stat1": "P", "stat2": "P", "apid": add_id},
         )
 
-    def add_player_claim(self, add_id, faab=None):
-        self.team_handle.claim_player(add_id, faab)
+    def add_player_claim(self, add_id: int, faab: int = None) -> Response:
+        """Place a waiver claim to add a free agent, over the cookie write transport.
+
+        Rides the same ``addplayer`` form as :meth:`add_player`; when the target
+        player is on waivers Yahoo records a waiver claim rather than an instant
+        add. The "created a waiver claim for" marker — which ``_post_write``
+        treats as an *unintended* claim for plain adds — is the *expected
+        success* signal here, so we pass ``allow_waiver_claim=True`` to suppress
+        that mapping. Single-shot; ``RosterService`` owns any retry/timeout loop.
+
+        Args:
+            add_id (int): The id of the player to claim.
+            faab (int, optional): FAAB bid amount, submitted as the ``faab`` form
+                field (verified against a live waiver-claim request). Omitted from
+                the POST body when None. Defaults to None.
+
+        Returns:
+            Response: The raw waiver-claim POST response.
+        """
+        data = {"stage": "3", "stat1": "P", "stat2": "P", "apid": add_id}
+        if faab is not None:
+            data["faab"] = faab
+        return self._post_write("addplayer", data, allow_waiver_claim=True)
 
     def drop_player(self, drop_id: int, drop_name: Optional[str] = None) -> None:
         """Drop a rostered player over the cookie write transport.
@@ -678,10 +712,57 @@ class YahooClient(BaseFantasyClient):
     def replace_player_claim(
         self, add_id: int, drop_id: int, faab: int = None
     ) -> Response:
-        return self.team_handle.claim_and_drop_players(add_id, drop_id, faab)
+        """Place a waiver claim to add one player and drop another, over the cookie transport.
 
-    def cancel_waiver_claim(self, player_id: int) -> None:
-        pass
+        Same ``addplayer`` form as :meth:`add_player_claim` plus ``dpid`` for the
+        drop, mirroring how :meth:`replace_player` extends :meth:`add_player`. The
+        waiver-claim success marker is expected, so ``allow_waiver_claim=True``.
+
+        Args:
+            add_id (int): The id of the player to claim.
+            drop_id (int): The id of the player to drop.
+            faab (int, optional): FAAB bid amount, submitted as the ``faab`` form
+                field (verified against a live waiver-claim request). Omitted from
+                the POST body when None. Defaults to None.
+
+        Returns:
+            Response: The raw waiver-claim POST response.
+        """
+        data = {
+            "stage": "3",
+            "stat1": "P",
+            "stat2": "P",
+            "apid": add_id,
+            "dpid": drop_id,
+        }
+        if faab is not None:
+            data["faab"] = faab
+        return self._post_write("addplayer", data, allow_waiver_claim=True)
+
+    def cancel_waiver_claim(self, player_id: int) -> Response:
+        """Cancel a pending waiver claim over the cookie write transport.
+
+        POSTs Yahoo's ``editwaiver`` form (``stage=2, mode=edit,
+        claim_id=1_<player_id>_0, apid=<player_id>, s=Cancel Waiver``); the
+        ``crumb`` is injected by ``_post_write``. Form fields recovered from the
+        pre-refactor tool (commit ``c312208``). Single-shot.
+
+        Args:
+            player_id (int): The id of the player whose claim to cancel.
+
+        Returns:
+            Response: The raw cancel POST response.
+        """
+        return self._post_write(
+            "editwaiver",
+            {
+                "stage": "2",
+                "claim_id": f"1_{player_id}_0",
+                "mode": "edit",
+                "apid": player_id,
+                "s": "Cancel Waiver",
+            },
+        )
 
     def get_player_by_id(self, player_id: int) -> AgnosticPlayer:
         """Fetches player from yfa's League.get_player_details endpoint.
