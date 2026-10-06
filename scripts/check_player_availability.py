@@ -11,6 +11,11 @@ box on the "Players" page) and parses the result rows, reporting each matched
 player's ownership: a team name if rostered, ``FA`` if a free agent, or ``W`` if
 on waivers.
 
+The per-league searches are I/O-bound HTTP round-trips, so they're run
+concurrently across a thread pool (see ``--workers``). Output is still printed
+per league in the order the leagues were given, so results are deterministic
+regardless of which request finishes first.
+
 Usage:
     uv run python scripts/check_player_availability.py "McDavid" "Quinn Hughes"
     uv run python scripts/check_player_availability.py --leagues 121128,121129 "Celebrini"
@@ -18,6 +23,7 @@ Usage:
 Options:
     --leagues  Comma-separated Yahoo league IDs. Defaults to the public
                competitive leagues 121128, 121129, 121131.
+    --workers  Max concurrent league searches (default: 8).
 
 Requires YAHOO_COOKIE in the environment (or .env) — the same browser-harvested
 cookie the write transport uses. A stale/logged-out cookie is reported per league.
@@ -26,6 +32,7 @@ import argparse
 import html
 import re
 import sys
+from concurrent.futures import ThreadPoolExecutor
 
 import requests
 
@@ -34,6 +41,7 @@ from fantasy_manager.model.enums.platform import Platform
 from fantasy_manager.model.enums.platform_url import PlatformUrl
 
 DEFAULT_LEAGUES = ["121128", "121129", "121131"]
+DEFAULT_WORKERS = 8
 
 # A player link inside a result row: <a href="/nhl/players/6743" ...>Connor McDavid</a>
 _PLAYER_RE = re.compile(r"/nhl/players/(\d+)[^>]*>([^<]{2,40})</a>")
@@ -89,6 +97,12 @@ def main() -> int:
         default=",".join(DEFAULT_LEAGUES),
         help="Comma-separated Yahoo league IDs (default: %(default)s)",
     )
+    parser.add_argument(
+        "--workers",
+        type=int,
+        default=DEFAULT_WORKERS,
+        help="Max concurrent league searches (default: %(default)s)",
+    )
     args = parser.parse_args()
 
     fc = FantasyConfig()
@@ -104,21 +118,50 @@ def main() -> int:
         {"cookie": fc.YAHOO_COOKIE, "user-agent": "Mozilla/5.0"}
     )
 
+    # Fan out every (league, query) search across a thread pool. A shared
+    # Session is fine here: we only send requests (never mutate it), and its
+    # underlying urllib3 connection pool is thread-safe. Results are keyed by
+    # (league_id, query_index) so printing stays deterministic below.
+    def run(league_id: str, query: str):
+        try:
+            return search_league(session, base, league_id, query)
+        except requests.RequestException as exc:
+            return None, exc  # None => the request itself failed
+
+    tasks = [
+        (league_id, qi, query)
+        for league_id in league_ids
+        for qi, query in enumerate(args.players)
+    ]
+    results = {}
+    if tasks:
+        with ThreadPoolExecutor(max_workers=max(1, min(args.workers, len(tasks)))) as pool:
+            futures = {
+                pool.submit(run, league_id, query): (league_id, qi)
+                for league_id, qi, query in tasks
+            }
+            for future, key in futures.items():
+                results[key] = future.result()
+
     exit_code = 0
     for league_id in league_ids:
         header = f"League {league_id}  ({base}/{league_id}/players)"
         print(f"\n{header}\n" + "=" * len(header))
 
-        for i, query in enumerate(args.players):
-            ok, results = search_league(session, base, league_id, query)
+        for qi, query in enumerate(args.players):
+            ok, payload = results[(league_id, qi)]
+            if ok is None:
+                print(f"  Could not read league — request failed ({payload}).")
+                exit_code = 1
+                break
             if not ok:
                 print("  Could not read league — stale/logged-out cookie? Refresh YAHOO_COOKIE.")
                 exit_code = 1
                 break
-            if not results:
+            if not payload:
                 print(f"  '{query}': no matching players found")
                 continue
-            for pid, pname, owner in results:
+            for pid, pname, owner in payload:
                 print(f"  {pname:<24} ({pid:>6})  {owner}")
 
     return exit_code
