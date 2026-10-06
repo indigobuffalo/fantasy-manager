@@ -120,6 +120,98 @@ def test_post_write_detects_waiver_claim_in_url_encoded_redirect(yahoo_client):
 
 
 # ---------------------------------------------------------------------------
+# add / drop / replace over the cookie write transport
+# ---------------------------------------------------------------------------
+
+
+def test_add_player_posts_addplayer_form(yahoo_client):
+    yahoo_client.write_session.post.return_value = _response("player added")
+
+    yahoo_client.add_player(6751)
+
+    yahoo_client.write_session.post.assert_called_once_with(
+        f"{TEAM_URL}/addplayer",
+        data={
+            "crumb": CRUMB,
+            "stage": "3",
+            "stat1": "P",
+            "stat2": "P",
+            "apid": 6751,
+        },
+    )
+
+
+def test_drop_player_posts_dropplayer_form(yahoo_client):
+    # Drop commits on stage=2 with stat1=S/stat2=D and the submit button present
+    # (captured live from the drop confirmation page) — distinct from the add form.
+    # The submit value reproduces Yahoo's live button label, "Drop <Player Name>".
+    yahoo_client.write_session.post.return_value = _response("player dropped")
+
+    yahoo_client.drop_player(33425, "Vincent Trocheck")
+
+    yahoo_client.write_session.post.assert_called_once_with(
+        f"{TEAM_URL}/dropplayer",
+        data={
+            "crumb": CRUMB,
+            "stage": "2",
+            "stat1": "S",
+            "stat2": "D",
+            "dpid": 33425,
+            "submit_drop_player": "Drop Vincent Trocheck",
+        },
+    )
+
+
+def test_drop_player_without_name_falls_back_to_bare_drop(yahoo_client):
+    # No name supplied -> bare "Drop" submit value.
+    yahoo_client.write_session.post.return_value = _response("player dropped")
+
+    yahoo_client.drop_player(33425)
+
+    assert (
+        yahoo_client.write_session.post.call_args.kwargs["data"]["submit_drop_player"]
+        == "Drop"
+    )
+
+
+def test_replace_player_posts_addplayer_form_with_dpid(yahoo_client):
+    yahoo_client.write_session.post.return_value = _response("player replaced")
+
+    yahoo_client.replace_player(add_id=6751, drop_id=8659)
+
+    yahoo_client.write_session.post.assert_called_once_with(
+        f"{TEAM_URL}/addplayer",
+        data={
+            "crumb": CRUMB,
+            "stage": "3",
+            "stat1": "P",
+            "stat2": "P",
+            "apid": 6751,
+            "dpid": 8659,
+        },
+    )
+
+
+def test_replace_player_without_drop_omits_dpid(yahoo_client):
+    yahoo_client.write_session.post.return_value = _response("player added")
+
+    yahoo_client.replace_player(add_id=6751)
+
+    posted = yahoo_client.write_session.post.call_args.kwargs["data"]
+    assert "dpid" not in posted
+    assert posted["apid"] == 6751
+
+
+def test_add_player_propagates_marker_exception(yahoo_client):
+    # The write transport's marker->exception mapping reaches add_player callers.
+    yahoo_client.write_session.post.return_value = _response(
+        f"...{ALREADY_PLAYED_MARKER}..."
+    )
+    with pytest.raises(AlreadyPlayedError):
+        yahoo_client.add_player(6751)
+
+
+# ---------------------------------------------------------------------------
 # _is_auth_error classification
 # ---------------------------------------------------------------------------
 

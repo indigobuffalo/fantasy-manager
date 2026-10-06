@@ -93,7 +93,7 @@ class RosterService:
         preflight_check_dt = start - timedelta(seconds=self.cfg.PRE_FLIGHT_CHECK_SECS)
         sleep_until(preflight_check_dt, logger)
         self.run_preflight_checks(add_player, drop_player)
-        sleep_until(start, logger)
+        sleep_until(start, logger, buffer_secs=self.cfg.FIRE_EARLY_BUFFER_SECS)
 
     @staticmethod
     def _get_aligned_player_names(
@@ -292,7 +292,7 @@ class RosterService:
         self.log_inputs(start, drop_player=drop_player)
         self.prepare_to_execute(drop_player=drop_player, start=start)
 
-        self.client.drop_player(drop_player.player_id)
+        self.client.drop_player(drop_player.player_id, drop_player.name.full)
 
         self.refresh_team()
         if self.team.has_player(drop_player):

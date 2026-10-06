@@ -3,6 +3,10 @@ import logging
 from time import sleep
 from zoneinfo import ZoneInfo
 
+# Yahoo determines end-of-day in Pacific time, so all transaction scheduling
+# is anchored to this zone.
+PACIFIC_TZ = ZoneInfo("America/Los_Angeles")
+
 DAYS_OF_WEEK = {
     "Monday": 0,
     "Tuesday": 1,
@@ -49,10 +53,9 @@ def upcoming_midnight_pacific() -> datetime:
     Returns midnight Pacific time (00:00) on the current day,
     considering the difference between PST and PDT.
     """
-    pacific_tz = ZoneInfo("America/Los_Angeles")
     now_utc = datetime.now(timezone.utc)
-    tomorrow_pacific = now_utc.astimezone(pacific_tz).date() + timedelta(days=1)
-    return datetime.combine(tomorrow_pacific, time(0), tzinfo=pacific_tz)
+    tomorrow_pacific = now_utc.astimezone(PACIFIC_TZ).date() + timedelta(days=1)
+    return datetime.combine(tomorrow_pacific, time(0), tzinfo=PACIFIC_TZ)
 
 
 def now_pacific() -> datetime:
@@ -62,7 +65,7 @@ def now_pacific() -> datetime:
     Returns:
         datetime: The present datetime in the Pacific timezone.
     """
-    return datetime.now(ZoneInfo("America/Los_Angeles"))
+    return datetime.now(PACIFIC_TZ)
 
 
 def get_timeout_end(start: datetime, timeout_seconds: int) -> datetime:

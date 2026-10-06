@@ -25,7 +25,12 @@ class FantasyConfig:
     if LOG_LEVEL not in VALID_LOG_LEVELS:
         LOG_LEVEL = "INFO"
 
-    PRE_FLIGHT_CHECK_SECS = 30
+    # How far before the target time to wake, re-authenticate, and validate
+    # inputs so the transaction fires clean exactly on time.
+    PRE_FLIGHT_CHECK_SECS = int(os.getenv("PRE_FLIGHT_CHECK_SECS", 30))
+    # How far before the target time the first write actually fires, so the
+    # retry loop is already hammering as the transaction window opens.
+    FIRE_EARLY_BUFFER_SECS = float(os.getenv("FIRE_EARLY_BUFFER_SECS", 0.2))
 
     PLATFORM_URLS = {
         Platform.ESPN: {

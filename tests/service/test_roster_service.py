@@ -91,7 +91,7 @@ def test_prepare_to_execute(mock_sleep_until, mock_logger, roster_svc, start):
     preflight_check_dt = start - timedelta(seconds=roster_svc.cfg.PRE_FLIGHT_CHECK_SECS)
     expected_sleep_until_calls = [
         call(preflight_check_dt, mock_logger),
-        call(start, mock_logger),
+        call(start, mock_logger, buffer_secs=roster_svc.cfg.FIRE_EARLY_BUFFER_SECS),
     ]
     roster_svc.prepare_to_execute(
         start=start, add_player=NHL_PLAYER_ACTIVE_ONE, drop_player=NHL_PLAYER_DTD
@@ -259,7 +259,9 @@ def test_drop_player(roster_svc, mock_client, frozen_time):
 
     start = frozen_time + timedelta(seconds=20)
     roster_svc.drop_player(DROP_ID, start)
-    mock_client.drop_player.assert_called_once_with(DROP_ID)
+    mock_client.drop_player.assert_called_once_with(
+        DROP_ID, NHL_PLAYER_ACTIVE_TWO.name.full
+    )
 
 
 def test_drop_player_unsuccessful(roster_svc, mock_client, frozen_time):
@@ -271,4 +273,6 @@ def test_drop_player_unsuccessful(roster_svc, mock_client, frozen_time):
     start = frozen_time + timedelta(seconds=20)
     with pytest.raises(FantasyUnknownError):
         roster_svc.drop_player(DROP_ID, start)
-    mock_client.drop_player.assert_called_once_with(DROP_ID)
+    mock_client.drop_player.assert_called_once_with(
+        DROP_ID, NHL_PLAYER_ACTIVE_TWO.name.full
+    )

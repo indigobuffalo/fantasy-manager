@@ -1,0 +1,32 @@
+name: CI
+
+# Run the full test suite on every push to a pull request (opened,
+# synchronize, reopened — i.e. each new PR commit).
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync --dev
+
+      - name: Run tests
+        run: uv run pytest --junitxml=junit.xml -ra
+
+      - name: Publish test summary
+        if: always()  # still summarize when tests fail
+        run: python3 .github/scripts/pytest_summary.py junit.xml >> "$GITHUB_STEP_SUMMARY"

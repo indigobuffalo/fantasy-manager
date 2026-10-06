@@ -45,3 +45,21 @@ def test_yahoo_cookie_and_crumb_default_to_none(reload_config):
 
     assert config.YAHOO_COOKIE is None
     assert config.YAHOO_CRUMB is None
+
+
+def test_timing_knobs_default_to_current_values(reload_config):
+    config = reload_config(
+        {"PRE_FLIGHT_CHECK_SECS": None, "FIRE_EARLY_BUFFER_SECS": None}
+    )
+
+    assert config.PRE_FLIGHT_CHECK_SECS == 30
+    assert config.FIRE_EARLY_BUFFER_SECS == 0.2
+
+
+def test_timing_knobs_resolve_and_cast_from_env(reload_config):
+    config = reload_config(
+        {"PRE_FLIGHT_CHECK_SECS": "45", "FIRE_EARLY_BUFFER_SECS": "0.5"}
+    )
+
+    assert config.PRE_FLIGHT_CHECK_SECS == 45
+    assert config.FIRE_EARLY_BUFFER_SECS == 0.5
