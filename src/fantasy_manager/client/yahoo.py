@@ -739,27 +739,39 @@ class YahooClient(BaseFantasyClient):
             data["faab"] = faab
         return self._post_write("addplayer", data, allow_waiver_claim=True)
 
-    def cancel_waiver_claim(self, player_id: int) -> Response:
+    def cancel_waiver_claim(
+        self, add_id: int, drop_id: Optional[int] = None
+    ) -> Response:
         """Cancel a pending waiver claim over the cookie write transport.
 
-        POSTs Yahoo's ``editwaiver`` form (``stage=2, mode=edit,
-        claim_id=1_<player_id>_0, apid=<player_id>, s=Cancel Waiver``); the
-        ``crumb`` is injected by ``_post_write``. Form fields recovered from the
-        pre-refactor tool (commit ``c312208``). Single-shot.
+        POSTs Yahoo's ``editwaiver`` form. The claim is identified by a
+        ``claim_id`` of the form ``<team_id>_<add_id>_<drop_id>`` (``drop_id`` is
+        ``0`` for an add-only claim), where ``team_id`` is this team's number in
+        the league — the same value that trails the team URL
+        (``/<league_id>/<team_id>``). Verified against a live cancel request
+        (``claim_id=11_<apid>_<dpid>`` for team 11); the pre-refactor template in
+        commit ``c312208`` was the degenerate team-1 add-only case
+        (``1_<pid>_0``). The form echoes ``apid``/``dpid`` with a ``faab`` of 0,
+        and the ``crumb`` is injected by ``_post_write``. Single-shot.
 
         Args:
-            player_id (int): The id of the player whose claim to cancel.
+            add_id (int): The id of the claimed (to-be-added) player.
+            drop_id (Optional[int]): The id of the player the claim would drop,
+                if any. Defaults to None (add-only claim).
 
         Returns:
             Response: The raw cancel POST response.
         """
+        dpid = drop_id if drop_id is not None else 0
         return self._post_write(
             "editwaiver",
             {
                 "stage": "2",
-                "claim_id": f"1_{player_id}_0",
+                "claim_id": f"{self.league.team_id}_{add_id}_{dpid}",
                 "mode": "edit",
-                "apid": player_id,
+                "apid": add_id,
+                "dpid": dpid,
+                "faab": 0,
                 "s": "Cancel Waiver",
             },
         )

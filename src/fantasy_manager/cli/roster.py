@@ -84,6 +84,20 @@ def replace_player_claim(
     )
 
 
+def cancel_waiver_claim(
+    args: dict[str, Any], controller: RosterController
+) -> command.success_result:
+    add_id, drop_id = args["--add"], args["--drop"]
+    controller.cancel_waiver_claim(add_id=add_id, drop_id=drop_id)
+    if drop_id is not None:
+        return command.success_result(
+            f"Succesfully canceled waiver claim to add player {add_id} and drop player {drop_id}"
+        )
+    return command.success_result(
+        f"Succesfully canceled waiver claim for player {add_id}"
+    )
+
+
 class Roster(command.CliCommand):
     """fantasy-manager roster
     Usage:
@@ -92,6 +106,7 @@ class Roster(command.CliCommand):
         fantasy-manager roster drop --league=<league_name> --drop=<player_id> [--start=<start_date>]
         fantasy-manager roster replace --league=<league_name> --add=<player_id>  --drop=<player_id> [--start=<start_date>]
         fantasy-manager roster replace claim --league=<league_name> --add=<player_id>  --drop=<player_id> [--faab=<faab>] [--start=<start_date>]
+        fantasy-manager roster cancel claim --league=<league_name> --add=<player_id> [--drop=<player_id>]
 
     Options:
           --league=<league>     Id of the league the team is under.
@@ -129,3 +144,5 @@ class Roster(command.CliCommand):
                 return replace_player_claim(args, controller)
             case args if args["replace"]:
                 return replace_player(args, controller)
+            case args if args["cancel"] and args["claim"]:
+                return cancel_waiver_claim(args, controller)

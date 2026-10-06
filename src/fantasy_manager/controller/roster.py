@@ -94,3 +94,17 @@ class RosterController:
             faab=faab,
             start=start_dt,
         )
+
+    def cancel_waiver_claim(
+        self,
+        add_id: int,
+        drop_id: Optional[int] = None,
+    ) -> None:
+        """Cancel a pending waiver claim.
+
+        Args:
+            add_id (int): The id of the claimed (to-be-added) player.
+            drop_id (Optional[int]): The id of the player the claim would drop,
+                if any. Defaults to None (add-only claim).
+        """
+        self.service.cancel_waiver_claim(add_id=add_id, drop_id=drop_id)

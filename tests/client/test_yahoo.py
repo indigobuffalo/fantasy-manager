@@ -216,7 +216,9 @@ def test_add_player_propagates_marker_exception(yahoo_client):
 # ---------------------------------------------------------------------------
 
 
-def test_cancel_waiver_claim_posts_editwaiver_form(yahoo_client):
+def test_cancel_waiver_claim_add_only_posts_editwaiver_form(yahoo_client):
+    # add-only claim: dpid is 0 and claim_id is <team_id>_<apid>_0 (team_id=1 in
+    # the mock league, matching TEAM_URL's trailing team number).
     yahoo_client.write_session.post.return_value = _response("waiver claim canceled")
 
     yahoo_client.cancel_waiver_claim(8659)
@@ -229,6 +231,30 @@ def test_cancel_waiver_claim_posts_editwaiver_form(yahoo_client):
             "claim_id": "1_8659_0",
             "mode": "edit",
             "apid": 8659,
+            "dpid": 0,
+            "faab": 0,
+            "s": "Cancel Waiver",
+        },
+    )
+
+
+def test_cancel_waiver_claim_with_drop_posts_editwaiver_form(yahoo_client):
+    # Mirrors the live captured cancel of an add+drop claim: claim_id is
+    # <team_id>_<apid>_<dpid> and the form echoes apid/dpid plus faab=0.
+    yahoo_client.write_session.post.return_value = _response("waiver claim canceled")
+
+    yahoo_client.cancel_waiver_claim(add_id=9287, drop_id=34096)
+
+    yahoo_client.write_session.post.assert_called_once_with(
+        f"{TEAM_URL}/editwaiver",
+        data={
+            "crumb": CRUMB,
+            "stage": "2",
+            "claim_id": "1_9287_34096",
+            "mode": "edit",
+            "apid": 9287,
+            "dpid": 34096,
+            "faab": 0,
             "s": "Cancel Waiver",
         },
     )

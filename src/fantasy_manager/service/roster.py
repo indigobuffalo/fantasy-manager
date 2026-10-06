@@ -279,6 +279,26 @@ class RosterService:
             add_id=add_id, drop_id=drop_id, faab=faab
         )
 
+    def cancel_waiver_claim(
+        self, add_id: int, drop_id: Optional[int] = None
+    ) -> None:
+        """Cancel a pending waiver claim.
+
+        Unlike add/drop/replace this is a one-shot recovery action: it skips the
+        roster preflight checks (the claimed player isn't on the roster yet) and
+        the retry/timeout loop. It resolves the player names for the confirmation
+        log, prompts, then fires the single cancel request.
+
+        Args:
+            add_id (int): The id of the claimed (to-be-added) player.
+            drop_id (Optional[int]): The id of the player the claim would drop,
+                if any. Defaults to None (add-only claim).
+        """
+        add_player = self.get_player_data(add_id)
+        drop_player = self.get_player_data(drop_id) if drop_id is not None else None
+        self.log_inputs(now_pacific(), add_player=add_player, drop_player=drop_player)
+        return self.client.cancel_waiver_claim(add_id=add_id, drop_id=drop_id)
+
     def drop_player(self, drop_id: str, start: datetime) -> None:
         """Drops a player from the roster.
 
