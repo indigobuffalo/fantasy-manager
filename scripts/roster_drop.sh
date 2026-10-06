@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-usage() { echo "$0 usage:" && grep " .)\ #" $0 && echo "  --now      Shortcut for '-s now' (execute immediately)."; exit 0; }
+usage() { echo "$0 usage:" && grep " .)\ #" $0 && echo "--now) # Shortcut for '-s now' (execute immediately)."; exit 0; }
 [ $# -eq 0 ] && usage
 
 PROJECT_DIR="$(dirname "$(dirname "$0")")"
