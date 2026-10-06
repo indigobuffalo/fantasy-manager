@@ -296,7 +296,17 @@ class RosterService:
         """
         add_player = self.get_player_data(add_id)
         drop_player = self.get_player_data(drop_id) if drop_id is not None else None
-        self.log_inputs(now_pacific(), add_player=add_player, drop_player=drop_player)
+        add_str, drop_str = self._get_aligned_player_names(add_player, drop_player)
+        # Cancel is immediate, so skip log_inputs' scheduling "Start" line and
+        # frame this as a cancellation of the claim's add/drop players.
+        pairs = [
+            ("Action", "Cancel waiver claim"),
+            ("League", self.league.name),
+            ("Add", add_str),
+            ("Drop", drop_str),
+        ]
+        log_pairs(logger=logger, pairs=pairs, padding=4)
+        confirm_proceed()
         return self.client.cancel_waiver_claim(add_id=add_id, drop_id=drop_id)
 
     def drop_player(self, drop_id: str, start: datetime) -> None:
