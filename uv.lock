@@ -178,13 +178,13 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/ec/6d/8ef19316f3b06c15ac648c857d18f171a65b50319f0a6c782392ad62d942/docopt-0.6.1.tar.gz", hash = "sha256:71ad940a773fbc23be6093e9476ad57b2ecec446946a28d30127501f3b29aa35", size = 25815 }
 
 [[package]]
-name = "docopts"
-version = "0.6.1"
+name = "docopt-ng"
+version = "0.9.0"
 source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "docopt" },
+sdist = { url = "https://files.pythonhosted.org/packages/e4/50/8d6806cf13138127692ae6ff79ddeb4e25eb3b0bcc3c1bd033e7e04531a9/docopt_ng-0.9.0.tar.gz", hash = "sha256:91c6da10b5bb6f2e9e25345829fb8278c78af019f6fc40887ad49b060483b1d7", size = 32264 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/6c/4a/c3b77fc1a24510b08918b43a473410c0168f6e657118807015f1f1edceea/docopt_ng-0.9.0-py3-none-any.whl", hash = "sha256:bfe4c8b03f9fca424c24ee0b4ffa84bf7391cb18c29ce0f6a8227a3b01b81ff9", size = 16689 },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/ba/b3/e96eebbc507ce1db0d90a139ae9af8479a1d8f87da39330a83ab204e842f/docopts-0.6.1.tar.gz", hash = "sha256:ea8d6b03a0931c75a0e4919a0b0856f1c187c38a96174a750c86b41b903a693a", size = 6050 }
 
 [[package]]
 name = "executing"
@@ -200,7 +200,7 @@ name = "fantasy-manager"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
-    { name = "docopts" },
+    { name = "docopt-ng" },
     { name = "nhl-api-py" },
     { name = "pydantic" },
     { name = "python-dotenv" },
@@ -222,7 +222,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "docopts", specifier = ">=0.6.1" },
+    { name = "docopt-ng", specifier = ">=0.9.0" },
     { name = "nhl-api-py", specifier = ">=2.18.0" },
     { name = "pydantic", specifier = ">=2.10.6" },
     { name = "python-dotenv", specifier = ">=1.1.0" },
