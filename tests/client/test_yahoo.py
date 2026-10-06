@@ -212,6 +212,159 @@ def test_add_player_propagates_marker_exception(yahoo_client):
 
 
 # ---------------------------------------------------------------------------
+# waiver claims over the cookie write transport
+# ---------------------------------------------------------------------------
+
+
+def test_cancel_waiver_claim_add_only_posts_editwaiver_form(yahoo_client):
+    # add-only claim: dpid is 0 and claim_id is <team_id>_<apid>_0 (team_id=1 in
+    # the mock league, matching TEAM_URL's trailing team number).
+    yahoo_client.write_session.post.return_value = _response("waiver claim canceled")
+
+    yahoo_client.cancel_waiver_claim(8659)
+
+    yahoo_client.write_session.post.assert_called_once_with(
+        f"{TEAM_URL}/editwaiver",
+        data={
+            "crumb": CRUMB,
+            "stage": "2",
+            "claim_id": "1_8659_0",
+            "mode": "edit",
+            "apid": 8659,
+            "dpid": 0,
+            "faab": 0,
+            "s": "Cancel Waiver",
+        },
+    )
+
+
+def test_cancel_waiver_claim_with_drop_posts_editwaiver_form(yahoo_client):
+    # Mirrors the live captured cancel of an add+drop claim: claim_id is
+    # <team_id>_<apid>_<dpid> and the form echoes apid/dpid plus faab=0.
+    yahoo_client.write_session.post.return_value = _response("waiver claim canceled")
+
+    yahoo_client.cancel_waiver_claim(add_id=9287, drop_id=34096)
+
+    yahoo_client.write_session.post.assert_called_once_with(
+        f"{TEAM_URL}/editwaiver",
+        data={
+            "crumb": CRUMB,
+            "stage": "2",
+            "claim_id": "1_9287_34096",
+            "mode": "edit",
+            "apid": 9287,
+            "dpid": 34096,
+            "faab": 0,
+            "s": "Cancel Waiver",
+        },
+    )
+
+
+def test_add_player_claim_posts_addplayer_form(yahoo_client):
+    yahoo_client.write_session.post.return_value = _response("waiver claim created")
+
+    yahoo_client.add_player_claim(6751)
+
+    yahoo_client.write_session.post.assert_called_once_with(
+        f"{TEAM_URL}/addplayer",
+        data={
+            "crumb": CRUMB,
+            "stage": "3",
+            "stat1": "P",
+            "stat2": "P",
+            "apid": 6751,
+        },
+    )
+
+
+def test_add_player_claim_does_not_raise_on_waiver_marker(yahoo_client):
+    # A deliberate claim rides the addplayer form and Yahoo signals success with
+    # the URL-encoded waiver marker in the redirect — which for a plain add would
+    # raise UnintendedWaiverAddError. add_player_claim must treat it as success.
+    resp = _response(
+        "clean body, no marker here",
+        url=(
+            "https://hockey.fantasysports.yahoo.com/hockey/121147/11"
+            "?_global_alerts=x%7C%5B%7B%22params%22%3A%5B%22"
+            "created+a+waiver+claim+for+Braden+Schneider%22%5D%7D%5D"
+        ),
+    )
+    yahoo_client.write_session.post.return_value = resp
+
+    result = yahoo_client.add_player_claim(8659)
+
+    assert result is resp
+
+
+def test_replace_player_claim_posts_addplayer_form_with_dpid(yahoo_client):
+    yahoo_client.write_session.post.return_value = _response("waiver claim created")
+
+    yahoo_client.replace_player_claim(add_id=6751, drop_id=8659)
+
+    yahoo_client.write_session.post.assert_called_once_with(
+        f"{TEAM_URL}/addplayer",
+        data={
+            "crumb": CRUMB,
+            "stage": "3",
+            "stat1": "P",
+            "stat2": "P",
+            "apid": 6751,
+            "dpid": 8659,
+        },
+    )
+
+
+def test_add_player_claim_includes_faab_bid_when_supplied(yahoo_client):
+    # A FAAB bid rides the addplayer form as the `faab` field (verified against a
+    # live waiver-claim request).
+    yahoo_client.write_session.post.return_value = _response("waiver claim created")
+
+    yahoo_client.add_player_claim(6751, faab=12)
+
+    yahoo_client.write_session.post.assert_called_once_with(
+        f"{TEAM_URL}/addplayer",
+        data={
+            "crumb": CRUMB,
+            "stage": "3",
+            "stat1": "P",
+            "stat2": "P",
+            "apid": 6751,
+            "faab": 12,
+        },
+    )
+
+
+def test_replace_player_claim_includes_faab_bid_when_supplied(yahoo_client):
+    # Mirrors the live captured request: stage=3, stat1=P, stat2=P, apid, dpid, faab.
+    yahoo_client.write_session.post.return_value = _response("waiver claim created")
+
+    yahoo_client.replace_player_claim(add_id=9287, drop_id=34096, faab=12)
+
+    yahoo_client.write_session.post.assert_called_once_with(
+        f"{TEAM_URL}/addplayer",
+        data={
+            "crumb": CRUMB,
+            "stage": "3",
+            "stat1": "P",
+            "stat2": "P",
+            "apid": 9287,
+            "dpid": 34096,
+            "faab": 12,
+        },
+    )
+
+
+def test_add_player_claim_still_raises_already_played(yahoo_client):
+    # allow_waiver_claim only suppresses the waiver marker; the already-played
+    # marker must still raise for a deliberate claim.
+    yahoo_client.write_session.post.return_value = _response(
+        f"...{ALREADY_PLAYED_MARKER}..."
+    )
+    with pytest.raises(AlreadyPlayedError):
+        yahoo_client.add_player_claim(6751)
+
+
+# ---------------------------------------------------------------------------
 # _is_auth_error classification
 # ---------------------------------------------------------------------------
 

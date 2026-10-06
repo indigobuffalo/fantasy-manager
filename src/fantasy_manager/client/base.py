@@ -92,11 +92,15 @@ class BaseFantasyClient(ABC):
         pass
 
     @abstractmethod
-    def cancel_waiver_claim(self, player_id: int) -> Response:
+    def cancel_waiver_claim(
+        self, add_id: int, drop_id: Optional[int] = None
+    ) -> Response:
         """Cancel a waiver claim.
 
         Args:
-            player_id (str): The id of the player in the waiver claim.
+            add_id (int): The id of the claimed (to-be-added) player.
+            drop_id (Optional[int]): The id of the player the claim would drop,
+                if any. Defaults to None (add-only claim).
 
         Returns:
             Response: Response of the cancel waiver request.
