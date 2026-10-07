@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from datetime import date
 from typing import Optional
 
 import requests
@@ -6,6 +7,7 @@ from requests import Response
 
 from fantasy_manager.config.config import FantasyConfig
 from fantasy_manager.model.league import League
+from fantasy_manager.model.lineup import Lineup
 from fantasy_manager.model.player import AgnosticPlayer
 from fantasy_manager.model.team import Team
 
@@ -30,6 +32,16 @@ class BaseFantasyClient(ABC):
     @abstractmethod
     def refresh(self):
         """Refresh client auth and handles."""
+        pass
+
+    @abstractmethod
+    def set_lineup(self, lineup: Lineup, lineup_date: date) -> None:
+        """Set the lineup for the given date.
+
+        Args:
+            lineup (Lineup): The lineup of players and their selected positions.
+            lineup_date (date): The date to set the lineup.
+        """
         pass
 
     @abstractmethod

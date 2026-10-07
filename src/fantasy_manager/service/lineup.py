@@ -1,5 +1,5 @@
 import copy
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 import logging
 
 from pathlib import Path
@@ -9,19 +9,31 @@ from typing import Optional
 from fantasy_manager.client.base import BaseFantasyClient
 from fantasy_manager.client.nhl import NhlClient
 from fantasy_manager.config.config import FantasyConfig
+from fantasy_manager.exceptions import InputError
+from fantasy_manager.model.enums.position import Position
 from fantasy_manager.model.game import Game
 from fantasy_manager.model.league import League
+from fantasy_manager.model.lineup import Lineup
 from fantasy_manager.model.player import (
     AgnosticPlayer,
     LineupPlayer,
     RankedLineupPlayer,
 )
 from fantasy_manager.model.team import Team
+from fantasy_manager.util.cli import confirm_proceed
+from fantasy_manager.util.log import log_pairs
+from fantasy_manager.util.temporal import now_pacific, sleep_until
 
 PROJECT_DIR = Path(__file__).parent.absolute()
 
 
 logger = logging.getLogger(__name__)
+
+# Lineup slots that aren't real playing positions: a player can be moved to one
+# of these regardless of their position eligibility (Yahoo separately enforces
+# injury eligibility for the IR slots). Note these are NOT exempt from slot-count
+# limits — only the bench is; see _validate_slot_counts.
+BENCH_SLOTS = frozenset({Position.BN, Position.IR, Position.IR_PLUS})
 
 
 class LineupService:
@@ -158,6 +170,138 @@ class LineupService:
         open_slots[most_available_pos] -= 1
         lineup.append(player)
         return RankedLineupPlayer
+
+    def set_lineup(
+        self,
+        position_changes: list[dict],
+        lineup_date: date,
+        start: datetime,
+    ) -> None:
+        """Set specific players to specific lineup slots for a given date.
+
+        The ``position_changes`` are a partial override: each entry names a
+        ``player_id`` and the ``position`` to move them to. They are overlaid on
+        the current roster (every other player keeps their existing slot) and the
+        resulting full lineup is submitted to the fantasy client at ``start``.
+
+        Args:
+            position_changes (list[dict]): ``{"player_id": int, "position": str}``
+                entries describing the slots to change.
+            lineup_date (date): The date whose lineup is being set.
+            start (datetime): When to submit the lineup (already resolved to a
+                tz-aware Pacific datetime by the controller).
+        """
+        changes = self._parse_position_changes(position_changes)
+        team = self.fantasy_client.get_team()
+        players = self._overlay_changes(team, changes)
+        self._validate_slot_counts(players)
+        self._log_lineup_inputs(team, changes, lineup_date, start)
+        sleep_until(start, logger, buffer_secs=self.config.FIRE_EARLY_BUFFER_SECS)
+        self.fantasy_client.set_lineup(
+            Lineup(day=lineup_date, players=players), lineup_date
+        )
+        logger.info(f"Success! Lineup set for {self.league.name} on {lineup_date}.")
+
+    @staticmethod
+    def _parse_position_changes(position_changes: list[dict]) -> dict[int, Position]:
+        """Validate raw change entries into a ``player_id -> Position`` mapping."""
+        if not position_changes:
+            raise InputError("No lineup changes provided.")
+        changes: dict[int, Position] = {}
+        for entry in position_changes:
+            try:
+                player_id = int(entry["player_id"])
+                position = Position(str(entry["position"]).upper())
+            except (KeyError, TypeError):
+                raise InputError(
+                    f"Each lineup entry needs 'player_id' and 'position': {entry}"
+                )
+            except ValueError:
+                raise InputError(
+                    f"Invalid position '{entry.get('position')}' for player "
+                    f"{entry.get('player_id')}. Valid: {[p.value for p in Position]}"
+                )
+            changes[player_id] = position
+        return changes
+
+    def _overlay_changes(
+        self, team: Team, changes: dict[int, Position]
+    ) -> list[LineupPlayer]:
+        """Overlay the requested slot changes onto the current roster.
+
+        Returns the full roster as ``LineupPlayer`` objects with the changed
+        players' ``selected_position`` updated; unlisted players are unchanged.
+        """
+        roster_ids = {player.player_id for player in team.roster}
+        unknown = set(changes) - roster_ids
+        if unknown:
+            raise InputError(f"Players not on the roster: {sorted(unknown)}")
+
+        players: list[LineupPlayer] = []
+        for player in team.roster:
+            new_position = changes.get(player.player_id)
+            if new_position is None:
+                players.append(player)
+                continue
+            if (
+                new_position not in BENCH_SLOTS
+                and new_position not in player.eligible_positions
+            ):
+                eligible = [p.value for p in player.eligible_positions]
+                raise InputError(
+                    f"{player.name.full} ({player.player_id}) is not eligible for "
+                    f"'{new_position.value}'. Eligible: {eligible}"
+                )
+            players.append(
+                player.model_copy(update={"selected_position": new_position})
+            )
+        return players
+
+    def _validate_slot_counts(self, players: list[LineupPlayer]) -> None:
+        """Reject a lineup that puts more players in a slot than the league allows.
+
+        Every configured slot is capped except the bench (``BN``). Yahoo treats
+        the bench as the overflow for everyone not in an active or IR slot, and
+        real rosters routinely carry more there than the nominal ``BN`` count, so
+        counting it would reject valid lineups. The active positions *and* the IR
+        slots (``IR``/``IR+``) are validated against ``roster_configuration`` so,
+        e.g., a third player can't be forced into two IR+ slots.
+        """
+        counts: dict[Position, int] = {}
+        for player in players:
+            if player.selected_position is Position.BN:
+                continue
+            counts[player.selected_position] = (
+                counts.get(player.selected_position, 0) + 1
+            )
+        for position, count in counts.items():
+            allowed = self.league.roster_configuration.get(position, 0)
+            if count > allowed:
+                raise InputError(
+                    f"Too many players in '{position.value}': {count} assigned but "
+                    f"only {allowed} slot(s) available."
+                )
+
+    def _log_lineup_inputs(
+        self,
+        team: Team,
+        changes: dict[int, Position],
+        lineup_date: date,
+        start: datetime,
+    ) -> None:
+        """Log the pending lineup change for user verification; confirm if immediate."""
+        names = {player.player_id: player.name.full for player in team.roster}
+        pairs = [
+            ("League", self.league.name),
+            ("Lineup date", str(lineup_date)),
+            ("Execute at", str(start)),
+        ]
+        for player_id, position in changes.items():
+            pairs.append((names.get(player_id, str(player_id)), position.value))
+        log_pairs(logger=logger, pairs=pairs, padding=4)
+
+        if start <= now_pacific():
+            confirm_proceed()
 
     def set_lineup_for_date(self, date_str: date, lineup_players: list[LineupPlayer]):
         # TODO: handle injured players
