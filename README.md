@@ -35,10 +35,22 @@ cp .env.example .env
 | `FANTASY_SEASON`    | no         | Season directory under `config/data/season` (defaults to `2026_2027`).   |
 | `YEAR`              | no         | Defaults to `2026`.                                                      |
 
-Yahoo app tokens grant read-only access, so **writes** (add/drop/replace,
-waivers, lineups) impersonate a logged-in browser session using `YAHOO_COOKIE`
-and `YAHOO_CRUMB`. These are harvested manually from the browser and expire
-periodically — see `docs/hybrid-auth-plan.md`.
+### Hybrid auth: OAuth for reads, cookie for writes
+
+Yahoo now grants app OAuth2 tokens **read-only** access, so this tool uses two
+transports behind one client:
+
+- **Reads** (rosters, teams, player lookups) use the **OAuth2** API
+  (`YAHOO_CREDS_FILE`), with an automatic fallback to the cookie transport when
+  Yahoo gates OAuth reads at the app level.
+- **Writes** (add/drop/replace, waivers, lineups) impersonate a logged-in
+  browser session using `YAHOO_COOKIE` and `YAHOO_CRUMB`, POSTing to Yahoo's
+  HTML form endpoints. **OAuth alone cannot write** — without a valid
+  cookie/crumb, every mutating command fails.
+
+The cookie and crumb are harvested manually from the browser and expire
+periodically, so writes need a periodic re-harvest (see below). For the full
+rationale and transport internals, see `docs/hybrid-auth-plan.md`.
 
 ### Yahoo app registration
 
@@ -59,6 +71,37 @@ The app's **Client ID** and **Client Secret** map to `consumer_key` and
 `YAHOO_CREDS_FILE`. Keep that file outside any git worktree (e.g.
 `~/.config/fantasy-manager/yahoo_oauth2.json`) so cached tokens are shared
 across worktrees and survive teardown.
+
+### Harvesting the cookie & crumb
+
+Writes replay a logged-in browser session, so you must harvest `YAHOO_COOKIE`
+and `YAHOO_CRUMB` by hand. Both come from a normal Yahoo Fantasy browser
+session and expire periodically — when writes start failing with an auth error,
+re-harvest them.
+
+1. Log into Yahoo Fantasy in your browser and open one of your fantasy teams
+   (e.g. `https://hockey.fantasysports.yahoo.com/hockey/<league>/<team>`).
+2. Open DevTools → **Network**, then reload the team page.
+3. Click the top (document) request, find **Request Headers**, and copy the
+   entire `cookie:` header value. Paste it into `.env` as `YAHOO_COOKIE` (one
+   long line, no surrounding quotes).
+4. Grab the `crumb` token. The simplest way: on the team page, trigger any
+   roster edit (e.g. open Add/Drop) and inspect the form POST in the Network
+   tab — the form body contains a `crumb=<token>` field. (It's also present in
+   the page HTML; search the page source for `crumb`.) Copy just the token
+   value into `.env` as `YAHOO_CRUMB`.
+5. Confirm both transports are healthy — the startup auth self-check logs
+   whether OAuth reads **and** the cookie transport are working:
+
+   ```
+   ./scripts/read_roster.sh kkupfl               # or: pa
+   ```
+
+   If the cookie is stale or logged out, the tool fails loudly with a Yahoo
+   auth error; redo steps 1–4 to re-harvest.
+
+> **Note:** The cookie and crumb must come from the **same** logged-in session,
+> and the crumb is tied to that cookie — if you re-harvest one, re-harvest both.
 
 # Examples
 
