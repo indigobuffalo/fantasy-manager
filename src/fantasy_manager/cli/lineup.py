@@ -1,9 +1,11 @@
 """Make a change to your roster"""
-from logging import config
+import json
+from pathlib import Path
 from typing import Any
-from fantasy_manager.cli.roster import format_args
+
 from fantasy_manager.config.config import FantasyConfig
 from fantasy_manager.client.factory import ClientFactory
+from fantasy_manager.exceptions import InputError
 from fantasy_manager.service.lineup import LineupService
 from fantasy_manager.cli import command
 from fantasy_manager.controller.lineup import LineupController
@@ -19,27 +21,53 @@ def automate_lineup(
     )
 
 
+def _load_position_changes(args: dict[str, Any]) -> list[dict]:
+    """Read the lineup changes from either --lineup-file or --lineup-json."""
+    lineup_file = args["--lineup-file"]
+    lineup_json = args["--lineup-json"]
+    if lineup_file:
+        raw = Path(lineup_file).read_text()
+    elif lineup_json:
+        raw = lineup_json
+    else:
+        raise InputError("Must provide --lineup-file or --lineup-json.")
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError as err:
+        raise InputError(f"Invalid lineup JSON: {err}")
+    if not isinstance(data, list):
+        raise InputError("Lineup JSON must be a list of {player_id, position} objects.")
+    return data
+
+
 def set_lineup(
     args: dict[str, Any], controller: LineupController
 ) -> command.success_result:
-    lineup_file = args["--lineup-file"]
-    start, end = (args["--start"], args["--end"])
-    controller.automate_lineup()
+    position_changes = _load_position_changes(args)
+    lineup_date = args["--date"]
+    start = args["--start"]
+    controller.set_lineup(
+        position_changes=position_changes,
+        lineup_date=lineup_date,
+        start=start,
+    )
     return command.success_result(
-        f"Succesfully automated lineup for {controller.service.league.name}"
+        f"Succesfully set lineup for {controller.service.league.name} on {lineup_date}"
     )
 
 
 class Lineup(command.CliCommand):
     """Usage:
     fantasy-manager lineup automate --league=<league_name> --start=<start_date> [--end=<end_date>]
-    fantasy-manager lineup set --league=<league_name> --lineup-file=<lineup_file>
+    fantasy-manager lineup set --league=<league_name> --date=<date> (--lineup-file=<lineup_file> | --lineup-json=<json>) [--start=<start_date>]
 
     Options:
       --league=<league>             Id of the league the team is under.
-      --lineup-file=<lineup-file>   The name of the file holding the linuep data.
-      --start=<start_date>          The first date to update the lineup.
-      --end=<start_date>            The last date to update the linuep.
+      --date=<date>                 The date (YYYY-MM-DD) whose lineup to set.
+      --lineup-file=<lineup-file>   Path to a JSON file of {player_id, position} changes.
+      --lineup-json=<json>          Inline JSON string of {player_id, position} changes.
+      --start=<start_date>          When to execute. ISO 8601, or 'now'. For 'set' defaults to upcoming midnight Pacific; for 'automate' it is the first date to update.
+      --end=<end_date>              The last date to update the lineup (automate only).
     """
 
     def run(self, args: dict) -> command.CommandResult:
@@ -66,5 +94,7 @@ class Lineup(command.CliCommand):
             case args if args["set"] is True:
                 return set_lineup(args, controller)
 
-        lineup_file = args["--lineup-file"]
-        return command.success_result("Yay we did it!")
+        return command.error_result(
+            exception=InputError("No lineup subcommand matched."),
+            message="No lineup subcommand matched.",
+        )
