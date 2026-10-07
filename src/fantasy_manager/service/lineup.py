@@ -257,10 +257,18 @@ class LineupService:
         return players
 
     def _validate_slot_counts(self, players: list[LineupPlayer]) -> None:
-        """Reject a lineup that puts more starters in a slot than the league allows."""
+        """Reject a lineup that puts more players in a slot than the league allows.
+
+        Every configured slot is capped except the bench (``BN``). Yahoo treats
+        the bench as the overflow for everyone not in an active or IR slot, and
+        real rosters routinely carry more there than the nominal ``BN`` count, so
+        counting it would reject valid lineups. The active positions *and* the IR
+        slots (``IR``/``IR+``) are validated against ``roster_configuration`` so,
+        e.g., a third player can't be forced into two IR+ slots.
+        """
         counts: dict[Position, int] = {}
         for player in players:
-            if player.selected_position in BENCH_SLOTS:
+            if player.selected_position is Position.BN:
                 continue
             counts[player.selected_position] = (
                 counts.get(player.selected_position, 0) + 1

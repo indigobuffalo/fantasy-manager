@@ -32,6 +32,10 @@ LEAGUE = League(
         Position.D: 4,
         Position.G: 2,
         Position.UTIL: 2,
+        # BN is deliberately tiny so the bench-exemption tests can exceed it and
+        # prove the bench is not count-validated (real leagues configure more).
+        Position.BN: 1,
+        Position.IR_PLUS: 2,
     },
 )
 
@@ -186,3 +190,52 @@ def test_set_lineup_too_many_in_slot_raises(lineup_svc):
     ]
     with pytest.raises(InputError):
         lineup_svc.set_lineup(changes, LINEUP_DATE, FUTURE_START)
+
+
+def test_set_lineup_too_many_in_ir_plus_raises(lineup_svc):
+    # IR+ is a capped slot (2 here): a third IR+ assignment must be rejected,
+    # even though eligibility is bypassed for IR slots.
+    changes = [
+        {"player_id": 1, "position": "IR+"},
+        {"player_id": 2, "position": "IR+"},
+        {"player_id": 3, "position": "IR+"},
+    ]
+    with pytest.raises(InputError):
+        lineup_svc.set_lineup(changes, LINEUP_DATE, FUTURE_START)
+
+
+@patch("fantasy_manager.service.lineup.sleep_until")
+@patch("fantasy_manager.service.lineup.now_pacific")
+def test_set_lineup_ir_plus_within_limit_allowed(
+    mock_now, mock_sleep, lineup_svc, mock_client
+):
+    mock_now.return_value = NOW
+    # Two IR+ assignments fit the 2 configured IR+ slots.
+    lineup_svc.set_lineup(
+        [{"player_id": 1, "position": "IR+"}, {"player_id": 2, "position": "IR+"}],
+        LINEUP_DATE,
+        FUTURE_START,
+    )
+
+    lineup_arg, _ = mock_client.set_lineup.call_args.args
+    by_id = {p.player_id: p.selected_position for p in lineup_arg.players}
+    assert by_id[1] == Position.IR_PLUS
+    assert by_id[2] == Position.IR_PLUS
+
+
+def test_set_lineup_bench_not_count_capped(lineup_svc, mock_client):
+    # BN is the overflow slot and is intentionally not count-validated; a roster
+    # carrying more than the nominal BN count must still be accepted.
+    with patch("fantasy_manager.service.lineup.sleep_until"), patch(
+        "fantasy_manager.service.lineup.now_pacific", return_value=NOW
+    ):
+        lineup_svc.set_lineup(
+            [
+                {"player_id": 1, "position": "BN"},
+                {"player_id": 2, "position": "BN"},
+                {"player_id": 3, "position": "BN"},
+            ],
+            LINEUP_DATE,
+            FUTURE_START,
+        )
+    mock_client.set_lineup.assert_called_once()
