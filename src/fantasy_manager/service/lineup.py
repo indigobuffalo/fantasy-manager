@@ -29,9 +29,10 @@ PROJECT_DIR = Path(__file__).parent.absolute()
 
 logger = logging.getLogger(__name__)
 
-# Lineup slots that aren't real playing positions; a player can always be moved
-# to one of these regardless of their position eligibility, and they don't count
-# against the league's per-position starter limits.
+# Lineup slots that aren't real playing positions: a player can be moved to one
+# of these regardless of their position eligibility (Yahoo separately enforces
+# injury eligibility for the IR slots). Note these are NOT exempt from slot-count
+# limits — only the bench is; see _validate_slot_counts.
 BENCH_SLOTS = frozenset({Position.BN, Position.IR, Position.IR_PLUS})
 
 
