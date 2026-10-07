@@ -46,6 +46,18 @@ ALREADY_PLAYED_MARKER = "player has already played and is no longer"
 WEEKLY_LIMIT_MARKER = "You have reached the weekly limit"
 WAIVER_CLAIM_PLACED_MARKER = "created a waiver claim for"
 
+# Yahoo's editroster form is case-sensitive: it expects "Util", whereas our
+# Position enum upper-cases it to "UTIL" (the read-path scrapers upper-case
+# Yahoo's values to match the enum; this is the inverse for the write path).
+# Every other slot value matches the enum value verbatim.
+_YAHOO_LINEUP_SLOT_OVERRIDES = {Position.UTIL: "Util"}
+
+
+def _yahoo_lineup_slot(position: Position) -> str:
+    """Yahoo editroster form value for a lineup slot (case-sensitive)."""
+    return _YAHOO_LINEUP_SLOT_OVERRIDES.get(position, position.value)
+
+
 # Substrings that identify an OAuth *authorization* failure (Yahoo denying the
 # app / a dead token) as opposed to a transient/network error. When any of
 # these appear in an error, the read path latches over to the cookie transport.
@@ -342,7 +354,11 @@ class YahooClient(BaseFantasyClient):
             )
 
     def _post_write(
-        self, path: str, data: dict, allow_waiver_claim: bool = False
+        self,
+        path: str,
+        data: dict,
+        allow_waiver_claim: bool = False,
+        headers: Optional[dict] = None,
     ) -> Response:
         """POST a single write to a Yahoo HTML form endpoint via the cookie transport.
 
@@ -354,6 +370,9 @@ class YahooClient(BaseFantasyClient):
         Args:
             path (str): Form endpoint under the team URL, e.g. ``"addplayer"``.
             data (dict): Form fields; the ``crumb`` is added automatically.
+            headers (Optional[dict]): Extra request headers merged over the
+                session defaults (e.g. the AJAX headers the editroster form
+                needs). Defaults to None.
             allow_waiver_claim (bool): When ``True``, the
                 ``WAIVER_CLAIM_PLACED_MARKER`` ("created a waiver claim for") is
                 treated as success rather than raising ``UnintendedWaiverAddError``.
@@ -373,7 +392,12 @@ class YahooClient(BaseFantasyClient):
                 claim (suppressed when ``allow_waiver_claim`` is True).
         """
         payload = {"crumb": self.crumb, **data}
-        resp = self.write_session.post(f"{self.team_url}/{path}", data=payload)
+        # Only forward headers when a caller supplies them, so the add/drop/claim
+        # writes keep their original single-arg POST signature.
+        post_kwargs = {"data": payload}
+        if headers is not None:
+            post_kwargs["headers"] = headers
+        resp = self.write_session.post(f"{self.team_url}/{path}", **post_kwargs)
         # Yahoo signals some outcomes only in the redirect URL (a placed waiver
         # claim lands URL-encoded in `_global_alerts`), others in the body HTML.
         # Decode and concatenate both so markers match regardless of encoding.
@@ -408,26 +432,32 @@ class YahooClient(BaseFantasyClient):
     def set_lineup(self, lineup: Lineup, lineup_date: datetime.date) -> None:
         """Set the lineup for the given date over the cookie write transport.
 
-        POSTs Yahoo's ``editroster`` form (``ret=swap``). Each rostered player is
-        submitted as one field keyed by the player's id and valued by its
-        selected lineup slot — the inverse of the
+        POSTs Yahoo's ``editroster`` form, mirroring the request the team-page UI
+        fires. Each rostered player is submitted as one field keyed by the
+        player's id and valued by its selected lineup slot — the inverse of the
         ``<select name="<player_id>"><option value="<POSITION>" selected>`` markup
-        that :meth:`_scrape_selected_positions` parses. The ``crumb`` is injected
-        by :meth:`_post_write`.
+        that :meth:`_scrape_selected_positions` parses. ``jsubmit=Save Changes``
+        (the submit-button value) is required for Yahoo to actually commit the
+        change rather than just re-render the form; the ``crumb`` is injected by
+        :meth:`_post_write`, and the AJAX headers match the UI's XHR request.
 
         Args:
             lineup (Lineup): lineup of players and their selected positions.
             lineup_date (datetime.date): the date to set the lineup.
         """
         data = {
-            "date": lineup_date.strftime("%Y-%m-%d"),
-            "stat1": "S",
-            "stat2": "D",
-            "ret": "swap",
+            str(player.player_id): _yahoo_lineup_slot(player.selected_position)
+            for player in lineup.players
         }
-        for player in lineup.players:
-            data[str(player.player_id)] = player.selected_position.value
-        self._post_write("editroster", data)
+        data["date"] = lineup_date.strftime("%Y-%m-%d")
+        data["stat1"] = "S"
+        data["stat2"] = "D"
+        data["jsubmit"] = "Save Changes"
+        self._post_write(
+            "editroster",
+            data,
+            headers={"x-requested-with": "XMLHttpRequest", "ajax-request": "true"},
+        )
 
     def get_team(self) -> Team:
         """Fetch the team, preferring OAuth and falling back to cookie scraping."""

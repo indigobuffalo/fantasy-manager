@@ -223,9 +223,11 @@ def test_add_player_propagates_marker_exception(yahoo_client):
 
 
 def test_set_lineup_posts_editroster_form(yahoo_client):
-    # editroster commits on ret=swap with stat1=S/stat2=D and one field per
-    # player keyed by player_id -> selected position value (the inverse of the
-    # team-page `<select name="<player_id>"><option value=".." selected>`).
+    # editroster commits only when jsubmit="Save Changes" is posted (the submit
+    # button value); stat1=S/stat2=D plus one field per player keyed by
+    # player_id -> Yahoo slot value (the inverse of the team-page
+    # `<select name="<player_id>"><option value=".." selected>`). The AJAX
+    # headers mirror the UI's XHR request. UTIL serializes to Yahoo's "Util".
     yahoo_client.write_session.post.return_value = _response("lineup saved")
 
     lineup = Lineup(
@@ -245,6 +247,13 @@ def test_set_lineup_posts_editroster_form(yahoo_client):
                 eligible_positions=[Position.LW],
                 selected_position=Position.BN,
             ),
+            LineupPlayer(
+                player_id=5431,
+                name=PlayerName(full="Vincent Trocheck"),
+                position_type=PositionType.SKATER,
+                eligible_positions=[Position.C, Position.UTIL],
+                selected_position=Position.UTIL,
+            ),
         ],
     )
 
@@ -257,10 +266,12 @@ def test_set_lineup_posts_editroster_form(yahoo_client):
             "date": "2026-01-15",
             "stat1": "S",
             "stat2": "D",
-            "ret": "swap",
+            "jsubmit": "Save Changes",
             "6751": "LW",
             "8654": "BN",
+            "5431": "Util",
         },
+        headers={"x-requested-with": "XMLHttpRequest", "ajax-request": "true"},
     )
 
 
