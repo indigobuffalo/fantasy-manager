@@ -1,3 +1,4 @@
+from datetime import date
 from unittest.mock import Mock, patch
 
 import pytest
@@ -17,6 +18,9 @@ from fantasy_manager.exceptions import (
     MaxAddsError,
     UnintendedWaiverAddError,
 )
+from fantasy_manager.model.enums.position import Position, PositionType
+from fantasy_manager.model.lineup import Lineup
+from fantasy_manager.model.player import LineupPlayer, PlayerName
 
 
 CRUMB = "test-crumb"
@@ -52,7 +56,9 @@ def _response(text: str, url: str = "") -> Mock:
     return resp
 
 
-def test_check_locked_players_via_cookie_passes_when_locked_players_present(yahoo_client):
+def test_check_locked_players_via_cookie_passes_when_locked_players_present(
+    yahoo_client,
+):
     # mock_league.locked_players == (1, 2, 3)
     yahoo_client.write_session.get.return_value = _response(
         "roster contains 1, 2 and 3"
@@ -209,6 +215,53 @@ def test_add_player_propagates_marker_exception(yahoo_client):
     )
     with pytest.raises(AlreadyPlayedError):
         yahoo_client.add_player(6751)
+
+
+# ---------------------------------------------------------------------------
+# set_lineup over the cookie write transport
+# ---------------------------------------------------------------------------
+
+
+def test_set_lineup_posts_editroster_form(yahoo_client):
+    # editroster commits on ret=swap with stat1=S/stat2=D and one field per
+    # player keyed by player_id -> selected position value (the inverse of the
+    # team-page `<select name="<player_id>"><option value=".." selected>`).
+    yahoo_client.write_session.post.return_value = _response("lineup saved")
+
+    lineup = Lineup(
+        day=date(2026, 1, 15),
+        players=[
+            LineupPlayer(
+                player_id=6751,
+                name=PlayerName(full="Timo Meier"),
+                position_type=PositionType.SKATER,
+                eligible_positions=[Position.LW, Position.RW],
+                selected_position=Position.LW,
+            ),
+            LineupPlayer(
+                player_id=8654,
+                name=PlayerName(full="Dylan Holloway"),
+                position_type=PositionType.SKATER,
+                eligible_positions=[Position.LW],
+                selected_position=Position.BN,
+            ),
+        ],
+    )
+
+    yahoo_client.set_lineup(lineup, date(2026, 1, 15))
+
+    yahoo_client.write_session.post.assert_called_once_with(
+        f"{TEAM_URL}/editroster",
+        data={
+            "crumb": CRUMB,
+            "date": "2026-01-15",
+            "stat1": "S",
+            "stat2": "D",
+            "ret": "swap",
+            "6751": "LW",
+            "8654": "BN",
+        },
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -559,9 +612,7 @@ def test_dispatch_uses_cookie_when_flag_false_no_oauth_attempt(yahoo_client):
 
 def test_dispatch_flips_to_cookie_on_midsession_auth_error(yahoo_client):
     yahoo_client._oauth_reads_ok = True
-    oauth_fn = Mock(
-        side_effect=Exception("additional_authorization_required")
-    )
+    oauth_fn = Mock(side_effect=Exception("additional_authorization_required"))
     cookie_fn = Mock(return_value="cookie-result")
 
     result = yahoo_client._dispatch_read(oauth_fn, cookie_fn, "label")
@@ -639,13 +690,13 @@ def test_get_team_routes_via_oauth_when_reads_ok(yahoo_client):
     yahoo_client.league_handle.team_key.return_value = "tk"
     yahoo_client.league_handle.teams.return_value = {"tk": {}}
     yahoo_client._get_team_via_cookie = Mock()
-    with patch(
-        "fantasy_manager.client.yahoo.transform_yfa_team_data_to_team",
-        return_value={},
-    ), patch(
-        "fantasy_manager.client.yahoo.RawTeamDto"
-    ), patch(
-        "fantasy_manager.client.yahoo.Team", return_value=sentinel
+    with (
+        patch(
+            "fantasy_manager.client.yahoo.transform_yfa_team_data_to_team",
+            return_value={},
+        ),
+        patch("fantasy_manager.client.yahoo.RawTeamDto"),
+        patch("fantasy_manager.client.yahoo.Team", return_value=sentinel),
     ):
         result = yahoo_client.get_team()
 
@@ -827,9 +878,11 @@ def test_refresh_context_forced_cookie_skips_oauth_construction(mock_league):
     config.get_platform_url = Mock(
         return_value="https://hockey.fantasysports.yahoo.com/hockey"
     )
-    with patch("fantasy_manager.client.yahoo.OAuth2") as mock_oauth, patch(
-        "fantasy_manager.client.yahoo.yfa"
-    ) as mock_yfa, patch.object(YahooClient, "_verify_read_auth"):
+    with (
+        patch("fantasy_manager.client.yahoo.OAuth2") as mock_oauth,
+        patch("fantasy_manager.client.yahoo.yfa") as mock_yfa,
+        patch.object(YahooClient, "_verify_read_auth"),
+    ):
         client = YahooClient(league=mock_league, config=config)
 
     mock_oauth.assert_not_called()

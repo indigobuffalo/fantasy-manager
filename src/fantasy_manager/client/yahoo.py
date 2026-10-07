@@ -1,5 +1,4 @@
 import datetime
-import json
 import logging
 import re
 import urllib.parse
@@ -163,9 +162,7 @@ class YahooClient(BaseFantasyClient):
             self.league_handle = yfa.Game(self.session_context, "nhl").to_league(
                 self.league.key
             )
-            self.team_handle = self.league_handle.to_team(
-                self.league_handle.team_key()
-            )
+            self.team_handle = self.league_handle.to_team(self.league_handle.team_key())
 
         # At startup, confirm the read auth situation for both transports: pick
         # the read transport (OAuth vs cookie) and hard-fail if neither works, so
@@ -250,9 +247,7 @@ class YahooClient(BaseFantasyClient):
         cookie_reads_ok = self._check_cookie_reads()
 
         if oauth_reads_ok and cookie_reads_ok:
-            logger.info(
-                "Yahoo auth OK: OAuth and cookie read transports both working"
-            )
+            logger.info("Yahoo auth OK: OAuth and cookie read transports both working")
         elif oauth_reads_ok:
             logger.warning(
                 "Yahoo auth: OAuth reads working, but cookie transport is NOT — "
@@ -411,31 +406,34 @@ class YahooClient(BaseFantasyClient):
             self._check_locked_players_via_cookie()
 
     def set_lineup(self, lineup: Lineup, lineup_date: datetime.date) -> None:
-        """Set lineup for the given date.
+        """Set the lineup for the given date over the cookie write transport.
+
+        POSTs Yahoo's ``editroster`` form (``ret=swap``). Each rostered player is
+        submitted as one field keyed by the player's id and valued by its
+        selected lineup slot — the inverse of the
+        ``<select name="<player_id>"><option value="<POSITION>" selected>`` markup
+        that :meth:`_scrape_selected_positions` parses. The ``crumb`` is injected
+        by :meth:`_post_write`.
 
         Args:
-            lineup (Lineup): lineup of players and their selected positions
-            lineup_date (datetime.date): the date to set the lineup
+            lineup (Lineup): lineup of players and their selected positions.
+            lineup_date (datetime.date): the date to set the lineup.
         """
-        lineup_date = datetime.date(2024, 12, 12)
-        # lineup = Lineup(
-        # players=[
-        # LineupPlayer(player_id=6751, name="Timo Meier", selected_position=Position.BN.value, ranking=85),
-        # LineupPlayer(player_id=8654, name="Dylan Holloway", selected_position=Position.LW.value, ranking=82),
-        # LineupPlayer(player_id=8654, name="Mark Stone", selected_position=Position.RW.value, ranking=91),
-        # LineupPlayer(player_id=6756, name="Jake Debrusk", selected_position=Position.RW.value, ranking=84),
-        # ]
-        # )
-        as_json = lineup.to_json()
-        self.team_handle.change_positions(lineup_date, json.loads(as_json))
+        data = {
+            "date": lineup_date.strftime("%Y-%m-%d"),
+            "stat1": "S",
+            "stat2": "D",
+            "ret": "swap",
+        }
+        for player in lineup.players:
+            data[str(player.player_id)] = player.selected_position.value
+        self._post_write("editroster", data)
 
     def get_team(self) -> Team:
         """Fetch the team, preferring OAuth and falling back to cookie scraping."""
 
         def oauth_fn() -> Team:
-            yfa_league_team = self.league_handle.teams()[
-                self.league_handle.team_key()
-            ]
+            yfa_league_team = self.league_handle.teams()[self.league_handle.team_key()]
             yfa_team = self.league_handle.to_team(self.league_handle.team_key())
             raw_yfa_dto = RawTeamDto.from_raw_data(yfa_league_team, yfa_team)
             transformed = transform_yfa_team_data_to_team(raw_yfa_dto)
@@ -788,6 +786,7 @@ class YahooClient(BaseFantasyClient):
         Returns:
             ApiPlayer: an ApiPlayer model instance.
         """
+
         def oauth_fn() -> AgnosticPlayer:
             yfa_player = self.league_handle.player_details(player_id)[0]
             transformed = transform_player_by_id_to_api_player(yfa_player)
