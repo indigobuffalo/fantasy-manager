@@ -35,6 +35,12 @@
 Sets up your environment with permissions to allow access to the Yahoo! APIs.
 It does this by creating a JSON file that can be used for future API requests.
 
+NOTE: Yahoo app OAuth2 tokens are READ-ONLY. The credentials initialized here
+authorize *reads* (rosters, teams, player lookups) only; they do NOT enable
+writes (add/drop/replace, waivers, lineups). Writes use the cookie + crumb
+browser transport (YAHOO_COOKIE / YAHOO_CRUMB) — see the README and
+docs/hybrid-auth-plan.md.
+
 The consumer key/id can be omitted if the JSON file already exists.  In that
 mode, this program will verify access with the JSON credentials.
 
