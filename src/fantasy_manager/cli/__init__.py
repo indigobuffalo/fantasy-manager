@@ -6,8 +6,9 @@ Usage:
 
 The available fantasy-manager commands are:
 
-roster   Change roster composition (e.g. add or drop players)
-lineup   Change lineup (e.g. sit/start decisions)
+roster         Change roster composition (e.g. add or drop players)
+lineup         Change lineup (e.g. sit/start decisions)
+availability   Check whether players are rostered or available across leagues
 
 For more details, see 'fantasy-manager <command> --help'
 """
