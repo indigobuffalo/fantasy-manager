@@ -3,8 +3,6 @@
 usage() { echo "$0 usage:" && grep " .)\ #" $0 && echo "--now) # Shortcut for '-s now' (execute immediately)."; exit 0; }
 [ $# -eq 0 ] && usage
 
-PROJECT_DIR="$(dirname "$(dirname "$0")")"
-
 # Translate the convenience flag `--now` into `-s now` and strip it from the
 # args before getopts (which only understands short options) sees it.
 NOW="false"
@@ -55,9 +53,4 @@ check_args
 
 [ "$NOW" == "true" ] && START_OPT="--start now"
 
-pushd $PROJECT_DIR
-caffeinate -is uv run python src/fantasy_manager/cli/__init__.py roster drop --league $LEAGUE --drop $DROP_ID $START_OPT
-exit_code=$?
-popd
-
-exit $exit_code
+caffeinate -is fmgr roster drop --league $LEAGUE --drop $DROP_ID $START_OPT

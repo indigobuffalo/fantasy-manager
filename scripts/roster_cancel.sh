@@ -3,8 +3,6 @@
 usage() { echo "$0 usage:" && grep " .)\ #" $0; exit 0; }
 [ $# -eq 0 ] && usage
 
-PROJECT_DIR="$(dirname "$(dirname "$0")")"
-
 # unset required args
 unset ADD_ID
 unset LEAGUE
@@ -40,9 +38,4 @@ check_args(){
 }
 check_args
 
-pushd $PROJECT_DIR
-caffeinate -is uv run python src/fantasy_manager/cli/__init__.py roster cancel claim --league $LEAGUE --add $ADD_ID $DROP_OPT
-exit_code=$?
-popd
-
-exit $exit_code
+caffeinate -is fmgr roster cancel claim --league $LEAGUE --add $ADD_ID $DROP_OPT
