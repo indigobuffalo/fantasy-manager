@@ -86,9 +86,9 @@ def search_league(
 
 
 class Availability(command.CliCommand):
-    """fantasy-manager availability
+    """fantasy-manager player availability
     Usage:
-        fantasy-manager availability [--leagues=<league_ids>] [--workers=<workers>] <player>...
+        fantasy-manager player availability [--leagues=<league_ids>] [--workers=<workers>] <player>...
 
     Options:
         --leagues=<league_ids>  Comma-separated Yahoo league IDs [default: 121128,121129,121131].

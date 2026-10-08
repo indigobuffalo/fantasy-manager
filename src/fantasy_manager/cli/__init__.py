@@ -8,7 +8,7 @@ The available fantasy-manager commands are:
 
 roster         Change roster composition (e.g. add or drop players)
 lineup         Change lineup (e.g. sit/start decisions)
-availability   Check whether players are rostered or available across leagues
+player         Look up players (e.g. availability across leagues)
 
 For more details, see 'fantasy-manager <command> --help'
 """
@@ -25,10 +25,16 @@ from fantasy_manager.util.log import log_line_break
 
 CLI_DIRECTORY = Path(__file__).parent
 
+# A command is either a single module (e.g. roster.py) or a package whose
+# __init__.py defines the command (e.g. player/, a namespace with sub-actions).
 ALL_COMMANDS = [
-    command.stem
-    for command in CLI_DIRECTORY.iterdir()
-    if command.is_file() and command.name != "__init__.py"
+    entry.stem
+    for entry in CLI_DIRECTORY.iterdir()
+    if entry.name != "__init__.py"
+    and (
+        (entry.is_file() and entry.suffix == ".py")
+        or (entry.is_dir() and (entry / "__init__.py").exists())
+    )
 ]
 
 logger = logging.getLogger(__name__)
@@ -51,6 +57,9 @@ def main():
             if isinstance(klass, type)
             and issubclass(klass, CliCommand)
             and klass is not CliCommand
+            # Pick the command class *defined* in this module, not one it merely
+            # imports — e.g. the `player` package imports its sub-action classes.
+            and klass.__module__ == module.__name__
         )()
     except ModuleNotFoundError as err:
         logger.info(f"Error: Command '{command_name}' not found.")

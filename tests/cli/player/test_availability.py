@@ -1,6 +1,6 @@
 from hamcrest import assert_that, equal_to, contains_inanyorder
 
-from fantasy_manager.cli.availability import _PLAYER_RE, _ROW_RE, ownership
+from fantasy_manager.cli.player.availability import _PLAYER_RE, _ROW_RE, ownership
 
 
 def _row(inner: str) -> str:
