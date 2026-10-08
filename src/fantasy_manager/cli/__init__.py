@@ -58,7 +58,13 @@ def main():
         logger.info(f"Error: No valid command class found in '{command_name}'.")
         return 1
 
-    command_args = command.parse_args(argv)
+    try:
+        command_args = command.parse_args(argv)
+    except docopt.DocoptExit as err:
+        logger.info(
+            f"Error: invalid or missing arguments for '{command_name}'.\n{err.usage}"
+        )
+        return 1
 
     try:
         result = command.run(command_args)
