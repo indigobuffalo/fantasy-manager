@@ -3,8 +3,6 @@
 usage() { echo "$0 usage:" && grep " .)\ #" $0 && echo "--now) # Shortcut for '-s now' (execute immediately)."; exit 0; }
 [ $# -eq 0 ] && usage
 
-PROJECT_DIR="$(dirname "$(dirname "$0")")"
-
 # Translate the convenience flag `--now` into `-s now` and strip it from the
 # args before getopts (which only understands short options) sees it.
 NOW="false"
@@ -71,9 +69,4 @@ CMD_ARGS=(lineup set --league "$LEAGUE" --date "$DATE")
 [ -n "$LINEUP_JSON" ] && CMD_ARGS+=(--lineup-json "$LINEUP_JSON")
 [ -n "$START" ] && CMD_ARGS+=(--start "$START")
 
-pushd $PROJECT_DIR
-caffeinate -is uv run python src/fantasy_manager/cli/__init__.py "${CMD_ARGS[@]}"
-exit_code=$?
-popd
-
-exit $exit_code
+caffeinate -is fmgr "${CMD_ARGS[@]}"
