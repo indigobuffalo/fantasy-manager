@@ -38,7 +38,7 @@ cp .env.example .env
 | `BLUESKY_APP_PASSWORD` | for news | Bluesky app password for the news-monitor source account.               |
 | `BLUESKY_LIST_URI`  | for news   | `at://` URI of the Bluesky list to monitor for player news.             |
 | `SMTP_HOST`         | for news   | SMTP server host for emailed news alerts.                               |
-| `SMTP_PORT`         | for news   | SMTP server port (e.g. `587`).                                          |
+| `SMTP_PORT`         | for news   | SMTP server port (defaults to `587`).                                   |
 | `SMTP_USERNAME`     | for news   | SMTP auth username for emailed news alerts.                             |
 | `SMTP_PASSWORD`     | for news   | SMTP auth password for emailed news alerts.                             |
 | `NEWS_ALERT_EMAIL`  | for news   | Recipient address for emailed news alerts.                              |

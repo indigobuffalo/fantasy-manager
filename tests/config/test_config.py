@@ -65,12 +65,13 @@ def test_timing_knobs_resolve_and_cast_from_env(reload_config):
     assert config.FIRE_EARLY_BUFFER_SECS == 0.5
 
 
+# SMTP_PORT is handled separately: it's cast to int with a default, so it
+# neither resolves to a raw string nor defaults to None.
 NEWS_ENV_VARS = (
     "BLUESKY_HANDLE",
     "BLUESKY_APP_PASSWORD",
     "BLUESKY_LIST_URI",
     "SMTP_HOST",
-    "SMTP_PORT",
     "SMTP_USERNAME",
     "SMTP_PASSWORD",
     "NEWS_ALERT_EMAIL",
@@ -89,3 +90,15 @@ def test_news_env_vars_default_to_none(reload_config):
 
     for name in NEWS_ENV_VARS:
         assert getattr(config, name) is None
+
+
+def test_smtp_port_resolves_and_casts_from_env(reload_config):
+    config = reload_config({"SMTP_PORT": "2525"})
+
+    assert config.SMTP_PORT == 2525
+
+
+def test_smtp_port_defaults_to_standard_submission_port(reload_config):
+    config = reload_config({"SMTP_PORT": None})
+
+    assert config.SMTP_PORT == 587

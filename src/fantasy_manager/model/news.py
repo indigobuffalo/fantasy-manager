@@ -38,17 +38,23 @@ class PlayerNewsEvent(BaseModel):
 
     Attrs:
         category (NewsCategory):          The kind of event (injury, lineup, etc.).
+        timestamp (datetime):             When the event occurred (typically the
+                                          source item's publish time).
         players (list[BasePlayer]):       The players the event is primarily about.
         beneficiary (Optional[BasePlayer]): Player who benefits (e.g. promoted in the
                                           lineup when another player is scratched).
         team (Optional[NhlTeam]):         The NHL team the event concerns, if any.
         severity (NewsSeverity):          How impactful the event is.
+        source_ids (list[str]):           Ids of the NewsItem(s) this event was
+                                          derived from, for provenance and dedup.
         sport (Sport):                    The sport the event pertains to.
     """
 
     category: NewsCategory
+    timestamp: datetime
     players: list[BasePlayer] = []
     beneficiary: Optional[BasePlayer] = None
     team: Optional[NhlTeam] = None
     severity: NewsSeverity = NewsSeverity.INFO
+    source_ids: list[str] = []
     sport: Sport = Sport.NHL

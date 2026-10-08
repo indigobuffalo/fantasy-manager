@@ -78,7 +78,7 @@ class FantasyConfig:
     BLUESKY_LIST_URI = os.getenv("BLUESKY_LIST_URI")
     # SMTP transport + recipient for emailed news alerts.
     SMTP_HOST = os.getenv("SMTP_HOST")
-    SMTP_PORT = os.getenv("SMTP_PORT")
+    SMTP_PORT = int(os.getenv("SMTP_PORT", 587))  # standard submission port
     SMTP_USERNAME = os.getenv("SMTP_USERNAME")
     SMTP_PASSWORD = os.getenv("SMTP_PASSWORD")
     NEWS_ALERT_EMAIL = os.getenv("NEWS_ALERT_EMAIL")

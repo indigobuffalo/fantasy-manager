@@ -69,33 +69,43 @@ def test_news_item_requires_core_fields():
 def test_player_news_event_constructs_with_all_fields():
     event = PlayerNewsEvent(
         category=NewsCategory.SCRATCH,
+        timestamp=TIMESTAMP,
         players=[PLAYER_ONE],
         beneficiary=PLAYER_TWO,
         team=SHARKS,
         severity=NewsSeverity.MAJOR,
+        source_ids=["abc-123"],
     )
 
     assert_that(event.category, equal_to(NewsCategory.SCRATCH))
+    assert_that(event.timestamp, equal_to(TIMESTAMP))
     assert_that(event.players, contains_exactly(PLAYER_ONE))
     assert_that(event.beneficiary, equal_to(PLAYER_TWO))
     assert_that(event.team, equal_to(SHARKS))
     assert_that(event.severity, equal_to(NewsSeverity.MAJOR))
+    assert_that(event.source_ids, contains_exactly("abc-123"))
     assert_that(event.sport, equal_to(Sport.NHL))
 
 
 def test_player_news_event_defaults():
-    event = PlayerNewsEvent(category=NewsCategory.OTHER)
+    event = PlayerNewsEvent(category=NewsCategory.OTHER, timestamp=TIMESTAMP)
 
     assert_that(event.players, is_(empty()))
     assert_that(event.beneficiary, is_(none()))
     assert_that(event.team, is_(none()))
     assert_that(event.severity, equal_to(NewsSeverity.INFO))
+    assert_that(event.source_ids, is_(empty()))
     assert_that(event.sport, equal_to(Sport.NHL))
 
 
 def test_player_news_event_requires_category():
     with pytest.raises(ValidationError):
-        PlayerNewsEvent(players=[PLAYER_ONE])
+        PlayerNewsEvent(timestamp=TIMESTAMP, players=[PLAYER_ONE])
+
+
+def test_player_news_event_requires_timestamp():
+    with pytest.raises(ValidationError):
+        PlayerNewsEvent(category=NewsCategory.OTHER)
 
 
 def test_player_news_event_rejects_invalid_category():
