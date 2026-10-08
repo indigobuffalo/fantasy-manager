@@ -34,6 +34,14 @@ cp .env.example .env
 | `LOG_LEVEL`         | no         | `DEBUG`/`INFO`/`WARNING`/`ERROR`/`CRITICAL` (defaults to `INFO`).        |
 | `FANTASY_SEASON`    | no         | Season directory under `config/data/season` (defaults to `2026_2027`).   |
 | `YEAR`              | no         | Defaults to `2026`.                                                      |
+| `BLUESKY_HANDLE`    | for news   | Bluesky handle for the news-monitor source account.                     |
+| `BLUESKY_APP_PASSWORD` | for news | Bluesky app password for the news-monitor source account.               |
+| `BLUESKY_LIST_URI`  | for news   | `at://` URI of the Bluesky list to monitor for player news.             |
+| `SMTP_HOST`         | for news   | SMTP server host for emailed news alerts.                               |
+| `SMTP_PORT`         | for news   | SMTP server port (e.g. `587`).                                          |
+| `SMTP_USERNAME`     | for news   | SMTP auth username for emailed news alerts.                             |
+| `SMTP_PASSWORD`     | for news   | SMTP auth password for emailed news alerts.                             |
+| `NEWS_ALERT_EMAIL`  | for news   | Recipient address for emailed news alerts.                              |
 
 ### Hybrid auth: OAuth for reads, cookie for writes
 

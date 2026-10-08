@@ -63,3 +63,29 @@ def test_timing_knobs_resolve_and_cast_from_env(reload_config):
 
     assert config.PRE_FLIGHT_CHECK_SECS == 45
     assert config.FIRE_EARLY_BUFFER_SECS == 0.5
+
+
+NEWS_ENV_VARS = (
+    "BLUESKY_HANDLE",
+    "BLUESKY_APP_PASSWORD",
+    "BLUESKY_LIST_URI",
+    "SMTP_HOST",
+    "SMTP_PORT",
+    "SMTP_USERNAME",
+    "SMTP_PASSWORD",
+    "NEWS_ALERT_EMAIL",
+)
+
+
+def test_news_env_vars_resolve_from_env(reload_config):
+    config = reload_config({name: f"value-{name}" for name in NEWS_ENV_VARS})
+
+    for name in NEWS_ENV_VARS:
+        assert getattr(config, name) == f"value-{name}"
+
+
+def test_news_env_vars_default_to_none(reload_config):
+    config = reload_config({name: None for name in NEWS_ENV_VARS})
+
+    for name in NEWS_ENV_VARS:
+        assert getattr(config, name) is None
