@@ -6,6 +6,7 @@ from fantasy_manager.cli import command
 from fantasy_manager.client.factory import ClientFactory
 from fantasy_manager.config.config import FantasyConfig
 from fantasy_manager.controller.roster import RosterController
+from fantasy_manager.model.team import Team
 from fantasy_manager.service.roster import RosterService
 from fantasy_manager.util.cli import cli_arg_to_int
 
@@ -98,9 +99,29 @@ def cancel_waiver_claim(
     )
 
 
+def read_roster(team: Team) -> command.CommandResult:
+    """Render the team's current roster (a read-only view of the read path)."""
+    lines = [
+        f"Team: {team.name}  (team_id={team.team_id}, league={team.league_id})",
+        f"Roster ({len(team.roster)} players):",
+    ]
+    for p in team.roster:
+        positions = ",".join(pos.value for pos in p.eligible_positions)
+        lines.append(
+            f"  - {p.player_id:>6}  {str(p.name):<24}  "
+            f"pos={p.selected_position.value:<4} eligible=[{positions}]"
+        )
+    if not team.roster:
+        lines.append(
+            "WARNING: roster came back empty — the read path returned no players."
+        )
+    return command.success_result("\n".join(lines))
+
+
 class Roster(command.CliCommand):
     """fantasy-manager roster
     Usage:
+        fantasy-manager roster read --league=<league_name>
         fantasy-manager roster add --league=<league_name> --add=<player_id> [--start=<start_date>]
         fantasy-manager roster add claim --league=<league_name> --add=<player_id> [--faab=<faab] [--start=<start_date>]
         fantasy-manager roster drop --league=<league_name> --drop=<player_id> [--start=<start_date>]
@@ -129,6 +150,9 @@ class Roster(command.CliCommand):
             platform=league.platform, league=league, config=fc
         )
         team = client.get_team()
+
+        if args["read"]:
+            return read_roster(team)
 
         service = RosterService(config=fc, league=league, team=team, client=client)
         controller = RosterController(service=service)

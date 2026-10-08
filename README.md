@@ -105,12 +105,11 @@ re-harvest them.
 
 # Examples
 
-See scripts under the scripts directory. For example, read a team's roster
-end-to-end (a live smoke test of the read path) with:
+Read a team's roster end-to-end (also a quick live check of the read path) with:
 
 ```
-./scripts/read_roster.sh kkupfl               # or: pa
-# equivalent to: uv run python scripts/read_roster.py kkupfl
+fmgr roster read --league kkupfl              # or: --league pa
+# convenience shim, same thing: ./scripts/read_roster.sh kkupfl
 ```
 
 ## Misc
