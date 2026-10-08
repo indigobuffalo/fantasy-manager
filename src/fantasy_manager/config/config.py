@@ -57,18 +57,36 @@ class FantasyConfig:
     DEFAULT_PLAYER_RANK = os.getenv("DEFAULT_PLAYER_RANK", 70)  # used for streamers
     SEASON = os.getenv("FANTASY_SEASON", "2026_2027")
     YAHOO_CREDS_FILE = os.getenv("YAHOO_CREDS_FILE")
-    YAHOO_COOKIE = os.getenv("YAHOO_COOKIE")  # browser-harvested; used by the cookie write transport
-    YAHOO_CRUMB = os.getenv("YAHOO_CRUMB")  # browser-harvested; used by the cookie write transport
+    YAHOO_COOKIE = os.getenv(
+        "YAHOO_COOKIE"
+    )  # browser-harvested; used by the cookie write transport
+    YAHOO_CRUMB = os.getenv(
+        "YAHOO_CRUMB"
+    )  # browser-harvested; used by the cookie write transport
     # When set, skip the startup OAuth read probe and route reads straight to the
     # cookie transport. Useful when OAuth reads are known-gated (Yahoo hasn't
     # granted the app Fantasy Sports read scope) so there's no point probing.
-    YAHOO_FORCE_COOKIE_READS = os.getenv("YAHOO_FORCE_COOKIE_READS", "").strip().lower() in (
+    YAHOO_FORCE_COOKIE_READS = os.getenv(
+        "YAHOO_FORCE_COOKIE_READS", ""
+    ).strip().lower() in (
         "1",
         "true",
         "yes",
         "on",
     )
     YEAR = os.getenv("YEAR", "2026")
+
+    # --- News alerts (optional; feature not yet wired up) ---
+    # Bluesky source + auth for the news monitor (see issues #31, #35).
+    BLUESKY_HANDLE = os.getenv("BLUESKY_HANDLE")
+    BLUESKY_APP_PASSWORD = os.getenv("BLUESKY_APP_PASSWORD")
+    BLUESKY_LIST_URI = os.getenv("BLUESKY_LIST_URI")
+    # SMTP transport + recipient for emailed news alerts.
+    SMTP_HOST = os.getenv("SMTP_HOST")
+    SMTP_PORT = int(os.getenv("SMTP_PORT", 587))  # standard submission port
+    SMTP_USERNAME = os.getenv("SMTP_USERNAME")
+    SMTP_PASSWORD = os.getenv("SMTP_PASSWORD")
+    NEWS_ALERT_EMAIL = os.getenv("NEWS_ALERT_EMAIL")
 
     @classmethod
     def get_platform_url(cls, platform: Platform, key: PlatformUrl) -> str:
