@@ -1,6 +1,34 @@
 from hamcrest import assert_that, equal_to, contains_inanyorder
 
-from fantasy_manager.cli.player.availability import _PLAYER_RE, _ROW_RE, ownership
+from fantasy_manager.cli.player.availability import (
+    _PLAYER_RE,
+    _ROW_RE,
+    league_label,
+    ownership,
+    resolve_league_ids,
+)
+from fantasy_manager.config.config import FantasyConfig
+
+
+def test_league_label_uses_configured_name_when_known():
+    assert_that(league_label("121128"), equal_to("T1 Sweden (121128)"))
+
+
+def test_league_label_falls_back_to_id_when_unknown():
+    assert_that(league_label("999999"), equal_to("League 999999"))
+
+
+def test_resolve_league_ids_falls_back_to_configured_default():
+    expected = [
+        lid.strip()
+        for lid in FantasyConfig.DEFAULT_AVAILABILITY_LEAGUES.split(",")
+        if lid.strip()
+    ]
+    assert_that(resolve_league_ids(None), equal_to(expected))
+
+
+def test_resolve_league_ids_splits_and_strips_explicit_arg():
+    assert_that(resolve_league_ids(" 1, 2 ,3 "), equal_to(["1", "2", "3"]))
 
 
 def _row(inner: str) -> str:

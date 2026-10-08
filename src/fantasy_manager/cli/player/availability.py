@@ -34,9 +34,6 @@ from fantasy_manager.model.enums.platform_url import PlatformUrl
 # stderr logger the CLI framing uses.
 STDOUT = logging.getLogger("stdout")
 
-DEFAULT_LEAGUES = "121128,121129,121131"
-DEFAULT_WORKERS = 8
-
 # A player link inside a result row: <a href="/nhl/players/6743" ...>Connor McDavid</a>
 _PLAYER_RE = re.compile(r"/nhl/players/(\d+)[^>]*>([^<]{2,40})</a>")
 # The owner cell links to the fantasy team page: /hockey/<leagueId>/<teamId>">Team Name</a>
@@ -44,6 +41,26 @@ _TEAM_RE = re.compile(r"/hockey/\d+/(\d+)\"[^>]*>([^<]{1,60})</a>")
 # Free-agent / waiver tokens shown in the owner cell when unrostered.
 _FAW_RE = re.compile(r">\s*(FA|W)\b")
 _ROW_RE = re.compile(r"<tr[^>]*>.*?</tr>", re.S)
+
+
+def resolve_league_ids(leagues_arg: str | None) -> list[str]:
+    """Parse the ``--leagues`` CSV into IDs, falling back to the configured default.
+
+    When ``--leagues`` isn't given, use ``DEFAULT_AVAILABILITY_LEAGUES`` from
+    config (env-overridable) rather than a value hard-coded in the usage string.
+    """
+    raw = leagues_arg or FantasyConfig.DEFAULT_AVAILABILITY_LEAGUES
+    return [lid.strip() for lid in raw.split(",") if lid.strip()]
+
+
+def league_label(league_id: str) -> str:
+    """Human label for a league header: ``Name (id)`` when known, else ``League id``.
+
+    Names come from config (the ``/playersearch`` response doesn't carry them),
+    so an ID passed via ``--leagues`` that isn't in the map falls back to the ID.
+    """
+    name = FantasyConfig.AVAILABILITY_LEAGUE_NAMES.get(league_id)
+    return f"{name} ({league_id})" if name else f"League {league_id}"
 
 
 def ownership(row: str) -> str:
@@ -91,13 +108,14 @@ class Availability(command.CliCommand):
         fantasy-manager player availability [--leagues=<league_ids>] [--workers=<workers>] <player>...
 
     Options:
-        --leagues=<league_ids>  Comma-separated Yahoo league IDs [default: 121128,121129,121131].
+        --leagues=<league_ids>  Comma-separated Yahoo league IDs. Defaults to the
+                                configured DEFAULT_AVAILABILITY_LEAGUES.
         --workers=<workers>     Max concurrent league searches [default: 8]."""
 
     def run(self, args: dict[str, Any]) -> command.CommandResult:
         """Report ownership of the given player(s) across the given leagues."""
         players = args["<player>"]
-        league_ids = [lid.strip() for lid in args["--leagues"].split(",") if lid.strip()]
+        league_ids = resolve_league_ids(args["--leagues"])
         workers = int(args["--workers"])
 
         fc = FantasyConfig()
@@ -140,7 +158,7 @@ class Availability(command.CliCommand):
 
         unreadable = False
         for league_id in league_ids:
-            header = f"League {league_id}  ({base}/{league_id}/players)"
+            header = f"{league_label(league_id)}  ({base}/{league_id}/players)"
             STDOUT.info(f"\n{header}\n" + "=" * len(header))
 
             for qi, query in enumerate(players):

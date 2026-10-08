@@ -55,6 +55,32 @@ class FantasyConfig:
     ADD_PLAYER_TIMEOUT_SECONDS = os.getenv("TIMEOUT_SECONDS", 15)
     ADD_PLAYER_POLL_SECONDS = os.getenv("POLL_SECONDS", 0.1)
     DEFAULT_PLAYER_RANK = os.getenv("DEFAULT_PLAYER_RANK", 70)  # used for streamers
+    # Yahoo league ID -> short label for the eleven KKUPFL competitive leagues
+    # the user follows (T1 Sweden, the three T2 divisions, the seven T3
+    # divisions), in the canonical order/labels used by the kkupfl-roster-status
+    # skill. All are publicly viewable, so the cookie transport can read them
+    # even though the user only belongs to T2 San Jose (OAuth returns
+    # additional_authorization_required for the rest). The labels are baked in
+    # because they aren't present in the /playersearch response we parse.
+    AVAILABILITY_LEAGUE_NAMES = {
+        "121128": "T1 Sweden",
+        "121129": "T2 Ottawa",
+        "121131": "T2 Pittsburgh",
+        "121147": "T2 San Jose",
+        "121149": "T3 Borås",
+        "121150": "T3 Frölunda",
+        "121152": "T3 Jokerit",
+        "121159": "T3 Ljungby",
+        "121161": "T3 Småland",
+        "121166": "T3 Södertälje",
+        "121167": "T3 Vetlanda",
+    }
+    # Default league set for `fmgr player availability` — derived from the map
+    # above so IDs live in one place. Override per-env via this var or per-call
+    # via `--leagues=...`.
+    DEFAULT_AVAILABILITY_LEAGUES = os.getenv(
+        "DEFAULT_AVAILABILITY_LEAGUES", ",".join(AVAILABILITY_LEAGUE_NAMES)
+    )
     SEASON = os.getenv("FANTASY_SEASON", "2026_2027")
     YAHOO_CREDS_FILE = os.getenv("YAHOO_CREDS_FILE")
     YAHOO_COOKIE = os.getenv("YAHOO_COOKIE")  # browser-harvested; used by the cookie write transport
