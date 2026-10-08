@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Any, Optional
 import yaml
 
-from dotenv import load_dotenv
+from dotenv import find_dotenv, load_dotenv
 
 from fantasy_manager.exceptions import InvalidLeagueError
 from fantasy_manager.model.league import League
@@ -13,7 +13,12 @@ from fantasy_manager.model.enums.platform_url import PlatformUrl
 from fantasy_manager.model.lineup import Lineup
 
 
-load_dotenv()
+# Resolve .env independently of how the CLI is invoked: prefer the nearest .env
+# walking up from the current working directory (so running inside a worktree
+# uses that worktree's .env), then fall back to the anchored canonical location.
+load_dotenv(
+    find_dotenv(usecwd=True) or Path.home() / ".config" / "fantasy-manager" / ".env"
+)
 CONFIG_DIR = Path(__file__).parent.absolute()
 
 

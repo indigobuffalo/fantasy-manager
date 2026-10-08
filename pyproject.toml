@@ -15,6 +15,10 @@ dependencies = [
     "yahoo-oauth>=2.1.1",
 ]
 
+[project.scripts]
+fantasy-manager = "fantasy_manager.cli:main"
+fmgr = "fantasy_manager.cli:main"
+
 [dependency-groups]
 dev = [
     "black>=25.1.0",
