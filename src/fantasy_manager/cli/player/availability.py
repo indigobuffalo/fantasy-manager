@@ -87,8 +87,12 @@ def search_league(
     resp.raise_for_status()
     text = resp.text
 
-    # A dead cookie redirects to a logged-out page with no player rows.
-    if "login" in resp.url or "/nhl/players/" not in text:
+    # A dead/logged-out cookie bounces to the Yahoo login page; a live search —
+    # even one that matches zero players — always lands back on this league's
+    # playersearch page with the search form present. Key off those (not the
+    # presence of player rows) so a simple typo returns "no matches" rather than
+    # being misreported as a stale cookie.
+    if "login" in resp.url or f"/hockey/{league_id}/" not in resp.url or 'name="search"' not in text:
         return False, []
 
     results = []
