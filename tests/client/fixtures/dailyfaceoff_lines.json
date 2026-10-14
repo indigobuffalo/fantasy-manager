@@ -1,0 +1,43 @@
+{
+  "source": "dailyfaceoff.com",
+  "updated_at": "2026-03-02 16:34:05 UTC",
+  "teams": {
+    "ottawa-senators": {
+      "forwards": [
+        ["TIM STÜTZLE", "JOSH NORRIS", "CLAUDE GIROUX"],
+        ["BRADY TKACHUK", "SHANE PINTO", "DRAKE BATHERSON"]
+      ],
+      "defense": [
+        ["JAKE SANDERSON", "ARTEM ZUB"],
+        ["THOMAS CHABOT", "NICK JENSEN"]
+      ],
+      "goalies": [["LINUS ULLMARK"], ["ANTON FORSBERG"]],
+      "pp1": ["TIM STÜTZLE", "BRADY TKACHUK", "CLAUDE GIROUX", "DRAKE BATHERSON", "JAKE SANDERSON"],
+      "pp2": ["SHANE PINTO", "JOSH NORRIS", "RIDLY GREIG"]
+    },
+    "buffalo-sabres": {
+      "forwards": [["JASON ZUCKER", "TAGE THOMPSON", "ALEX TUCH"]],
+      "defense": [["RASMUS DAHLIN", "MATTIAS SAMUELSSON"]],
+      "goalies": [["UKKO-PEKKA LUUKKONEN"], ["DEVON LEVI"]]
+    },
+    "springfield-isotopes": {
+      "forwards": [],
+      "defense": [],
+      "goalies": []
+    }
+  },
+  "injuries": {
+    "ottawa-senators": [
+      {"name": "JOSH NORRIS", "pos": "C", "status": "Day-To-Day", "desc": "Upper body"},
+      {"name": "ARTEM ZUB", "pos": "D", "status": "Out", "desc": "Lower body"}
+    ],
+    "buffalo-sabres": [
+      {"name": "JORDAN GREENWAY", "pos": "LW", "status": "Injured Reserve", "desc": ""}
+    ]
+  },
+  "injuries_meta": {
+    "source": "espn.com",
+    "status": "fresh",
+    "updated_at": "2026-03-02 16:34:05 UTC"
+  }
+}
