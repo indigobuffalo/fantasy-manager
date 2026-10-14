@@ -1,10 +1,12 @@
 """DailyFaceoff line-combinations source client.
 
 Pulls structured NHL line data **without scraping** in v1. Instead of hitting
-DailyFaceoff's HTML directly, this reads the public, auto-updated JSON mirror
-maintained by the ``hg913488/nhl-line-combos`` project, which scrapes
-DailyFaceoff (lines + PP units) and ESPN (injuries) once a day and commits the
-result to ``data/lines.json``.
+DailyFaceoff's HTML directly, this reads the public, auto-updated JSON feed
+published by the ``hg913488/nhl-line-combos`` project. That project scrapes
+DailyFaceoff (lines + PP units) and ESPN (injuries) several times a day and
+pushes the result to ``data/lines.json`` in its companion **app** repo,
+``hg913488/nhl-line-combos-app`` — note the live feed lives in the ``-app``
+repo; the scraper repo's own ``data/lines.json`` is a stale leftover.
 
 Feed shape (current scraper output)::
 
@@ -73,10 +75,10 @@ logger = logging.getLogger(__name__)
 
 SOURCE = "dailyfaceoff.com"
 
-# Public auto-updated JSON mirror of DailyFaceoff lines (+ ESPN injuries).
-FEED_URL = (
-    "https://raw.githubusercontent.com/hg913488/nhl-line-combos/main/data/lines.json"
-)
+# Public auto-updated JSON feed of DailyFaceoff lines (+ ESPN injuries). This is
+# the companion ``-app`` repo, which receives the scraper's pushed output; the
+# scraper repo (``nhl-line-combos``) keeps only a stale copy.
+FEED_URL = "https://raw.githubusercontent.com/hg913488/nhl-line-combos-app/main/data/lines.json"
 
 # The mirror refreshes roughly once a day; anything older than this is treated
 # as stale (logged, but still returned — see module docstring).
