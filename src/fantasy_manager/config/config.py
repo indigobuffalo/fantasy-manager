@@ -81,6 +81,10 @@ class FantasyConfig:
     DEFAULT_AVAILABILITY_LEAGUES = os.getenv(
         "DEFAULT_AVAILABILITY_LEAGUES", ",".join(AVAILABILITY_LEAGUE_NAMES)
     )
+    # Max concurrent league searches for `fmgr player availability`. Kept here
+    # (not hard-coded in the usage string) so the default lives in one place,
+    # alongside DEFAULT_AVAILABILITY_LEAGUES.
+    DEFAULT_AVAILABILITY_WORKERS = os.getenv("DEFAULT_AVAILABILITY_WORKERS", 8)
     SEASON = os.getenv("FANTASY_SEASON", "2026_2027")
     YAHOO_CREDS_FILE = os.getenv("YAHOO_CREDS_FILE")
     YAHOO_COOKIE = os.getenv("YAHOO_COOKIE")  # browser-harvested; used by the cookie write transport

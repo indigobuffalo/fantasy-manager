@@ -36,6 +36,28 @@ def not_permitted_result(exception: Exception, message: str) -> CommandResult:
     )
 
 
+def run_subcommand(
+    action: "CliCommand", argv: list[str], label: str
+) -> CommandResult:
+    """Parse ``argv`` against a sub-action's usage and run it.
+
+    Namespace commands (e.g. ``player``) dispatch to a sub-action by re-parsing the
+    remaining argv against that action's own usage. ``docopt.DocoptExit`` is a
+    ``SystemExit``, so the top-level runner (which only catches ``Exception``) would
+    let it escape — centralize the catch here so every namespace surfaces a clean
+    per-action usage message instead. ``label`` names the action in that message
+    (e.g. ``"player availability"``).
+    """
+    try:
+        action_args = action.parse_args(argv)
+    except docopt.DocoptExit as err:
+        return error_result(
+            err,
+            f"Error: invalid or missing arguments for '{label}'.\n{err.usage}",
+        )
+    return action.run(action_args)
+
+
 class CliCommand(ABC):
     """Abstract base class for CLI commands
     Allows for some centralization of common logic"""

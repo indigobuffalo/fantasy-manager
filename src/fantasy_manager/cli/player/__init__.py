@@ -54,14 +54,9 @@ class Player(command.CliCommand):
 
         action = action_cls()
         action_argv = ["player", action_name] + args["<args>"]
-        try:
-            action_args = action.parse_args(action_argv)
-        except docopt.DocoptExit as err:
-            # ``DocoptExit`` is a ``SystemExit``, so the top-level ``run`` wrapper
-            # (which only catches ``Exception``) would let it escape — handle it
-            # here and surface a clean per-action usage message instead.
-            return command.error_result(
-                err,
-                f"Error: invalid or missing arguments for 'player {action_name}'.\n{err.usage}",
-            )
-        return action.run(action_args)
+        # ``run_subcommand`` parses the remaining argv against the sub-action's
+        # usage and runs it, turning a docopt usage failure into a clean error
+        # (shared so every namespace command handles it the same way).
+        return command.run_subcommand(
+            action, action_argv, f"player {action_name}"
+        )

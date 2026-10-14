@@ -1,13 +1,17 @@
+import pytest
 from hamcrest import assert_that, equal_to, contains_inanyorder
 
 from fantasy_manager.cli.player.availability import (
     _PLAYER_RE,
     _ROW_RE,
+    Availability,
     league_label,
     ownership,
     resolve_league_ids,
+    resolve_workers,
 )
 from fantasy_manager.config.config import FantasyConfig
+from fantasy_manager.exceptions import InputError
 
 
 def test_league_label_uses_configured_name_when_known():
@@ -29,6 +33,35 @@ def test_resolve_league_ids_falls_back_to_configured_default():
 
 def test_resolve_league_ids_splits_and_strips_explicit_arg():
     assert_that(resolve_league_ids(" 1, 2 ,3 "), equal_to(["1", "2", "3"]))
+
+
+def test_resolve_workers_falls_back_to_configured_default():
+    assert_that(
+        resolve_workers(None), equal_to(int(FantasyConfig.DEFAULT_AVAILABILITY_WORKERS))
+    )
+
+
+def test_resolve_workers_parses_explicit_value():
+    assert_that(resolve_workers("3"), equal_to(3))
+
+
+def test_resolve_workers_rejects_non_numeric():
+    with pytest.raises(InputError):
+        resolve_workers("abc")
+
+
+def test_resolve_workers_rejects_non_positive():
+    with pytest.raises(InputError):
+        resolve_workers("0")
+
+
+def test_run_rejects_empty_leagues():
+    # An all-blank --leagues resolves to zero leagues; that's a usage error, not
+    # a silent success that searches nothing.
+    with pytest.raises(InputError):
+        Availability().run(
+            {"<player>": ["McDavid"], "--leagues": " , ", "--workers": None}
+        )
 
 
 def _row(inner: str) -> str:

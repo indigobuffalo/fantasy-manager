@@ -25,7 +25,7 @@ import requests
 
 from fantasy_manager.cli import command
 from fantasy_manager.config.config import FantasyConfig
-from fantasy_manager.exceptions import FantasyAuthError
+from fantasy_manager.exceptions import FantasyAuthError, InputError
 from fantasy_manager.model.enums.platform import Platform
 from fantasy_manager.model.enums.platform_url import PlatformUrl
 
@@ -51,6 +51,23 @@ def resolve_league_ids(leagues_arg: str | None) -> list[str]:
     """
     raw = leagues_arg or FantasyConfig.DEFAULT_AVAILABILITY_LEAGUES
     return [lid.strip() for lid in raw.split(",") if lid.strip()]
+
+
+def resolve_workers(workers_arg: str | None) -> int:
+    """Parse ``--workers`` into a positive int, falling back to the configured default.
+
+    Like ``--leagues``, the default lives in config (``DEFAULT_AVAILABILITY_WORKERS``)
+    rather than the usage string. A non-numeric or non-positive value is a user error,
+    surfaced as a clean ``InputError`` instead of a raw ``ValueError`` from ``int()``.
+    """
+    raw = workers_arg if workers_arg is not None else FantasyConfig.DEFAULT_AVAILABILITY_WORKERS
+    try:
+        workers = int(raw)
+    except (TypeError, ValueError):
+        raise InputError(f"--workers must be an integer, got '{raw}'.")
+    if workers < 1:
+        raise InputError(f"--workers must be at least 1, got {workers}.")
+    return workers
 
 
 def league_label(league_id: str) -> str:
@@ -114,13 +131,19 @@ class Availability(command.CliCommand):
     Options:
         --leagues=<league_ids>  Comma-separated Yahoo league IDs. Defaults to the
                                 configured DEFAULT_AVAILABILITY_LEAGUES.
-        --workers=<workers>     Max concurrent league searches [default: 8]."""
+        --workers=<workers>     Max concurrent league searches. Defaults to the
+                                configured DEFAULT_AVAILABILITY_WORKERS."""
 
     def run(self, args: dict[str, Any]) -> command.CommandResult:
         """Report ownership of the given player(s) across the given leagues."""
         players = args["<player>"]
         league_ids = resolve_league_ids(args["--leagues"])
-        workers = int(args["--workers"])
+        if not league_ids:
+            raise InputError(
+                "No leagues to search — pass --leagues or configure "
+                "DEFAULT_AVAILABILITY_LEAGUES."
+            )
+        workers = resolve_workers(args["--workers"])
 
         fc = FantasyConfig()
         if not fc.YAHOO_COOKIE:
