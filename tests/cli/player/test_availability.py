@@ -7,11 +7,13 @@ from fantasy_manager.cli.player.availability import (
     Availability,
     league_label,
     ownership,
+    ownership_label,
     resolve_league_ids,
     resolve_workers,
 )
 from fantasy_manager.config.config import FantasyConfig
 from fantasy_manager.exceptions import InputError
+from fantasy_manager.model.enums.availability_status import AvailabilityStatus
 
 
 def test_league_label_uses_configured_name_when_known():
@@ -73,22 +75,37 @@ def test_ownership_rostered_unescapes_team_name():
         '<td><a href="/nhl/players/6743">Connor McDavid</a></td>'
         '<td><a href="/hockey/121128/4">North Vancouver &amp; Canucks</a></td>'
     )
-    assert_that(ownership(row), equal_to("ROSTERED — North Vancouver & Canucks"))
+    assert_that(
+        ownership(row),
+        equal_to((AvailabilityStatus.ROSTERED, "North Vancouver & Canucks")),
+    )
 
 
 def test_ownership_free_agent():
     row = _row('<td><a href="/nhl/players/1">A B</a></td><td> FA </td>')
-    assert_that(ownership(row), equal_to("FREE AGENT"))
+    assert_that(ownership(row), equal_to((AvailabilityStatus.FREE_AGENT, None)))
 
 
 def test_ownership_waivers():
     row = _row('<td><a href="/nhl/players/1">A B</a></td><td> W </td>')
-    assert_that(ownership(row), equal_to("WAIVERS"))
+    assert_that(ownership(row), equal_to((AvailabilityStatus.WAIVERS, None)))
 
 
 def test_ownership_unknown_when_no_markers():
     row = _row('<td><a href="/nhl/players/1">A B</a></td><td></td>')
-    assert_that(ownership(row), equal_to("unknown"))
+    assert_that(ownership(row), equal_to((AvailabilityStatus.UNKNOWN, None)))
+
+
+def test_ownership_label_renders_text_for_each_status():
+    assert_that(
+        ownership_label(AvailabilityStatus.ROSTERED, "Team X"),
+        equal_to("ROSTERED — Team X"),
+    )
+    assert_that(
+        ownership_label(AvailabilityStatus.FREE_AGENT, None), equal_to("FREE AGENT")
+    )
+    assert_that(ownership_label(AvailabilityStatus.WAIVERS, None), equal_to("WAIVERS"))
+    assert_that(ownership_label(AvailabilityStatus.UNKNOWN, None), equal_to("unknown"))
 
 
 def test_player_regex_extracts_pid_and_name():
@@ -100,11 +117,17 @@ def test_player_regex_extracts_pid_and_name():
 
 def test_rows_split_into_individual_entries():
     page = (
-        '<table>'
+        "<table>"
         '<tr><a href="/nhl/players/1">One Player</a> FA </tr>'
         '<tr><a href="/nhl/players/2">Two Player</a><a href="/hockey/9/3">Team</a></tr>'
-        '</table>'
+        "</table>"
     )
     rows = _ROW_RE.findall(page)
     owners = [ownership(r) for r in rows]
-    assert_that(owners, contains_inanyorder("FREE AGENT", "ROSTERED — Team"))
+    assert_that(
+        owners,
+        contains_inanyorder(
+            (AvailabilityStatus.FREE_AGENT, None),
+            (AvailabilityStatus.ROSTERED, "Team"),
+        ),
+    )

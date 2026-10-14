@@ -1,44 +1,55 @@
 """Abstract base class for CLI commands
 Allows for some centralization of common logic"""
+
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
 import traceback
-from typing import NamedTuple, Optional
+from typing import Any, NamedTuple, Optional
 
 import docopt
 
 
 class CommandResult(NamedTuple):
-    """Results of a Command run"""
+    """Results of a Command run.
+
+    ``data`` is an optional machine-readable payload (a plain dict/list) that the
+    top-level runner serializes when ``--output json|yaml`` is requested. It's
+    independent of ``message`` (the human-readable, stderr summary) and may be
+    present on both success and error results, so structured consumers still get
+    the partial payload when something goes wrong.
+    """
 
     return_code: int
     message: str
     traceback: Optional[str] = None
+    data: Optional[Any] = None
 
 
-def success_result(message: str) -> CommandResult:
+def success_result(message: str, data: Optional[Any] = None) -> CommandResult:
     """Returns a successful (return code 0) Command Result"""
-    return CommandResult(return_code=0, message=message)
+    return CommandResult(return_code=0, message=message, data=data)
 
 
-def error_result(exception: Exception, message: str) -> CommandResult:
+def error_result(
+    exception: Exception, message: str, data: Optional[Any] = None
+) -> CommandResult:
     """Returns a failed (return code 1) Command Result due to a 'hard' error"""
     return CommandResult(
-        return_code=1, message=message, traceback=traceback.format_exc()
+        return_code=1, message=message, traceback=traceback.format_exc(), data=data
     )
 
 
-def not_permitted_result(exception: Exception, message: str) -> CommandResult:
+def not_permitted_result(
+    exception: Exception, message: str, data: Optional[Any] = None
+) -> CommandResult:
     """Returns a faield (return code 2) Command Result due to a business-logic driven error"""
     return CommandResult(
-        return_code=2, message=message, traceback=traceback.format_exc()
+        return_code=2, message=message, traceback=traceback.format_exc(), data=data
     )
 
 
-def run_subcommand(
-    action: "CliCommand", argv: list[str], label: str
-) -> CommandResult:
+def run_subcommand(action: "CliCommand", argv: list[str], label: str) -> CommandResult:
     """Parse ``argv`` against a sub-action's usage and run it.
 
     Namespace commands (e.g. ``player``) dispatch to a sub-action by re-parsing the
