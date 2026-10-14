@@ -22,8 +22,14 @@ from fantasy_manager.exceptions import FantasyManagerError, FantasyManagerSoftEr
 import docopt
 
 from fantasy_manager.util.log import log_line_break
+from fantasy_manager.util.output import OutputFormat, resolve_output_format, serialize
 
 CLI_DIRECTORY = Path(__file__).parent
+
+# Dedicated stdout logger (plain ``%(message)s``); structured ``--output``
+# payloads go here so they stay clean for ``jq``/``yq``, while the CLI framing
+# and diagnostics below use the stderr ``logger``.
+stdout = logging.getLogger("stdout")
 
 # A command is either a single module (e.g. roster.py) or a package whose
 # __init__.py defines the command (e.g. player/, a namespace with sub-actions).
@@ -76,7 +82,11 @@ def main():
         )
         return 1
 
+    # Resolved once here (top level) so the serializer choice is independent of
+    # which command — or namespaced sub-action — parses the remaining arguments.
+    output_format = OutputFormat.TEXT
     try:
+        output_format = resolve_output_format(argv)
         result = command.run(command_args)
     except FantasyManagerSoftError as err:
         result = not_permitted_result(exception=err, message=str(err))
@@ -86,6 +96,11 @@ def main():
     except Exception as err:
         result = error_result(exception=err, message="An unexpected error occurred")
         logger.debug(result.traceback)
+
+    # Machine-readable payload to stdout; the framing/summary below stays on
+    # stderr so the two streams don't mix.
+    if output_format.is_structured and result.data is not None:
+        stdout.info(serialize(result.data, output_format))
 
     log_line_break(logger=logger, spacer="=", lines=2)
     logger.info(result.message)
