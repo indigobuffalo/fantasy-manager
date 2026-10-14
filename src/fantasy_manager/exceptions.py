@@ -124,3 +124,18 @@ class InvalidLeagueError(FantasyManagerError):
     def __init__(self, league_id: str):
         self.league_id = league_id
         super().__init__(f"Unknown league: {self.league_id}")
+
+
+class NewsSourceUnavailableError(FantasyManagerError):
+    """A news source feed could not be fetched or parsed.
+
+    Raised when a source client cannot reach its feed or the payload is
+    unusable (network error, non-200, malformed JSON). Staleness is *not*
+    an error — a stale-but-parseable feed is returned with a warning so
+    callers can still act on last-known data.
+    """
+
+    def __init__(self, source: str, message: str = "News source unavailable"):
+        self.source = source
+        self.message = message
+        super().__init__(f"[{source}] {message}")
