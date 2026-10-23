@@ -8,7 +8,6 @@ from fantasy_manager.exceptions import InputError
 from fantasy_manager.util.output import (
     OutputFormat,
     parse_output_format,
-    resolve_output_format,
     serialize,
 )
 
@@ -39,26 +38,6 @@ def test_output_format_is_structured():
     assert_that(OutputFormat.TEXT.is_structured, equal_to(False))
     assert_that(OutputFormat.JSON.is_structured, equal_to(True))
     assert_that(OutputFormat.YAML.is_structured, equal_to(True))
-
-
-@pytest.mark.parametrize(
-    "argv, expected",
-    [
-        (["availability", "McDavid"], OutputFormat.TEXT),
-        (["availability", "--output", "json", "McDavid"], OutputFormat.JSON),
-        (["availability", "--output=yaml", "McDavid"], OutputFormat.YAML),
-        (["availability", "-o", "json", "McDavid"], OutputFormat.JSON),
-        (["availability", "-o=yaml", "McDavid"], OutputFormat.YAML),
-        (["availability", "-ojson", "McDavid"], OutputFormat.JSON),
-    ],
-)
-def test_resolve_output_format_recognizes_each_spelling(argv, expected):
-    assert_that(resolve_output_format(argv), equal_to(expected))
-
-
-def test_resolve_output_format_rejects_unknown_value():
-    with pytest.raises(InputError):
-        resolve_output_format(["availability", "--output", "csv", "McDavid"])
 
 
 def test_serialize_json_round_trips():

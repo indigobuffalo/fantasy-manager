@@ -1,6 +1,7 @@
 import pytest
 from hamcrest import assert_that, equal_to, contains_inanyorder
 
+import fantasy_manager.cli.player.availability as availability_module
 from fantasy_manager.cli.player.availability import (
     _PLAYER_RE,
     _ROW_RE,
@@ -14,6 +15,7 @@ from fantasy_manager.cli.player.availability import (
 from fantasy_manager.config.config import FantasyConfig
 from fantasy_manager.exceptions import InputError
 from fantasy_manager.model.enums.availability_status import AvailabilityStatus
+from fantasy_manager.util.output import OutputFormat
 
 
 def test_league_label_uses_configured_name_when_known():
@@ -171,3 +173,74 @@ def test_rows_split_into_individual_entries():
             (AvailabilityStatus.ROSTERED, "Team"),
         ),
     )
+
+
+def _run_with_fake_search(monkeypatch, argv, payload):
+    """Drive ``Availability`` end-to-end with the network search stubbed out.
+
+    ``argv`` is parsed by the command's own docopt usage (so option spellings
+    are exercised exactly as the real CLI would see them), and ``search_league``
+    is replaced with a canned ``(ok, payload)`` so ``run`` does no I/O.
+    """
+    monkeypatch.setattr(FantasyConfig, "YAHOO_COOKIE", "fake-cookie")
+    monkeypatch.setattr(
+        availability_module,
+        "search_league",
+        lambda session, base, league_id, query: (True, payload),
+    )
+    command = Availability()
+    args = command.parse_args(["player", "availability"] + argv)
+    return command.run(args)
+
+
+def test_run_threads_output_format_and_data_for_json(monkeypatch):
+    result = _run_with_fake_search(
+        monkeypatch,
+        ["--leagues=9", "--output", "json", "McDavid"],
+        [("6743", "Connor McDavid", AvailabilityStatus.FREE_AGENT, None)],
+    )
+    assert_that(result.return_code, equal_to(0))
+    assert_that(result.output_format, equal_to(OutputFormat.JSON))
+    assert_that(
+        result.data,
+        equal_to(
+            {
+                "leagues": [
+                    {
+                        "id": "9",
+                        "name": None,
+                        "players": [
+                            {
+                                "query": "McDavid",
+                                "name": "Connor McDavid",
+                                "pid": "6743",
+                                "status": "FREE_AGENT",
+                                "owner": None,
+                            }
+                        ],
+                    }
+                ]
+            }
+        ),
+    )
+
+
+def test_run_honors_abbreviated_output_flag(monkeypatch):
+    # docopt accepts the unambiguous long-option prefix ``--out`` for
+    # ``--output``; the resolved format must still reach the result (a prior
+    # top-level argv scan missed ``--out`` and silently produced no output).
+    result = _run_with_fake_search(
+        monkeypatch,
+        ["--leagues=9", "--out", "json", "McDavid"],
+        [("6743", "Connor McDavid", AvailabilityStatus.FREE_AGENT, None)],
+    )
+    assert_that(result.output_format, equal_to(OutputFormat.JSON))
+
+
+def test_run_defaults_to_text_format(monkeypatch):
+    result = _run_with_fake_search(
+        monkeypatch,
+        ["--leagues=9", "McDavid"],
+        [("6743", "Connor McDavid", AvailabilityStatus.FREE_AGENT, None)],
+    )
+    assert_that(result.output_format, equal_to(OutputFormat.TEXT))

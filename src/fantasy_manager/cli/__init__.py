@@ -22,14 +22,9 @@ from fantasy_manager.exceptions import FantasyManagerError, FantasyManagerSoftEr
 import docopt
 
 from fantasy_manager.util.log import log_line_break
-from fantasy_manager.util.output import OutputFormat, resolve_output_format, serialize
+from fantasy_manager.util.output import serialize
 
 CLI_DIRECTORY = Path(__file__).parent
-
-# Dedicated stdout logger (plain ``%(message)s``); structured ``--output``
-# payloads go here so they stay clean for ``jq``/``yq``, while the CLI framing
-# and diagnostics below use the stderr ``logger``.
-stdout = logging.getLogger("stdout")
 
 # A command is either a single module (e.g. roster.py) or a package whose
 # __init__.py defines the command (e.g. player/, a namespace with sub-actions).
@@ -82,11 +77,7 @@ def main():
         )
         return 1
 
-    # Resolved once here (top level) so the serializer choice is independent of
-    # which command — or namespaced sub-action — parses the remaining arguments.
-    output_format = OutputFormat.TEXT
     try:
-        output_format = resolve_output_format(argv)
         result = command.run(command_args)
     except FantasyManagerSoftError as err:
         result = not_permitted_result(exception=err, message=str(err))
@@ -98,9 +89,12 @@ def main():
         logger.debug(result.traceback)
 
     # Machine-readable payload to stdout; the framing/summary below stays on
-    # stderr so the two streams don't mix.
-    if output_format.is_structured and result.data is not None:
-        stdout.info(serialize(result.data, output_format))
+    # stderr so the two streams don't mix. The format is whatever the command
+    # parsed from ``--output`` (single source of truth), and we write straight to
+    # stdout rather than through a logger so the payload can't be swallowed by a
+    # raised LOG_LEVEL (the whole point is a clean, verbosity-independent stream).
+    if result.output_format.is_structured and result.data is not None:
+        print(serialize(result.data, result.output_format), file=sys.stdout)
 
     log_line_break(logger=logger, spacer="=", lines=2)
     logger.info(result.message)

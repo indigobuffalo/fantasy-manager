@@ -9,6 +9,8 @@ from typing import Any, NamedTuple, Optional
 
 import docopt
 
+from fantasy_manager.util.output import OutputFormat
+
 
 class CommandResult(NamedTuple):
     """Results of a Command run.
@@ -18,34 +20,61 @@ class CommandResult(NamedTuple):
     independent of ``message`` (the human-readable, stderr summary) and may be
     present on both success and error results, so structured consumers still get
     the partial payload when something goes wrong.
+
+    ``output_format`` is the format the command parsed from its own ``--output``
+    option. Carrying it on the result (rather than re-deriving it at the top
+    level) keeps a single source of truth: the command's docopt parse is the
+    only place ``--output`` is interpreted, so the runner can't disagree with
+    the command about which format was requested.
     """
 
     return_code: int
     message: str
     traceback: Optional[str] = None
     data: Optional[Any] = None
+    output_format: OutputFormat = OutputFormat.TEXT
 
 
-def success_result(message: str, data: Optional[Any] = None) -> CommandResult:
+def success_result(
+    message: str,
+    data: Optional[Any] = None,
+    output_format: OutputFormat = OutputFormat.TEXT,
+) -> CommandResult:
     """Returns a successful (return code 0) Command Result"""
-    return CommandResult(return_code=0, message=message, data=data)
+    return CommandResult(
+        return_code=0, message=message, data=data, output_format=output_format
+    )
 
 
 def error_result(
-    exception: Exception, message: str, data: Optional[Any] = None
+    exception: Exception,
+    message: str,
+    data: Optional[Any] = None,
+    output_format: OutputFormat = OutputFormat.TEXT,
 ) -> CommandResult:
     """Returns a failed (return code 1) Command Result due to a 'hard' error"""
     return CommandResult(
-        return_code=1, message=message, traceback=traceback.format_exc(), data=data
+        return_code=1,
+        message=message,
+        traceback=traceback.format_exc(),
+        data=data,
+        output_format=output_format,
     )
 
 
 def not_permitted_result(
-    exception: Exception, message: str, data: Optional[Any] = None
+    exception: Exception,
+    message: str,
+    data: Optional[Any] = None,
+    output_format: OutputFormat = OutputFormat.TEXT,
 ) -> CommandResult:
     """Returns a faield (return code 2) Command Result due to a business-logic driven error"""
     return CommandResult(
-        return_code=2, message=message, traceback=traceback.format_exc(), data=data
+        return_code=2,
+        message=message,
+        traceback=traceback.format_exc(),
+        data=data,
+        output_format=output_format,
     )
 
 

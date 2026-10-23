@@ -1,9 +1,12 @@
 """Shared helpers for structured CLI output (``--output text|json|yaml``).
 
-Commands populate ``CommandResult.data`` with a plain dict/list payload; the
-top-level runner resolves the requested format from the command line and, for
-``json``/``yaml``, serializes that payload to stdout. Diagnostic/framing log
-lines stay on stderr, so ``jq``/``yq`` get a clean stdout stream.
+Commands parse ``--output`` into an :class:`OutputFormat`, run, and return it on
+``CommandResult.output_format`` alongside the ``data`` payload. For
+``json``/``yaml`` the top-level runner serializes that payload to stdout.
+Diagnostic/framing log lines stay on stderr, so ``jq``/``yq`` get a clean stdout
+stream. Keeping the parse in one place (the command's docopt options) means the
+runner never has to re-interpret the command line and can't disagree about the
+requested format.
 
 Because ``json`` and ``yaml`` are just two serializations of the same payload,
 supporting both is nearly free once a command fills in ``data``.
@@ -43,32 +46,6 @@ def parse_output_format(value: str | None) -> OutputFormat:
     except ValueError:
         choices = ", ".join(fmt.value for fmt in OutputFormat)
         raise InputError(f"--output must be one of: {choices} (got '{value}').")
-
-
-def resolve_output_format(argv: list[str]) -> OutputFormat:
-    """Resolve the ``--output`` format from a command's argv, defaulting to text.
-
-    Scanned at the top level so the format is known regardless of which command
-    (or namespaced sub-action) ultimately parses the rest of the arguments. The
-    accepted spellings mirror what docopt accepts for the option: ``--output X``,
-    ``--output=X``, ``-o X``, ``-o=X``, and the stacked short form ``-oX``.
-    """
-    raw: str | None = None
-    i = 0
-    while i < len(argv):
-        tok = argv[i]
-        if tok in ("--output", "-o"):
-            raw = argv[i + 1] if i + 1 < len(argv) else None
-            i += 2
-            continue
-        if tok.startswith("--output="):
-            raw = tok.split("=", 1)[1]
-        elif tok.startswith("-o="):
-            raw = tok.split("=", 1)[1]
-        elif tok.startswith("-o") and len(tok) > 2:
-            raw = tok[2:]
-        i += 1
-    return parse_output_format(raw)
 
 
 def serialize(data, output_format: OutputFormat) -> str:

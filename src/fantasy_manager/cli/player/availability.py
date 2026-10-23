@@ -306,8 +306,10 @@ class Availability(command.CliCommand):
                 FantasyAuthError("One or more leagues could not be read."),
                 "One or more leagues could not be read — refresh YAHOO_COOKIE.",
                 data=data,
+                output_format=output_format,
             )
         return command.success_result(
             f"Checked {len(league_ids)} league(s) for {len(players)} player(s).",
             data=data,
+            output_format=output_format,
         )
