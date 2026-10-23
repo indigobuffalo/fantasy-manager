@@ -85,6 +85,11 @@ class FantasyConfig:
     # (not hard-coded in the usage string) so the default lives in one place,
     # alongside DEFAULT_AVAILABILITY_LEAGUES.
     DEFAULT_AVAILABILITY_WORKERS = os.getenv("DEFAULT_AVAILABILITY_WORKERS", 8)
+    # Max concurrent team-page fetches for `fmgr news lineups`. A full-league
+    # pull is 32 independent page GETs; this bounds the fan-out (kept here, not
+    # in the usage string, so the default lives in one place — like the
+    # availability workers above). Override per-env or per-call via `--workers`.
+    DEFAULT_LINEUPS_WORKERS = os.getenv("DEFAULT_LINEUPS_WORKERS", 8)
     SEASON = os.getenv("FANTASY_SEASON", "2026_2027")
     YAHOO_CREDS_FILE = os.getenv("YAHOO_CREDS_FILE")
     YAHOO_COOKIE = os.getenv(
