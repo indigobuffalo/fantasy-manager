@@ -10,6 +10,12 @@ requested format.
 
 Because ``json`` and ``yaml`` are just two serializations of the same payload,
 supporting both is nearly free once a command fills in ``data``.
+
+Scope: ``--output`` is opt-in per command — only commands that declare the option
+in their usage and populate ``data`` support it (today just ``player
+availability``). Other commands don't list ``--output``, so docopt rejects it for
+them; this module is the shared machinery for any command that adopts the
+convention later.
 """
 
 from enum import Enum

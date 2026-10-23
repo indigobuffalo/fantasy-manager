@@ -7,6 +7,7 @@ from fantasy_manager.cli.player.availability import (
     _ROW_RE,
     Availability,
     league_label,
+    league_name,
     ownership,
     ownership_label,
     resolve_league_ids,
@@ -24,6 +25,13 @@ def test_league_label_uses_configured_name_when_known():
 
 def test_league_label_falls_back_to_id_when_unknown():
     assert_that(league_label("999999"), equal_to("League 999999"))
+
+
+def test_league_name_returns_configured_name_or_none():
+    # The single lookup shared by the text header and the structured payload:
+    # a configured ID resolves to its name, an unknown ID to ``None`` (not the ID).
+    assert_that(league_name("121128"), equal_to("T1 Sweden"))
+    assert_that(league_name("999999"), equal_to(None))
 
 
 def test_resolve_league_ids_falls_back_to_configured_default():
@@ -259,6 +267,17 @@ def test_run_honors_abbreviated_output_flag(monkeypatch):
     result = _run_with_fake_search(
         monkeypatch,
         ["--leagues=9", "--out", "json", "McDavid"],
+        [("6743", "Connor McDavid", AvailabilityStatus.FREE_AGENT, None)],
+    )
+    assert_that(result.output_format, equal_to(OutputFormat.JSON))
+
+
+def test_run_honors_short_output_flag(monkeypatch):
+    # The ``-o`` short alias of ``--output`` must resolve to the same format and
+    # reach the result, just like the long form.
+    result = _run_with_fake_search(
+        monkeypatch,
+        ["--leagues=9", "-o", "json", "McDavid"],
         [("6743", "Connor McDavid", AvailabilityStatus.FREE_AGENT, None)],
     )
     assert_that(result.output_format, equal_to(OutputFormat.JSON))

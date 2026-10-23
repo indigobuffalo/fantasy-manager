@@ -82,13 +82,23 @@ def resolve_workers(workers_arg: str | None) -> int:
     return workers
 
 
+def league_name(league_id: str) -> str | None:
+    """The configured display name for a league, or ``None`` if unknown.
+
+    Names come from config (the ``/playersearch`` response doesn't carry them),
+    so an ID passed via ``--leagues`` that isn't in the map has no name. This is
+    the single lookup shared by the human header (:func:`league_label`) and the
+    structured payload's ``name`` field.
+    """
+    return FantasyConfig.AVAILABILITY_LEAGUE_NAMES.get(league_id)
+
+
 def league_label(league_id: str) -> str:
     """Human label for a league header: ``Name (id)`` when known, else ``League id``.
 
-    Names come from config (the ``/playersearch`` response doesn't carry them),
-    so an ID passed via ``--leagues`` that isn't in the map falls back to the ID.
+    An ID passed via ``--leagues`` that isn't in the config map falls back to the ID.
     """
-    name = FantasyConfig.AVAILABILITY_LEAGUE_NAMES.get(league_id)
+    name = league_name(league_id)
     return f"{name} ({league_id})" if name else f"League {league_id}"
 
 
@@ -295,7 +305,7 @@ class Availability(command.CliCommand):
             leagues_data.append(
                 {
                     "id": league_id,
-                    "name": FantasyConfig.AVAILABILITY_LEAGUE_NAMES.get(league_id),
+                    "name": league_name(league_id),
                     "readable": readable,
                     "players": players_data,
                 }
