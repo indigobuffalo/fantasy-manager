@@ -12,10 +12,11 @@ from fantasy_manager.model.player import PlayerName
 class GoalieConfidence(Enum):
     """DailyFaceoff's starting-goalie confidence tiers.
 
-    The v1 JSON feed only exposes an *ordered* goalie list (projected starter
-    first), never DailyFaceoff's Confirmed/Likely/Unconfirmed label, so every
-    goalie parsed from the feed is ``UNCONFIRMED``. The richer labels require
-    the direct-scrape fallback noted in ``client/news/dailyfaceoff.py``.
+    The line-combinations page only exposes an *ordered* goalie list (projected
+    starter first), never DailyFaceoff's Confirmed/Likely/Unconfirmed label, so
+    every goalie parsed from the feed is ``UNCONFIRMED``. The richer labels live
+    on the separate starting-goalies page (see the module docstring in
+    ``client/news/dailyfaceoff.py``).
     """
 
     CONFIRMED = "confirmed"
@@ -24,11 +25,13 @@ class GoalieConfidence(Enum):
 
 
 class InjuriesFreshness(Enum):
-    """Freshness of the injury slice of the feed, mirroring ``injuries_meta``.
+    """Freshness of the injury slice of the feed.
 
-    Lines and injuries refresh independently: the lines can be current while
-    the ESPN-sourced injuries are a preserved older copy, so this travels
-    separately from the feed's top-level ``updated_at``.
+    Injuries ship on the same line-combinations page as the lines, so they
+    share the lines' refresh and this is ``FRESH`` whenever a team parses. It
+    stays a separate field (rather than folding into the top-level
+    ``updated_at``) so a future source that refreshes injuries independently can
+    report it without a model change.
     """
 
     FRESH = "fresh"
@@ -43,8 +46,9 @@ class GoalieSlot(BaseModel):
         goalie (PlayerName):            The goalie's identity.
         is_starter (bool):              True for the projected starter (first
                                         goalie listed in the feed).
-        confidence (GoalieConfidence):  Always ``UNCONFIRMED`` from the v1 feed
-                                        (see ``GoalieConfidence``).
+        confidence (GoalieConfidence):  Always ``UNCONFIRMED`` from the
+                                        line-combinations page (see
+                                        ``GoalieConfidence``).
     """
 
     goalie: PlayerName
@@ -53,14 +57,16 @@ class GoalieSlot(BaseModel):
 
 
 class Injury(BaseModel):
-    """An injured/unavailable player, as reported in the feed (ESPN-sourced).
+    """An injured/unavailable player, from the page's off-ice (``oi``) list.
 
     Attrs:
         player (PlayerName):          The injured player's identity.
         status (str):                 Raw status label (e.g. "Out",
                                       "Day-To-Day", "Injured Reserve").
-        position (Optional[str]):     Position abbreviation, if reported.
-        description (Optional[str]):   Free-text note about the injury, if any.
+        position (Optional[str]):     Position abbreviation, if reported (the
+                                      off-ice list does not carry it, so None).
+        description (Optional[str]):   Free-text note about the injury, if any
+                                      (not carried by the off-ice list, so None).
     """
 
     player: PlayerName
@@ -72,11 +78,12 @@ class Injury(BaseModel):
 class TeamLines(BaseModel):
     """Structured per-team line data parsed from the DailyFaceoff feed.
 
-    ``forward_lines``, ``defense_pairs`` and ``power_play_units`` hold player
-    identities in feed order (line 1 first, PP1 before PP2). ``penalty_kill_units``
-    and ``scratches`` are always empty in v1 — the JSON feed does not carry
-    special-teams PK usage or an explicit healthy-scratch list (see the module
-    docstring in ``client/news/dailyfaceoff.py``). They exist so the shape stays
+    ``forward_lines``, ``defense_pairs``, ``power_play_units`` and
+    ``penalty_kill_units`` hold player identities in feed order (line 1 first,
+    PP1 before PP2, PK1 before PK2). ``scratches`` is always empty — the
+    off-ice list the feed carries is injured players only, with no explicit
+    healthy-scratch list (see the module docstring in
+    ``client/news/dailyfaceoff.py``). It exists so the shape stays
     forward-compatible with the diff/state work in issue #32.
 
     Attrs:
@@ -92,9 +99,10 @@ class TeamLines(BaseModel):
         goalies (list[GoalieSlot]):             Projected goalie slate, starter
                                                 first.
         power_play_units (list[list[PlayerName]]): PP units, PP1 first.
-        penalty_kill_units (list[list[PlayerName]]): Not in v1 feed; always [].
+        penalty_kill_units (list[list[PlayerName]]): PK units, PK1 first.
         injuries (list[Injury]):                Injured/unavailable players.
-        scratches (list[PlayerName]):           Not in v1 feed; always [].
+        scratches (list[PlayerName]):           Healthy scratches; not carried
+                                                by the feed, so always [].
     """
 
     team_slug: str
