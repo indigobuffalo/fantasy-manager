@@ -71,7 +71,7 @@ def not_permitted_result(
     data: Optional[Any] = None,
     output_format: OutputFormat = OutputFormat.TEXT,
 ) -> CommandResult:
-    """Returns a faield (return code 2) Command Result due to a business-logic driven error"""
+    """Returns a failed (return code 2) Command Result due to a business-logic driven error"""
     return CommandResult(
         return_code=2,
         message=message,

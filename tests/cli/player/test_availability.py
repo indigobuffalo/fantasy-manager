@@ -243,7 +243,8 @@ def test_run_marks_unreadable_league_at_league_level(monkeypatch):
     # A league that can't be read (stale cookie) is flagged by the league-level
     # ``readable`` flag with an empty ``players`` list — the failure isn't tied
     # to any one query, so no synthetic per-player entry is emitted. Multiple
-    # queries must not multiply (or arbitrarily pick) a player row.
+    # queries must not multiply (or arbitrarily pick) a player row. The payload
+    # keeps the stable shape: ``leagues`` plus a top-level ``error`` object.
     result = _run_with_fake_search(
         monkeypatch,
         ["--leagues=9", "--output", "json", "McDavid", "Makar"],
@@ -255,7 +256,15 @@ def test_run_marks_unreadable_league_at_league_level(monkeypatch):
     assert_that(
         result.data,
         equal_to(
-            {"leagues": [{"id": "9", "name": None, "readable": False, "players": []}]}
+            {
+                "leagues": [
+                    {"id": "9", "name": None, "readable": False, "players": []}
+                ],
+                "error": {
+                    "type": "FantasyAuthError",
+                    "message": "One or more leagues could not be read.",
+                },
+            }
         ),
     )
 
@@ -303,7 +312,11 @@ def test_run_marks_league_unreadable_but_keeps_earlier_players(monkeypatch):
                             }
                         ],
                     }
-                ]
+                ],
+                "error": {
+                    "type": "FantasyAuthError",
+                    "message": "One or more leagues could not be read.",
+                },
             }
         ),
     )
@@ -343,8 +356,9 @@ def test_run_defaults_to_text_format(monkeypatch):
 
 def test_run_emits_structured_error_for_expected_failure(monkeypatch):
     # An expected failure that stops the command before it builds its normal
-    # payload (here: an empty --leagues) still yields the requested format plus a
-    # structured ``{"error": {...}}`` object, not an empty stdout stream.
+    # payload (here: an empty --leagues) still yields the requested format plus
+    # the stable payload: an (empty) ``leagues`` list alongside a structured
+    # ``error`` object, not an empty stdout stream.
     result = _run_with_fake_search(
         monkeypatch,
         ["--leagues", " , ", "--output", "json", "McDavid"],
@@ -352,6 +366,7 @@ def test_run_emits_structured_error_for_expected_failure(monkeypatch):
     )
     assert_that(result.return_code, equal_to(1))
     assert_that(result.output_format, equal_to(OutputFormat.JSON))
+    assert_that(result.data["leagues"], equal_to([]))
     assert_that(result.data["error"]["type"], equal_to("InputError"))
 
 
@@ -366,6 +381,7 @@ def test_run_emits_structured_error_when_cookie_missing(monkeypatch):
     result = command.run(args)
     assert_that(result.return_code, equal_to(1))
     assert_that(result.output_format, equal_to(OutputFormat.JSON))
+    assert_that(result.data["leagues"], equal_to([]))
     assert_that(result.data["error"]["type"], equal_to("FantasyAuthError"))
 
 

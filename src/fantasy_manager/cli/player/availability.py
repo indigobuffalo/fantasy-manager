@@ -162,6 +162,20 @@ def _player_entry(
     }
 
 
+def _error_data(
+    err: Exception, leagues: list[dict[str, Any]] | None = None
+) -> dict[str, Any]:
+    """Structured payload for a failed run.
+
+    Keeps the top-level shape stable: ``leagues`` is always present — empty when
+    the command failed before reading anything, or the partial list collected
+    before a mid-run failure — with a structured ``error`` object alongside, so a
+    json/yaml consumer always reads ``leagues`` and branches on ``error`` the
+    same way regardless of where the failure happened.
+    """
+    return {"leagues": leagues if leagues is not None else [], **error_payload(err)}
+
+
 def search_league(
     session: requests.Session, base: str, league_id: str, query: str
 ) -> tuple[bool, list[tuple[str, str, AvailabilityStatus, str | None]]]:
@@ -216,9 +230,10 @@ class Availability(command.CliCommand):
         """Report ownership of the given player(s) across the given leagues.
 
         The ``--output`` format is resolved up front so that an *expected*
-        failure (e.g. a missing cookie) still emits a structured
-        ``{"error": {...}}`` object on stdout for json/yaml consumers, rather
-        than an empty stream. A bad ``--output`` value is intentionally left to
+        failure (e.g. a missing cookie) still emits the stable
+        ``{"leagues": [...], "error": {...}}`` payload on stdout for json/yaml
+        consumers, rather than an empty stream. A bad ``--output`` value is
+        intentionally left to
         propagate: we can't serialize to an unknown format, so the runner frames
         it as plain text. Truly unexpected exceptions likewise escape to the
         runner, which reports them as plain text (no half-built payload).
@@ -228,11 +243,11 @@ class Availability(command.CliCommand):
             return self._report(args, output_format)
         except FantasyManagerSoftError as err:
             return command.not_permitted_result(
-                err, str(err), data=error_payload(err), output_format=output_format
+                err, str(err), data=_error_data(err), output_format=output_format
             )
         except FantasyManagerError as err:
             return command.error_result(
-                err, str(err), data=error_payload(err), output_format=output_format
+                err, str(err), data=_error_data(err), output_format=output_format
             )
 
     def _report(
@@ -344,16 +359,20 @@ class Availability(command.CliCommand):
                 }
             )
 
-        data = {"leagues": leagues_data}
         if unreadable:
+            # Partial payload: the leagues collected so far plus an ``error``
+            # object, so a json/yaml consumer sees the same stable shape as any
+            # other failure (``readable: false`` on each affected league still
+            # pinpoints which ones couldn't be read).
+            err = FantasyAuthError("One or more leagues could not be read.")
             return command.error_result(
-                FantasyAuthError("One or more leagues could not be read."),
+                err,
                 "One or more leagues could not be read — refresh YAHOO_COOKIE.",
-                data=data,
+                data=_error_data(err, leagues_data),
                 output_format=output_format,
             )
         return command.success_result(
             f"Checked {len(league_ids)} league(s) for {len(players)} player(s).",
-            data=data,
+            data={"leagues": leagues_data},
             output_format=output_format,
         )
