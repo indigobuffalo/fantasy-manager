@@ -76,18 +76,58 @@ def test_ownership_rostered_unescapes_team_name():
     assert_that(ownership(row), equal_to("ROSTERED — North Vancouver & Canucks"))
 
 
+# A minimal stand-in for Yahoo's player cell: the name link plus the
+# "ysf-player-detail" game-result link. ``last_game`` is the most recent result
+# text ("W, 4-0 vs FLA" for a win) rendered inside an <a>, which must NOT be read
+# as the owner cell.
+def _player_cell(last_game: str = "") -> str:
+    detail = (
+        f'<div class="ysf-player-detail"><span class="ysf-game-status">'
+        f'<a href="https://sports.yahoo.com/nhl/game">{last_game}</a></span></div>'
+        if last_game
+        else ""
+    )
+    return f'<td><a href="/nhl/players/1">A B</a>{detail}</td>'
+
+
+# The owner cell as Yahoo renders it: a bare <div> holding the token.
+def _owner_cell(token: str) -> str:
+    return f'<td><div style="overflow: hidden;">{token}</div></td>'
+
+
 def test_ownership_free_agent():
-    row = _row('<td><a href="/nhl/players/1">A B</a></td><td> FA </td>')
+    row = _row(_player_cell() + _owner_cell("FA"))
     assert_that(ownership(row), equal_to("FREE AGENT"))
 
 
-def test_ownership_waivers():
-    row = _row('<td><a href="/nhl/players/1">A B</a></td><td> W </td>')
+def test_ownership_waivers_with_clear_date():
+    # On waivers Yahoo shows "W (<date>)", not a bare "W".
+    row = _row(_player_cell() + _owner_cell("W (Oct 23)"))
     assert_that(ownership(row), equal_to("WAIVERS"))
 
 
+def test_ownership_free_agent_ignores_winning_game_result():
+    # Regression: a free agent whose last game was a win ("W, 4-0 vs FLA") must
+    # still read as FREE AGENT — the leading "W" of the game result previously
+    # got mistaken for a waiver "W".
+    row = _row(_player_cell("W, 4-0 vs FLA") + _owner_cell("FA"))
+    assert_that(ownership(row), equal_to("FREE AGENT"))
+
+
+def test_ownership_waivers_ignores_winning_game_result():
+    row = _row(_player_cell("W, 4-0 vs FLA") + _owner_cell("W (Oct 23)"))
+    assert_that(ownership(row), equal_to("WAIVERS"))
+
+
+def test_ownership_free_agent_ignores_w_opponent_abbreviation():
+    # An opponent cell like "WPG" sits before the owner cell; its "W" must not
+    # be read as a waiver marker.
+    row = _row(_player_cell() + "<td><div>WPG</div></td>" + _owner_cell("FA"))
+    assert_that(ownership(row), equal_to("FREE AGENT"))
+
+
 def test_ownership_unknown_when_no_markers():
-    row = _row('<td><a href="/nhl/players/1">A B</a></td><td></td>')
+    row = _row(_player_cell() + "<td><div></div></td>")
     assert_that(ownership(row), equal_to("unknown"))
 
 
@@ -101,7 +141,7 @@ def test_player_regex_extracts_pid_and_name():
 def test_rows_split_into_individual_entries():
     page = (
         '<table>'
-        '<tr><a href="/nhl/players/1">One Player</a> FA </tr>'
+        '<tr><a href="/nhl/players/1">One Player</a><td><div>FA</div></td></tr>'
         '<tr><a href="/nhl/players/2">Two Player</a><a href="/hockey/9/3">Team</a></tr>'
         '</table>'
     )

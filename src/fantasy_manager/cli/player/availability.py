@@ -38,8 +38,13 @@ STDOUT = logging.getLogger("stdout")
 _PLAYER_RE = re.compile(r"/nhl/players/(\d+)[^>]*>([^<]{2,40})</a>")
 # The owner cell links to the fantasy team page: /hockey/<leagueId>/<teamId>">Team Name</a>
 _TEAM_RE = re.compile(r"/hockey/\d+/(\d+)\"[^>]*>([^<]{1,60})</a>")
-# Free-agent / waiver tokens shown in the owner cell when unrostered.
-_FAW_RE = re.compile(r">\s*(FA|W)\b")
+# Free-agent / waiver tokens shown in the owner cell when unrostered. The owner
+# cell renders the token in a bare ``<div>`` — ``FA`` for a free agent, ``W (<date>)``
+# for a player on waivers. We anchor to ``<div ...>`` (not just ``>``) so we skip the
+# *game-result* link earlier in the row (``<a ...>W, 4-0 vs FLA</a>`` — a win), which
+# would otherwise be misread as a waiver "W". The ``\b`` keeps a three-letter opponent
+# abbreviation (e.g. ``<div>WPG</div>``) from matching the "W" either.
+_FAW_RE = re.compile(r"<div[^>]*>\s*(FA|W)\b")
 _ROW_RE = re.compile(r"<tr[^>]*>.*?</tr>", re.S)
 
 
