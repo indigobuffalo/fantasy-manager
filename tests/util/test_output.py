@@ -7,6 +7,7 @@ from hamcrest import assert_that, equal_to
 from fantasy_manager.exceptions import InputError
 from fantasy_manager.util.output import (
     OutputFormat,
+    error_payload,
     parse_output_format,
     serialize,
 )
@@ -53,3 +54,10 @@ def test_serialize_yaml_round_trips():
 def test_serialize_rejects_text_format():
     with pytest.raises(ValueError):
         serialize({}, OutputFormat.TEXT)
+
+
+def test_error_payload_captures_type_and_message():
+    payload = error_payload(InputError("bad things"))
+    assert_that(
+        payload, equal_to({"error": {"type": "InputError", "message": "bad things"}})
+    )

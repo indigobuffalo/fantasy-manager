@@ -54,6 +54,19 @@ def parse_output_format(value: str | None) -> OutputFormat:
         raise InputError(f"--output must be one of: {choices} (got '{value}').")
 
 
+def error_payload(exc: Exception) -> dict:
+    """A structured ``{"error": {...}}`` payload describing a failed run.
+
+    Used so that a command invoked with ``--output json|yaml`` emits a
+    well-formed error object on stdout (alongside a non-zero exit code) instead
+    of an empty stream when an *expected* failure (e.g. a missing cookie) stops
+    it before it can build its normal payload. ``type`` is the exception class
+    name so consumers can branch on the kind of failure without parsing
+    ``message``.
+    """
+    return {"error": {"type": type(exc).__name__, "message": str(exc)}}
+
+
 def serialize(data, output_format: OutputFormat) -> str:
     """Serialize a payload for the given structured format.
 

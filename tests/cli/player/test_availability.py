@@ -69,11 +69,14 @@ def test_resolve_workers_rejects_non_positive():
 
 def test_run_rejects_empty_leagues():
     # An all-blank --leagues resolves to zero leagues; that's a usage error, not
-    # a silent success that searches nothing.
-    with pytest.raises(InputError):
-        Availability().run(
-            {"<player>": ["McDavid"], "--leagues": " , ", "--workers": None}
-        )
+    # a silent success that searches nothing. The command surfaces it as a failed
+    # result (so a --output consumer still gets a structured error) rather than
+    # letting the exception escape — text mode still exits non-zero either way.
+    result = Availability().run(
+        {"<player>": ["McDavid"], "--leagues": " , ", "--workers": None}
+    )
+    assert_that(result.return_code, equal_to(1))
+    assert_that(result.data["error"]["type"], equal_to("InputError"))
 
 
 def _row(inner: str) -> str:
@@ -251,11 +254,7 @@ def test_run_marks_unreadable_league_at_league_level(monkeypatch):
     assert_that(
         result.data,
         equal_to(
-            {
-                "leagues": [
-                    {"id": "9", "name": None, "readable": False, "players": []}
-                ]
-            }
+            {"leagues": [{"id": "9", "name": None, "readable": False, "players": []}]}
         ),
     )
 
@@ -290,3 +289,43 @@ def test_run_defaults_to_text_format(monkeypatch):
         [("6743", "Connor McDavid", AvailabilityStatus.FREE_AGENT, None)],
     )
     assert_that(result.output_format, equal_to(OutputFormat.TEXT))
+
+
+def test_run_emits_structured_error_for_expected_failure(monkeypatch):
+    # An expected failure that stops the command before it builds its normal
+    # payload (here: an empty --leagues) still yields the requested format plus a
+    # structured ``{"error": {...}}`` object, not an empty stdout stream.
+    result = _run_with_fake_search(
+        monkeypatch,
+        ["--leagues", " , ", "--output", "json", "McDavid"],
+        payload=[],
+    )
+    assert_that(result.return_code, equal_to(1))
+    assert_that(result.output_format, equal_to(OutputFormat.JSON))
+    assert_that(result.data["error"]["type"], equal_to("InputError"))
+
+
+def test_run_emits_structured_error_when_cookie_missing(monkeypatch):
+    # The other expected hard failure: no YAHOO_COOKIE. Same contract — the
+    # format reaches the result and the payload is the structured error object.
+    monkeypatch.setattr(FantasyConfig, "YAHOO_COOKIE", "")
+    command = Availability()
+    args = command.parse_args(
+        ["player", "availability", "--leagues=9", "--output", "json", "McDavid"]
+    )
+    result = command.run(args)
+    assert_that(result.return_code, equal_to(1))
+    assert_that(result.output_format, equal_to(OutputFormat.JSON))
+    assert_that(result.data["error"]["type"], equal_to("FantasyAuthError"))
+
+
+def test_run_lets_bad_output_format_propagate(monkeypatch):
+    # A bad --output value can't be serialized to, so it must propagate (the
+    # runner frames it as plain text) rather than being wrapped as a structured
+    # error in a format we don't support.
+    command = Availability()
+    args = command.parse_args(
+        ["player", "availability", "--leagues=9", "--output", "xml", "McDavid"]
+    )
+    with pytest.raises(InputError):
+        command.run(args)

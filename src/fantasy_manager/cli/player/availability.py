@@ -26,11 +26,20 @@ import requests
 
 from fantasy_manager.cli import command
 from fantasy_manager.config.config import FantasyConfig
-from fantasy_manager.exceptions import FantasyAuthError, InputError
+from fantasy_manager.exceptions import (
+    FantasyAuthError,
+    FantasyManagerError,
+    FantasyManagerSoftError,
+    InputError,
+)
 from fantasy_manager.model.enums.availability_status import AvailabilityStatus
 from fantasy_manager.model.enums.platform import Platform
 from fantasy_manager.model.enums.platform_url import PlatformUrl
-from fantasy_manager.util.output import OutputFormat, parse_output_format
+from fantasy_manager.util.output import (
+    OutputFormat,
+    error_payload,
+    parse_output_format,
+)
 
 # The dedicated stdout logger (plain ``%(message)s``); the per-league report is
 # data meant for piping/parsing, so it goes to stdout rather than the diagnostic
@@ -204,8 +213,32 @@ class Availability(command.CliCommand):
                                 stdout for piping to jq/yq."""
 
     def run(self, args: dict[str, Any]) -> command.CommandResult:
-        """Report ownership of the given player(s) across the given leagues."""
+        """Report ownership of the given player(s) across the given leagues.
+
+        The ``--output`` format is resolved up front so that an *expected*
+        failure (e.g. a missing cookie) still emits a structured
+        ``{"error": {...}}`` object on stdout for json/yaml consumers, rather
+        than an empty stream. A bad ``--output`` value is intentionally left to
+        propagate: we can't serialize to an unknown format, so the runner frames
+        it as plain text. Truly unexpected exceptions likewise escape to the
+        runner, which reports them as plain text (no half-built payload).
+        """
         output_format = parse_output_format(args.get("--output"))
+        try:
+            return self._report(args, output_format)
+        except FantasyManagerSoftError as err:
+            return command.not_permitted_result(
+                err, str(err), data=error_payload(err), output_format=output_format
+            )
+        except FantasyManagerError as err:
+            return command.error_result(
+                err, str(err), data=error_payload(err), output_format=output_format
+            )
+
+    def _report(
+        self, args: dict[str, Any], output_format: OutputFormat
+    ) -> command.CommandResult:
+        """Do the ownership lookup and build the result for ``output_format``."""
         players = args["<player>"]
         league_ids = resolve_league_ids(args["--leagues"])
         if not league_ids:
