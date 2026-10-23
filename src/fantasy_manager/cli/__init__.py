@@ -22,6 +22,7 @@ from fantasy_manager.exceptions import FantasyManagerError, FantasyManagerSoftEr
 import docopt
 
 from fantasy_manager.util.log import log_line_break
+from fantasy_manager.util.output import serialize
 
 CLI_DIRECTORY = Path(__file__).parent
 
@@ -86,6 +87,14 @@ def main():
     except Exception as err:
         result = error_result(exception=err, message="An unexpected error occurred")
         logger.debug(result.traceback)
+
+    # Machine-readable payload to stdout; the framing/summary below stays on
+    # stderr so the two streams don't mix. The format is whatever the command
+    # parsed from ``--output`` (single source of truth), and we write straight to
+    # stdout rather than through a logger so the payload can't be swallowed by a
+    # raised LOG_LEVEL (the whole point is a clean, verbosity-independent stream).
+    if result.output_format.is_structured and result.data is not None:
+        print(serialize(result.data, result.output_format), file=sys.stdout)
 
     log_line_break(logger=logger, spacer="=", lines=2)
     logger.info(result.message)

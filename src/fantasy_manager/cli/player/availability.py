@@ -15,6 +15,7 @@ concurrently across a thread pool (see ``--workers``). Output is still printed
 per league in the order the leagues were given, so results are deterministic
 regardless of which request finishes first.
 """
+
 import html
 import logging
 import re
@@ -25,9 +26,20 @@ import requests
 
 from fantasy_manager.cli import command
 from fantasy_manager.config.config import FantasyConfig
-from fantasy_manager.exceptions import FantasyAuthError, InputError
+from fantasy_manager.exceptions import (
+    FantasyAuthError,
+    FantasyManagerError,
+    FantasyManagerSoftError,
+    InputError,
+)
+from fantasy_manager.model.enums.availability_status import AvailabilityStatus
 from fantasy_manager.model.enums.platform import Platform
 from fantasy_manager.model.enums.platform_url import PlatformUrl
+from fantasy_manager.util.output import (
+    OutputFormat,
+    error_payload,
+    parse_output_format,
+)
 
 # The dedicated stdout logger (plain ``%(message)s``); the per-league report is
 # data meant for piping/parsing, so it goes to stdout rather than the diagnostic
@@ -47,6 +59,13 @@ _TEAM_RE = re.compile(r"/hockey/\d+/(\d+)\"[^>]*>([^<]{1,60})</a>")
 _FAW_RE = re.compile(r"<div[^>]*>\s*(FA|W)\b")
 _ROW_RE = re.compile(r"<tr[^>]*>.*?</tr>", re.S)
 
+# Version of the structured (``--output json|yaml``) payload shape. Emitted as a
+# top-level ``version`` field so downstream jq/yq consumers can pin to — and
+# branch on — a known schema; bump it on any backwards-incompatible change to the
+# payload (renamed/removed fields, changed nesting). Additive fields don't require
+# a bump.
+SCHEMA_VERSION = 1
+
 
 def resolve_league_ids(leagues_arg: str | None) -> list[str]:
     """Parse the ``--leagues`` CSV into IDs, falling back to the configured default.
@@ -65,7 +84,11 @@ def resolve_workers(workers_arg: str | None) -> int:
     rather than the usage string. A non-numeric or non-positive value is a user error,
     surfaced as a clean ``InputError`` instead of a raw ``ValueError`` from ``int()``.
     """
-    raw = workers_arg if workers_arg is not None else FantasyConfig.DEFAULT_AVAILABILITY_WORKERS
+    raw = (
+        workers_arg
+        if workers_arg is not None
+        else FantasyConfig.DEFAULT_AVAILABILITY_WORKERS
+    )
     try:
         workers = int(raw)
     except (TypeError, ValueError):
@@ -75,31 +98,99 @@ def resolve_workers(workers_arg: str | None) -> int:
     return workers
 
 
+def league_name(league_id: str) -> str | None:
+    """The configured display name for a league, or ``None`` if unknown.
+
+    Names come from config (the ``/playersearch`` response doesn't carry them),
+    so an ID passed via ``--leagues`` that isn't in the map has no name. This is
+    the single lookup shared by the human header (:func:`league_label`) and the
+    structured payload's ``name`` field.
+    """
+    return FantasyConfig.AVAILABILITY_LEAGUE_NAMES.get(league_id)
+
+
 def league_label(league_id: str) -> str:
     """Human label for a league header: ``Name (id)`` when known, else ``League id``.
 
-    Names come from config (the ``/playersearch`` response doesn't carry them),
-    so an ID passed via ``--leagues`` that isn't in the map falls back to the ID.
+    An ID passed via ``--leagues`` that isn't in the config map falls back to the ID.
     """
-    name = FantasyConfig.AVAILABILITY_LEAGUE_NAMES.get(league_id)
+    name = league_name(league_id)
     return f"{name} ({league_id})" if name else f"League {league_id}"
 
 
-def ownership(row: str) -> str:
-    """Return the ownership label for a player result row."""
+def ownership(row: str) -> tuple[AvailabilityStatus, str | None]:
+    """Return the ``(status, owner)`` for a player result row.
+
+    ``owner`` is the team name only when the player is ``ROSTERED``; it's ``None``
+    for free agents, waivers, and unparseable ownership cells.
+    """
     team = _TEAM_RE.search(row)
     if team:
-        return f"ROSTERED — {html.unescape(team.group(2))}"
+        return AvailabilityStatus.ROSTERED, html.unescape(team.group(2))
     faw = _FAW_RE.search(row)
     if faw:
-        return "FREE AGENT" if faw.group(1) == "FA" else "WAIVERS"
-    return "unknown"
+        if faw.group(1) == "FA":
+            return AvailabilityStatus.FREE_AGENT, None
+        return AvailabilityStatus.WAIVERS, None
+    return AvailabilityStatus.UNKNOWN, None
+
+
+def ownership_label(status: AvailabilityStatus, owner: str | None) -> str:
+    """Human-readable ownership label for the ``text`` output's per-player row."""
+    if status is AvailabilityStatus.ROSTERED:
+        return f"ROSTERED — {owner}"
+    if status is AvailabilityStatus.FREE_AGENT:
+        return "FREE AGENT"
+    if status is AvailabilityStatus.WAIVERS:
+        return "WAIVERS"
+    return "UNKNOWN"
+
+
+def _player_entry(
+    query: str,
+    status: AvailabilityStatus,
+    *,
+    name: str | None = None,
+    pid: str | None = None,
+    owner: str | None = None,
+) -> dict[str, Any]:
+    """One row of a league's structured ``players`` list.
+
+    ``name``/``pid``/``owner`` are ``None`` for the ``NO_MATCH`` status, which
+    doesn't correspond to a matched player. ``status`` is serialized as its
+    stable string value.
+    """
+    return {
+        "query": query,
+        "name": name,
+        "pid": pid,
+        "status": status.value,
+        "owner": owner,
+    }
+
+
+def _error_data(
+    err: Exception, leagues: list[dict[str, Any]] | None = None
+) -> dict[str, Any]:
+    """Structured payload for a failed run.
+
+    Keeps the top-level shape stable: ``leagues`` is always present — empty when
+    the command failed before reading anything, or the partial list collected
+    before a mid-run failure — with a structured ``error`` object alongside, so a
+    json/yaml consumer always reads ``leagues`` and branches on ``error`` the
+    same way regardless of where the failure happened.
+    """
+    return {
+        "version": SCHEMA_VERSION,
+        "leagues": leagues if leagues is not None else [],
+        **error_payload(err),
+    }
 
 
 def search_league(
     session: requests.Session, base: str, league_id: str, query: str
-) -> tuple[bool, list[tuple[str, str, str]]]:
-    """POST the player search for one league; return (ok, [(pid, name, owner)]).
+) -> tuple[bool, list[tuple[str, str, AvailabilityStatus, str | None]]]:
+    """POST the player search for one league; return (ok, [(pid, name, status, owner)]).
 
     ``ok`` is False when the league couldn't be read (stale/logged-out cookie).
     """
@@ -114,7 +205,11 @@ def search_league(
     # playersearch page with the search form present. Key off those (not the
     # presence of player rows) so a simple typo returns "no matches" rather than
     # being misreported as a stale cookie.
-    if "login" in resp.url or f"/hockey/{league_id}/" not in resp.url or 'name="search"' not in text:
+    if (
+        "login" in resp.url
+        or f"/hockey/{league_id}/" not in resp.url
+        or 'name="search"' not in text
+    ):
         return False, []
 
     results = []
@@ -122,25 +217,54 @@ def search_league(
         player = _PLAYER_RE.search(row)
         if not player:
             continue
-        results.append(
-            (player.group(1), html.unescape(player.group(2)), ownership(row))
-        )
+        status, owner = ownership(row)
+        results.append((player.group(1), html.unescape(player.group(2)), status, owner))
     return True, results
 
 
 class Availability(command.CliCommand):
     """fantasy-manager player availability
     Usage:
-        fantasy-manager player availability [--leagues=<league_ids>] [--workers=<workers>] <player>...
+        fantasy-manager player availability [--leagues=<league_ids>] [--workers=<workers>] [--output=<format>] <player>...
 
     Options:
         --leagues=<league_ids>  Comma-separated Yahoo league IDs. Defaults to the
                                 configured DEFAULT_AVAILABILITY_LEAGUES.
         --workers=<workers>     Max concurrent league searches. Defaults to the
-                                configured DEFAULT_AVAILABILITY_WORKERS."""
+                                configured DEFAULT_AVAILABILITY_WORKERS.
+        -o <format>, --output=<format>
+                                Output format: text (default), json, or yaml.
+                                json/yaml emit a machine-readable payload on
+                                stdout for piping to jq/yq."""
 
     def run(self, args: dict[str, Any]) -> command.CommandResult:
-        """Report ownership of the given player(s) across the given leagues."""
+        """Report ownership of the given player(s) across the given leagues.
+
+        The ``--output`` format is resolved up front so that an *expected*
+        failure (e.g. a missing cookie) still emits the stable
+        ``{"leagues": [...], "error": {...}}`` payload on stdout for json/yaml
+        consumers, rather than an empty stream. A bad ``--output`` value is
+        intentionally left to
+        propagate: we can't serialize to an unknown format, so the runner frames
+        it as plain text. Truly unexpected exceptions likewise escape to the
+        runner, which reports them as plain text (no half-built payload).
+        """
+        output_format = parse_output_format(args.get("--output"))
+        try:
+            return self._report(args, output_format)
+        except FantasyManagerSoftError as err:
+            return command.not_permitted_result(
+                err, str(err), data=_error_data(err), output_format=output_format
+            )
+        except FantasyManagerError as err:
+            return command.error_result(
+                err, str(err), data=_error_data(err), output_format=output_format
+            )
+
+    def _report(
+        self, args: dict[str, Any], output_format: OutputFormat
+    ) -> command.CommandResult:
+        """Do the ownership lookup and build the result for ``output_format``."""
         players = args["<player>"]
         league_ids = resolve_league_ids(args["--leagues"])
         if not league_ids:
@@ -188,34 +312,78 @@ class Availability(command.CliCommand):
                 for future, key in futures.items():
                     results[key] = future.result()
 
+        # Build the structured payload in league/query order while (for the text
+        # format) emitting the same human-readable report as before. json/yaml
+        # consumers get the payload from the runner; text consumers see the
+        # per-league log lines on stdout.
+        is_text = output_format is OutputFormat.TEXT
         unreadable = False
+        leagues_data = []
         for league_id in league_ids:
-            header = f"{league_label(league_id)}  ({base}/{league_id}/players)"
-            STDOUT.info(f"\n{header}\n" + "=" * len(header))
+            if is_text:
+                header = f"{league_label(league_id)}  ({base}/{league_id}/players)"
+                STDOUT.info(f"\n{header}\n" + "=" * len(header))
 
+            readable = True
+            players_data = []
             for qi, query in enumerate(players):
                 ok, payload = results[(league_id, qi)]
-                if ok is None:
-                    STDOUT.info(f"  Could not read league — request failed ({payload}).")
-                    unreadable = True
-                    break
                 if not ok:
-                    STDOUT.info(
-                        "  Could not read league — stale/logged-out cookie? Refresh YAHOO_COOKIE."
-                    )
+                    # ``ok is None`` => the request itself failed (payload is the
+                    # exception); ``not ok`` => a stale/logged-out cookie. Either
+                    # way the whole league is unreadable — flag it at the league
+                    # level (not against any one query) and stop searching it.
+                    readable = False
                     unreadable = True
+                    if is_text:
+                        if ok is None:
+                            STDOUT.info(
+                                f"  Could not read league — request failed ({payload})."
+                            )
+                        else:
+                            STDOUT.info(
+                                "  Could not read league — stale/logged-out cookie? Refresh YAHOO_COOKIE."
+                            )
                     break
                 if not payload:
-                    STDOUT.info(f"  '{query}': no matching players found")
+                    players_data.append(
+                        _player_entry(query, AvailabilityStatus.NO_MATCH)
+                    )
+                    if is_text:
+                        STDOUT.info(f"  '{query}': no matching players found")
                     continue
-                for pid, pname, owner in payload:
-                    STDOUT.info(f"  {pname:<24} ({pid:>6})  {owner}")
+                for pid, pname, status, owner in payload:
+                    players_data.append(
+                        _player_entry(query, status, name=pname, pid=pid, owner=owner)
+                    )
+                    if is_text:
+                        STDOUT.info(
+                            f"  {pname:<24} ({pid:>6})  {ownership_label(status, owner)}"
+                        )
+
+            leagues_data.append(
+                {
+                    "id": league_id,
+                    "name": league_name(league_id),
+                    "readable": readable,
+                    "players": players_data,
+                }
+            )
 
         if unreadable:
+            # Partial payload: the leagues collected so far plus an ``error``
+            # object, so a json/yaml consumer sees the same stable shape as any
+            # other failure (``readable: false`` on each affected league still
+            # pinpoints which ones couldn't be read).
+            err = FantasyAuthError("One or more leagues could not be read.")
             return command.error_result(
-                FantasyAuthError("One or more leagues could not be read."),
+                err,
                 "One or more leagues could not be read — refresh YAHOO_COOKIE.",
+                data=_error_data(err, leagues_data),
+                output_format=output_format,
             )
         return command.success_result(
-            f"Checked {len(league_ids)} league(s) for {len(players)} player(s)."
+            f"Checked {len(league_ids)} league(s) for {len(players)} player(s).",
+            data={"version": SCHEMA_VERSION, "leagues": leagues_data},
+            output_format=output_format,
         )

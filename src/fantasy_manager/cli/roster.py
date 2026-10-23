@@ -30,7 +30,7 @@ def add_player(
 ) -> command.success_result:
     add_id, start = args["--add"], args["--start"]
     controller.add_player(add_id=add_id, start=start)
-    return command.success_result(f"Succesfully added player {add_id}")
+    return command.success_result(f"Successfully added player {add_id}")
 
 
 def add_player_claim(
@@ -39,7 +39,7 @@ def add_player_claim(
     add_id, start, faab = args["--add"], args["--start"], args["--faab"]
     controller.add_player_claim(add_id=add_id, start=start, faab=faab)
     return command.success_result(
-        f"Succesfully placed waiver claim for player {add_id}"
+        f"Successfully placed waiver claim for player {add_id}"
     )
 
 
@@ -51,7 +51,7 @@ def drop_player(
         args["--start"],
     )
     controller.drop_player(drop_id=drop_id, start=start)
-    return command.success_result(f"Succesfully dropped player {drop_id}")
+    return command.success_result(f"Successfully dropped player {drop_id}")
 
 
 def replace_player(
@@ -64,7 +64,7 @@ def replace_player(
     )
     controller.replace_player(add_id=add_id, drop_id=drop_id, start=start)
     return command.success_result(
-        f"Succesfully added player {add_id} and dropped player {drop_id}"
+        f"Successfully added player {add_id} and dropped player {drop_id}"
     )
 
 
@@ -81,7 +81,7 @@ def replace_player_claim(
         add_id=add_id, drop_id=drop_id, start=start, faab=faab
     )
     return command.success_result(
-        f"Succesfully placed waiver claim to add player {add_id} and drop player {drop_id}"
+        f"Successfully placed waiver claim to add player {add_id} and drop player {drop_id}"
     )
 
 
@@ -92,10 +92,10 @@ def cancel_waiver_claim(
     controller.cancel_waiver_claim(add_id=add_id, drop_id=drop_id)
     if drop_id is not None:
         return command.success_result(
-            f"Succesfully canceled waiver claim to add player {add_id} and drop player {drop_id}"
+            f"Successfully canceled waiver claim to add player {add_id} and drop player {drop_id}"
         )
     return command.success_result(
-        f"Succesfully canceled waiver claim for player {add_id}"
+        f"Successfully canceled waiver claim for player {add_id}"
     )
 
 
