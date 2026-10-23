@@ -159,7 +159,7 @@ def test_ownership_label_renders_text_for_each_status():
         ownership_label(AvailabilityStatus.FREE_AGENT, None), equal_to("FREE AGENT")
     )
     assert_that(ownership_label(AvailabilityStatus.WAIVERS, None), equal_to("WAIVERS"))
-    assert_that(ownership_label(AvailabilityStatus.UNKNOWN, None), equal_to("unknown"))
+    assert_that(ownership_label(AvailabilityStatus.UNKNOWN, None), equal_to("UNKNOWN"))
 
 
 def test_player_regex_extracts_pid_and_name():
@@ -218,6 +218,7 @@ def test_run_threads_output_format_and_data_for_json(monkeypatch):
         result.data,
         equal_to(
             {
+                "version": 1,
                 "leagues": [
                     {
                         "id": "9",
@@ -233,7 +234,7 @@ def test_run_threads_output_format_and_data_for_json(monkeypatch):
                             }
                         ],
                     }
-                ]
+                ],
             }
         ),
     )
@@ -257,6 +258,7 @@ def test_run_marks_unreadable_league_at_league_level(monkeypatch):
         result.data,
         equal_to(
             {
+                "version": 1,
                 "leagues": [
                     {"id": "9", "name": None, "readable": False, "players": []}
                 ],
@@ -297,6 +299,7 @@ def test_run_marks_league_unreadable_but_keeps_earlier_players(monkeypatch):
         result.data,
         equal_to(
             {
+                "version": 1,
                 "leagues": [
                     {
                         "id": "9",

@@ -59,6 +59,13 @@ _TEAM_RE = re.compile(r"/hockey/\d+/(\d+)\"[^>]*>([^<]{1,60})</a>")
 _FAW_RE = re.compile(r"<div[^>]*>\s*(FA|W)\b")
 _ROW_RE = re.compile(r"<tr[^>]*>.*?</tr>", re.S)
 
+# Version of the structured (``--output json|yaml``) payload shape. Emitted as a
+# top-level ``version`` field so downstream jq/yq consumers can pin to — and
+# branch on — a known schema; bump it on any backwards-incompatible change to the
+# payload (renamed/removed fields, changed nesting). Additive fields don't require
+# a bump.
+SCHEMA_VERSION = 1
+
 
 def resolve_league_ids(leagues_arg: str | None) -> list[str]:
     """Parse the ``--leagues`` CSV into IDs, falling back to the configured default.
@@ -136,7 +143,7 @@ def ownership_label(status: AvailabilityStatus, owner: str | None) -> str:
         return "FREE AGENT"
     if status is AvailabilityStatus.WAIVERS:
         return "WAIVERS"
-    return "unknown"
+    return "UNKNOWN"
 
 
 def _player_entry(
@@ -173,7 +180,11 @@ def _error_data(
     json/yaml consumer always reads ``leagues`` and branches on ``error`` the
     same way regardless of where the failure happened.
     """
-    return {"leagues": leagues if leagues is not None else [], **error_payload(err)}
+    return {
+        "version": SCHEMA_VERSION,
+        "leagues": leagues if leagues is not None else [],
+        **error_payload(err),
+    }
 
 
 def search_league(
@@ -373,6 +384,6 @@ class Availability(command.CliCommand):
             )
         return command.success_result(
             f"Checked {len(league_ids)} league(s) for {len(players)} player(s).",
-            data={"leagues": leagues_data},
+            data={"version": SCHEMA_VERSION, "leagues": leagues_data},
             output_format=output_format,
         )
