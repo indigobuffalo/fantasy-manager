@@ -18,8 +18,11 @@ class CommandResult(NamedTuple):
     ``data`` is an optional machine-readable payload (a plain dict/list) that the
     top-level runner serializes when ``--output json|yaml`` is requested. It's
     independent of ``message`` (the human-readable, stderr summary) and may be
-    present on both success and error results, so structured consumers still get
-    the partial payload when something goes wrong.
+    present on both success and error results, so a command that returns an error
+    result (e.g. a league it couldn't read) can still hand structured consumers
+    the partial payload. An *unexpected* exception that escapes to the runner
+    produces a plain text error result with no payload — a clean, empty stdout
+    rather than half-built JSON.
 
     ``output_format`` is the format the command parsed from its own ``--output``
     option. Carrying it on the result (rather than re-deriving it at the top

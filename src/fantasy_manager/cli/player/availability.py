@@ -258,7 +258,7 @@ class Availability(command.CliCommand):
             players_data = []
             for qi, query in enumerate(players):
                 ok, payload = results[(league_id, qi)]
-                if ok is None or not ok:
+                if not ok:
                     # ``ok is None`` => the request itself failed (payload is the
                     # exception); ``not ok`` => a stale/logged-out cookie. Either
                     # way the whole league is unreadable, so record it and stop.
