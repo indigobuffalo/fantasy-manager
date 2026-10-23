@@ -1,47 +1,54 @@
 """DailyFaceoff line-combinations source client.
 
-Pulls structured NHL line data **without scraping** in v1. Instead of hitting
-DailyFaceoff's HTML directly, this reads the public, auto-updated JSON feed
-published by the ``hg913488/nhl-line-combos`` project. That project scrapes
-DailyFaceoff (lines + PP units) and ESPN (injuries) several times a day and
-pushes the result to ``data/lines.json`` in its companion **app** repo,
-``hg913488/nhl-line-combos-app`` — note the live feed lives in the ``-app``
-repo; the scraper repo's own ``data/lines.json`` is a stale leftover.
+Reads structured NHL line data directly from DailyFaceoff's own pages. Each
+team's ``/teams/<slug>/line-combinations`` page is a Next.js app that embeds its
+full data as JSON in a ``<script id="__NEXT_DATA__">`` tag; this client fetches
+the page, extracts that blob, and parses ``props.pageProps.combinations`` — no
+HTML layout scraping, just the data the page already ships.
 
-Feed shape (current scraper output)::
+History: v1 read a third-party mirror (the ``hg913488/nhl-line-combos-app``
+feed) to avoid hitting DailyFaceoff directly. That mirror went dark (the app
+repo is gone and the scraper stopped running), so this client now reads the
+source the mirror itself scraped. The direct source is also *richer* than the
+mirror was — it carries penalty-kill units and an injured list the mirror
+dropped.
+
+Per-team ``combinations`` payload (fields this client uses)::
 
     {
-      "source": "dailyfaceoff.com",
-      "updated_at": "2026-03-02 16:34:05 UTC",
-      "teams": {
-        "<team-slug>": {
-          "forwards": [[name, name, name], ...],   # EV lines, line 1 first
-          "defense":  [[name, name], ...],         # EV pairs, pair 1 first
-          "goalies":  [[name], [name]],            # ordered, starter first
-          "pp1":      [name, ...],                  # power-play unit 1
-          "pp2":      [name, ...]                   # power-play unit 2
+      "teamName": "Edmonton Oilers",
+      "teamAbbreviation": "EDM",
+      "teamSlug": "edmonton-oilers",
+      "updatedAt": "2026-10-23T14:07:18.977Z",      # ISO-8601 UTC
+      "players": [
+        {
+          "name": "Connor McDavid",
+          "categoryIdentifier": "ev",    # ev | pp | pk | oi
+          "groupIdentifier":    "f1",    # f1-f4, d1-d4, g | pp1/pp2 | pk1/pk2 | ir
+          "positionIdentifier": "c",     # lw/c/rw, ld/rd, g1/g2 | sk1-sk5 | ir1..
+          "injuryStatus":       null,    # ir | out | dtd (on the oi list)
+          ...
         }, ...
-      },
-      "injuries": {
-        "<team-slug>": [{"name", "pos", "status", "desc"}, ...]
-      },
-      "injuries_meta": {"source", "status": fresh|stale|unavailable, "updated_at"}
+      ]
     }
 
-Older snapshots omit ``pp1``/``pp2``/``injuries``; parsing tolerates their
-absence (the corresponding fields come back empty).
+Categories map onto the model as:
+    - ``ev`` groups ``f1..f4`` -> ``forward_lines`` (line 1 first)
+    - ``ev`` groups ``d1..d4`` -> ``defense_pairs`` (pair 1 first)
+    - ``ev`` group  ``g``      -> ``goalies`` (``g1`` is the projected starter)
+    - ``pp`` groups ``pp1/pp2``-> ``power_play_units`` (PP1 first)
+    - ``pk`` groups ``pk1/pk2``-> ``penalty_kill_units`` (PK1 first)
+    - ``oi`` (off ice)         -> ``injuries`` (status from ``injuryStatus``)
 
-What the feed does NOT carry, and so stays empty in v1:
-    - penalty-kill (PK) units
-    - DailyFaceoff's Confirmed/Likely/Unconfirmed goalie labels (the feed only
-      orders goalies; everything parses as ``UNCONFIRMED``)
-    - an explicit healthy-scratch list
+What the page does NOT give, so it stays empty/flat in the model:
+    - DailyFaceoff's Confirmed/Likely/Unconfirmed goalie labels (the page only
+      orders goalies by ``g1``/``g2``; everything parses as ``UNCONFIRMED`` —
+      the labels live on the separate starting-goalies page)
+    - an explicit *healthy*-scratch list distinct from injuries (the off-ice
+      list is injured players only), so ``scratches`` stays empty
 
-**Fallback (future work, not v1):** if this mirror goes stale or disappears, or
-the PK/goalie-confidence/scratch data becomes required, scrape DailyFaceoff's
-team ``/line-combinations`` pages directly — each embeds a ``__NEXT_DATA__``
-``<script>`` with the same ``categoryIdentifier``/``groupIdentifier`` structure
-the mirror's scraper parses, plus the goalie-confidence label and PK groups.
+Requests MUST send a browser-like ``User-Agent``; without one DailyFaceoff's
+edge returns ``403``. No cookies or auth are needed.
 
 Player names are mapped to the project's ``PlayerName`` identity (accent-stripped
 last name + first initial), consistent with the ``get-yahoo-player-id`` matching
@@ -52,9 +59,11 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import unicodedata
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
-from typing import Optional
+from typing import Iterable, Optional
 
 import requests
 from requests import Session
@@ -75,59 +84,80 @@ logger = logging.getLogger(__name__)
 
 SOURCE = "dailyfaceoff.com"
 
-# Public auto-updated JSON feed of DailyFaceoff lines (+ ESPN injuries). This is
-# the companion ``-app`` repo, which receives the scraper's pushed output; the
-# scraper repo (``nhl-line-combos``) keeps only a stale copy.
-FEED_URL = "https://raw.githubusercontent.com/hg913488/nhl-line-combos-app/main/data/lines.json"
+# DailyFaceoff's site. Each team's line-combinations page embeds the data as
+# JSON; we fetch the page and pull the embedded blob out (see _extract_*).
+BASE_URL = "https://www.dailyfaceoff.com"
+TEAM_PATH_TEMPLATE = "/teams/{slug}/line-combinations"
 
-# The mirror refreshes roughly once a day; anything older than this is treated
-# as stale (logged, but still returned — see module docstring).
+# The Next.js data blob lives in this script tag; the group(1) is raw JSON.
+_NEXT_DATA_RE = re.compile(r'<script id="__NEXT_DATA__"[^>]*>(.*?)</script>', re.DOTALL)
+
+# A browser-like UA is REQUIRED — a missing/non-browser UA gets a 403 from the
+# site's edge. No cookies/auth are needed beyond this.
+DEFAULT_USER_AGENT = (
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+)
+
+# DailyFaceoff refreshes lines several times a day; anything older than this is
+# treated as stale (logged, but still returned — see module docstring).
 DEFAULT_STALE_AFTER = timedelta(hours=36)
 
-# How long to wait on the feed before giving up.
+# How long to wait on a single team page before giving up.
 DEFAULT_TIMEOUT_SECONDS = 15
 
-# Timestamps in the feed look like "2026-03-02 16:34:05 UTC" (always UTC).
-_FEED_TIME_FORMAT = "%Y-%m-%d %H:%M:%S UTC"
+# A full-league pull fetches 32 independent pages; do so concurrently. The cap
+# keeps us polite to the site while cutting wall-clock from ~sum to ~max.
+DEFAULT_MAX_WORKERS = 8
 
-# DailyFaceoff team slug -> (standard NHL abbreviation, display name). The abbr
-# is what the name-match team tiebreak keys on (see get-yahoo-player-id). The
-# feed has no team ids, so a full NhlTeam (which requires one) is intentionally
-# not built here; a later issue can resolve it via the NHL client if needed.
-_SLUG_TO_TEAM: dict[str, tuple[str, str]] = {
-    "anaheim-ducks": ("ANA", "Anaheim Ducks"),
-    "boston-bruins": ("BOS", "Boston Bruins"),
-    "buffalo-sabres": ("BUF", "Buffalo Sabres"),
-    "calgary-flames": ("CGY", "Calgary Flames"),
-    "carolina-hurricanes": ("CAR", "Carolina Hurricanes"),
-    "chicago-blackhawks": ("CHI", "Chicago Blackhawks"),
-    "colorado-avalanche": ("COL", "Colorado Avalanche"),
-    "columbus-blue-jackets": ("CBJ", "Columbus Blue Jackets"),
-    "dallas-stars": ("DAL", "Dallas Stars"),
-    "detroit-red-wings": ("DET", "Detroit Red Wings"),
-    "edmonton-oilers": ("EDM", "Edmonton Oilers"),
-    "florida-panthers": ("FLA", "Florida Panthers"),
-    "los-angeles-kings": ("LAK", "Los Angeles Kings"),
-    "minnesota-wild": ("MIN", "Minnesota Wild"),
-    "montreal-canadiens": ("MTL", "Montreal Canadiens"),
-    "nashville-predators": ("NSH", "Nashville Predators"),
-    "new-jersey-devils": ("NJD", "New Jersey Devils"),
-    "new-york-islanders": ("NYI", "New York Islanders"),
-    "new-york-rangers": ("NYR", "New York Rangers"),
-    "ottawa-senators": ("OTT", "Ottawa Senators"),
-    "philadelphia-flyers": ("PHI", "Philadelphia Flyers"),
-    "pittsburgh-penguins": ("PIT", "Pittsburgh Penguins"),
-    "san-jose-sharks": ("SJS", "San Jose Sharks"),
-    "seattle-kraken": ("SEA", "Seattle Kraken"),
-    "st-louis-blues": ("STL", "St. Louis Blues"),
-    "tampa-bay-lightning": ("TBL", "Tampa Bay Lightning"),
-    "toronto-maple-leafs": ("TOR", "Toronto Maple Leafs"),
-    "utah-mammoth": ("UTA", "Utah Mammoth"),
-    "vancouver-canucks": ("VAN", "Vancouver Canucks"),
-    "vegas-golden-knights": ("VGK", "Vegas Golden Knights"),
-    "washington-capitals": ("WSH", "Washington Capitals"),
-    "winnipeg-jets": ("WPG", "Winnipeg Jets"),
-}
+# The 32 NHL team slugs DailyFaceoff publishes line-combinations pages for. The
+# page itself carries each team's abbreviation and name, so this is only the
+# work-list of pages to fetch for a full-league pull.
+TEAM_SLUGS: tuple[str, ...] = (
+    "anaheim-ducks",
+    "boston-bruins",
+    "buffalo-sabres",
+    "calgary-flames",
+    "carolina-hurricanes",
+    "chicago-blackhawks",
+    "colorado-avalanche",
+    "columbus-blue-jackets",
+    "dallas-stars",
+    "detroit-red-wings",
+    "edmonton-oilers",
+    "florida-panthers",
+    "los-angeles-kings",
+    "minnesota-wild",
+    "montreal-canadiens",
+    "nashville-predators",
+    "new-jersey-devils",
+    "new-york-islanders",
+    "new-york-rangers",
+    "ottawa-senators",
+    "philadelphia-flyers",
+    "pittsburgh-penguins",
+    "san-jose-sharks",
+    "seattle-kraken",
+    "st-louis-blues",
+    "tampa-bay-lightning",
+    "toronto-maple-leafs",
+    "utah-mammoth",
+    "vancouver-canucks",
+    "vegas-golden-knights",
+    "washington-capitals",
+    "winnipeg-jets",
+)
+
+# Category identifiers on each player entry.
+_CAT_EVEN_STRENGTH = "ev"
+_CAT_POWER_PLAY = "pp"
+_CAT_PENALTY_KILL = "pk"
+_CAT_OFF_ICE = "oi"
+
+# Within an even-strength group the skaters carry role identifiers (not numbers);
+# this fixes their left-to-right order. Numbered slots (sk1.., g1/g2) sort by
+# their trailing number instead (see _position_sort_key).
+_EV_ROLE_ORDER = {"lw": 0, "c": 1, "rw": 2, "ld": 0, "rd": 1}
 
 
 def _strip_accents(value: str) -> str:
@@ -141,7 +171,7 @@ def _strip_accents(value: str) -> str:
 
 
 def parse_player_name(raw: str) -> PlayerName:
-    """Parse a feed name (e.g. "UKKO-PEKKA LUUKKONEN") into a ``PlayerName``.
+    """Parse a feed name (e.g. "Ukko-Pekka Luukkonen") into a ``PlayerName``.
 
     The last whitespace-delimited token is the surname and the first is the
     given name — the same split get-yahoo-player-id uses — so multi-word
@@ -162,122 +192,247 @@ def parse_player_name(raw: str) -> PlayerName:
     )
 
 
-def _parse_feed_timestamp(value: Optional[str]) -> Optional[datetime]:
-    """Parse a feed timestamp into a UTC-aware datetime, or None if unusable."""
-    if not value:
+def _parse_iso_timestamp(value: Optional[str]) -> Optional[datetime]:
+    """Parse an ISO-8601 feed timestamp into a UTC-aware datetime, or None.
+
+    The page stamps times like ``2026-10-23T14:07:18.977Z``; a naive or
+    offset value is normalized to UTC.
+    """
+    if not value or not isinstance(value, str):
         return None
     try:
-        naive = datetime.strptime(value, _FEED_TIME_FORMAT)
-    except (ValueError, TypeError):
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
         logger.warning("Unparseable feed timestamp: %r", value)
         return None
-    return naive.replace(tzinfo=timezone.utc)
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
 
 
-def _as_names(raw_names) -> list[PlayerName]:
-    """Map a list of raw name strings to ``PlayerName`` identities."""
-    if not isinstance(raw_names, list):
-        return []
-    return [parse_player_name(n) for n in raw_names if isinstance(n, str) and n.strip()]
+def _position_sort_key(position_id: Optional[str]) -> tuple[int, int]:
+    """Order players within a group.
 
-
-def _parse_goalies(raw_goalies) -> list[GoalieSlot]:
-    """Parse the ordered goalie list; the first goalie is the projected starter.
-
-    The feed nests each goalie in a single-element list (``[["A"], ["B"]]``) but
-    bare strings are tolerated too. Confidence is always UNCONFIRMED (the feed
-    carries no label — see the module docstring).
+    Numbered slots (``sk1``, ``g2``, ...) sort by their trailing number; the
+    even-strength role identifiers (``lw``/``c``/``rw``, ``ld``/``rd``) fall back
+    to a fixed left-to-right order. A group only ever mixes one scheme.
     """
-    slots: list[GoalieSlot] = []
-    if not isinstance(raw_goalies, list):
-        return slots
-    for entry in raw_goalies:
-        if isinstance(entry, list):
-            names = [n for n in entry if isinstance(n, str) and n.strip()]
-        elif isinstance(entry, str) and entry.strip():
-            names = [entry]
-        else:
-            names = []
-        for name in names:
-            slots.append(
-                GoalieSlot(
-                    goalie=parse_player_name(name),
-                    is_starter=not slots,  # first parsed goalie starts
-                )
-            )
+    pid = position_id or ""
+    match = re.search(r"(\d+)$", pid)
+    if match:
+        return (0, int(match.group(1)))
+    return (1, _EV_ROLE_ORDER.get(pid, 99))
+
+
+def _group_sort_key(group_id: Optional[str]) -> int:
+    """Order groups by their trailing number: f1<f2<f3<f4, pp1<pp2, pk1<pk2."""
+    match = re.search(r"(\d+)$", group_id or "")
+    return int(match.group(1)) if match else 0
+
+
+def _players_in_category(players: list[dict], category: str) -> dict[str, list[dict]]:
+    """Bucket a category's players by their ``groupIdentifier``, in page order."""
+    groups: dict[str, list[dict]] = {}
+    for player in players:
+        if not isinstance(player, dict):
+            continue
+        if player.get("categoryIdentifier") != category:
+            continue
+        group_id = player.get("groupIdentifier")
+        if not isinstance(group_id, str):
+            continue
+        groups.setdefault(group_id, []).append(player)
+    return groups
+
+
+def _units_from_groups(
+    groups: dict[str, list[dict]], prefix: str
+) -> list[list[PlayerName]]:
+    """Build ordered units from groups whose id starts with ``prefix``.
+
+    Groups are ordered by their trailing number (line 1 first); players within a
+    unit are ordered by :func:`_position_sort_key`. Empty units are dropped.
+    """
+    units: list[list[PlayerName]] = []
+    group_ids = sorted(
+        (gid for gid in groups if gid.startswith(prefix)), key=_group_sort_key
+    )
+    for group_id in group_ids:
+        members = sorted(
+            groups[group_id],
+            key=lambda p: _position_sort_key(p.get("positionIdentifier")),
+        )
+        names = [parse_player_name(p["name"]) for p in members if p.get("name")]
+        if names:
+            units.append(names)
+    return units
+
+
+def _parse_goalies(even_strength: dict[str, list[dict]]) -> list[GoalieSlot]:
+    """Parse the goalie group; ``g1`` (else the first listed) is the starter.
+
+    Confidence is always UNCONFIRMED — the line-combinations page only orders
+    goalies, it carries no Confirmed/Likely label (see the module docstring).
+    """
+    goalies = sorted(
+        even_strength.get("g", []),
+        key=lambda p: _position_sort_key(p.get("positionIdentifier")),
+    )
+    slots = [
+        GoalieSlot(
+            goalie=parse_player_name(p["name"]),
+            is_starter=(p.get("positionIdentifier") == "g1"),
+        )
+        for p in goalies
+        if p.get("name")
+    ]
+    if slots and not any(slot.is_starter for slot in slots):
+        slots[0].is_starter = True
     return slots
 
 
-def _parse_injuries(raw_injuries) -> list[Injury]:
-    """Parse a team's injury entries ({name, pos, status, desc})."""
+def _parse_injuries(players: list[dict]) -> list[Injury]:
+    """Parse the off-ice (``oi``) list into injuries.
+
+    The off-ice list is injured players only (IR/Out/Day-to-Day); ``injuryStatus``
+    is the raw label. Position/description aren't carried on this list.
+    """
     injuries: list[Injury] = []
-    if not isinstance(raw_injuries, list):
-        return injuries
-    for entry in raw_injuries:
-        if not isinstance(entry, dict):
+    for player in players:
+        if not isinstance(player, dict):
             continue
-        name = entry.get("name")
+        if player.get("categoryIdentifier") != _CAT_OFF_ICE:
+            continue
+        name = player.get("name")
         if not isinstance(name, str) or not name.strip():
             continue
         injuries.append(
             Injury(
                 player=parse_player_name(name),
-                status=(entry.get("status") or "Unknown"),
-                position=(entry.get("pos") or None),
-                description=(entry.get("desc") or None),
+                status=(player.get("injuryStatus") or "Unknown"),
             )
         )
     return injuries
 
 
 class DailyFaceoffClient:
-    """Fetches and parses the DailyFaceoff line-combinations JSON feed."""
+    """Fetches and parses DailyFaceoff's line-combinations pages."""
 
     def __init__(
         self,
         session: Optional[Session] = None,
-        feed_url: str = FEED_URL,
+        base_url: str = BASE_URL,
         timeout: int = DEFAULT_TIMEOUT_SECONDS,
         stale_after: timedelta = DEFAULT_STALE_AFTER,
+        user_agent: str = DEFAULT_USER_AGENT,
+        max_workers: int = DEFAULT_MAX_WORKERS,
     ):
         self.session = session or requests.Session()
-        self.feed_url = feed_url
+        # A browser-like UA is mandatory (see DEFAULT_USER_AGENT). requests.Session
+        # pre-sets its own ``python-requests/<ver>`` UA (which earns a 403), so
+        # replace that — but keep a genuinely custom UA a caller chose.
+        current_ua = self.session.headers.get("User-Agent", "")
+        if not current_ua or current_ua.startswith("python-requests"):
+            self.session.headers["User-Agent"] = user_agent
+        self.base_url = base_url.rstrip("/")
         self.timeout = timeout
         self.stale_after = stale_after
+        self.max_workers = max_workers
 
-    def fetch_lines(self) -> LinesFeed:
-        """Fetch and parse the feed into a ``LinesFeed``.
+    def team_url(self, slug: str) -> str:
+        """The line-combinations page URL for a team slug."""
+        return f"{self.base_url}{TEAM_PATH_TEMPLATE.format(slug=slug)}"
+
+    def fetch_lines(self, slugs: Optional[Iterable[str]] = None) -> LinesFeed:
+        """Fetch and parse line combinations for ``slugs`` (default: all teams).
+
+        The teams are independent pages, so they're fetched concurrently (bounded
+        by ``max_workers``). A team whose page can't be fetched or parsed is
+        logged and skipped rather than failing the whole pull. If no team could
+        be fetched at all, the source is treated as unavailable.
 
         Raises:
-            NewsSourceUnavailableError: if the feed can't be reached or parsed.
+            NewsSourceUnavailableError: if not a single team could be read.
 
-        A stale-but-parseable feed is returned (with a warning), not an error,
+        A stale-but-parseable result is returned (with a warning), not an error,
         so callers can still act on last-known lines.
         """
-        feed = self.parse(self._get_raw())
+        slugs = list(slugs) if slugs is not None else list(TEAM_SLUGS)
+        workers = max(1, min(self.max_workers, len(slugs)))
+        # ThreadPoolExecutor.map preserves input order, so `teams` stays ordered
+        # by `slugs`. The shared Session is safe here: requests/urllib3 pool
+        # connections across threads for plain concurrent GETs.
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            results = pool.map(self._fetch_team_or_none, slugs)
+
+        teams: dict[str, TeamLines] = {}
+        failures: list[str] = []
+        for slug, team in zip(slugs, results):
+            if team is None:
+                failures.append(slug)
+            else:
+                teams[slug] = team
+
+        if not teams:
+            raise NewsSourceUnavailableError(
+                SOURCE, f"no teams could be fetched ({len(failures)} failed)"
+            )
+        if failures:
+            logger.warning(
+                "DailyFaceoff: %d/%d teams failed: %s",
+                len(failures),
+                len(slugs),
+                ", ".join(failures),
+            )
+
+        timestamps = [t.updated_at for t in teams.values() if t.updated_at]
+        newest = max(timestamps) if timestamps else None
+        feed = LinesFeed(
+            source=SOURCE,
+            updated_at=newest,
+            teams=teams,
+            # Injuries ship on the same page as the lines, so they share freshness.
+            injuries_status=InjuriesFreshness.FRESH,
+            injuries_updated_at=newest,
+        )
         if self.is_stale(feed):
             logger.warning(
-                "DailyFaceoff feed is stale (updated_at=%s); serving last-known "
-                "data. Fallback would be a direct DailyFaceoff scrape.",
-                feed.updated_at,
+                "DailyFaceoff lines are stale (newest updated_at=%s); serving "
+                "last-known data.",
+                newest,
             )
         return feed
 
-    def _get_raw(self) -> dict:
-        """GET the feed and decode JSON, mapping failures to a source error."""
+    def fetch_team(self, slug: str) -> TeamLines:
+        """Fetch and parse a single team's line-combinations page.
+
+        Raises:
+            NewsSourceUnavailableError: if the page can't be fetched or parsed.
+        """
+        html = self._get_html(self.team_url(slug))
+        return self.parse_team(self._extract_combinations(html))
+
+    def _fetch_team_or_none(self, slug: str) -> Optional[TeamLines]:
+        """Fetch one team, logging and swallowing a source error as ``None``.
+
+        Used by the concurrent :meth:`fetch_lines` so one bad page doesn't sink
+        the whole pull.
+        """
         try:
-            resp = self.session.get(self.feed_url, timeout=self.timeout)
+            return self.fetch_team(slug)
+        except NewsSourceUnavailableError as exc:
+            logger.warning("DailyFaceoff: skipping %s (%s)", slug, exc)
+            return None
+
+    def _get_html(self, url: str) -> str:
+        """GET a page as text, mapping network/HTTP failures to a source error."""
+        try:
+            resp = self.session.get(url, timeout=self.timeout)
             resp.raise_for_status()
-            return resp.json()
+            return resp.text
         except requests.RequestException as exc:
-            # Network/HTTP failure: the fallback (future work) is to scrape
-            # DailyFaceoff's team pages directly — see the module docstring.
             raise NewsSourceUnavailableError(
-                SOURCE, f"could not fetch feed: {exc}"
-            ) from exc
-        except (json.JSONDecodeError, ValueError) as exc:
-            raise NewsSourceUnavailableError(
-                SOURCE, f"feed returned malformed JSON: {exc}"
+                SOURCE, f"could not fetch {url}: {exc}"
             ) from exc
 
     def is_stale(self, feed: LinesFeed, now: Optional[datetime] = None) -> bool:
@@ -292,63 +447,59 @@ class DailyFaceoffClient:
         return (now - feed.updated_at) > self.stale_after
 
     @staticmethod
-    def parse(raw: dict) -> LinesFeed:
-        """Parse a raw feed payload into a ``LinesFeed``.
-
-        Tolerant of missing optional fields (older snapshots omit
-        ``pp1``/``pp2``/``injuries``); unknown teams still parse.
-        """
-        if not isinstance(raw, dict):
+    def _extract_combinations(html: str) -> dict:
+        """Pull ``props.pageProps.combinations`` out of a page's __NEXT_DATA__."""
+        match = _NEXT_DATA_RE.search(html)
+        if not match:
             raise NewsSourceUnavailableError(
-                SOURCE, f"expected a JSON object, got {type(raw).__name__}"
+                SOURCE, "could not find __NEXT_DATA__ in page"
+            )
+        try:
+            data = json.loads(match.group(1))
+        except (json.JSONDecodeError, ValueError) as exc:
+            raise NewsSourceUnavailableError(
+                SOURCE, f"__NEXT_DATA__ was not valid JSON: {exc}"
+            ) from exc
+        page_props = (data.get("props") or {}).get("pageProps") or {}
+        combinations = page_props.get("combinations")
+        if not isinstance(combinations, dict):
+            raise NewsSourceUnavailableError(
+                SOURCE, "page had no line-combinations data"
+            )
+        return combinations
+
+    @staticmethod
+    def parse_team(combinations: dict) -> TeamLines:
+        """Parse one team's ``combinations`` payload into ``TeamLines``.
+
+        Tolerant of missing optional groups (a team with no PK listed just gets
+        empty ``penalty_kill_units``, etc.).
+        """
+        if not isinstance(combinations, dict):
+            raise NewsSourceUnavailableError(
+                SOURCE,
+                f"expected a combinations object, got {type(combinations).__name__}",
+            )
+        players = combinations.get("players")
+        if not isinstance(players, list):
+            raise NewsSourceUnavailableError(
+                SOURCE, "combinations payload is missing a 'players' list"
             )
 
-        raw_teams = raw.get("teams")
-        if not isinstance(raw_teams, dict):
-            raise NewsSourceUnavailableError(SOURCE, "feed is missing a 'teams' object")
+        even_strength = _players_in_category(players, _CAT_EVEN_STRENGTH)
+        power_play = _players_in_category(players, _CAT_POWER_PLAY)
+        penalty_kill = _players_in_category(players, _CAT_PENALTY_KILL)
 
-        raw_injuries = raw.get("injuries") or {}
-        if not isinstance(raw_injuries, dict):
-            raw_injuries = {}
-
-        teams: dict[str, TeamLines] = {}
-        for slug, data in raw_teams.items():
-            if not isinstance(data, dict):
-                continue
-            abbr_name = _SLUG_TO_TEAM.get(slug)
-            power_play_units = [
-                unit
-                for unit in (_as_names(data.get("pp1")), _as_names(data.get("pp2")))
-                if unit
-            ]
-            teams[slug] = TeamLines(
-                team_slug=slug,
-                team_abbr=abbr_name[0] if abbr_name else None,
-                team_name=abbr_name[1] if abbr_name else None,
-                forward_lines=[
-                    _as_names(line) for line in (data.get("forwards") or [])
-                ],
-                defense_pairs=[_as_names(pair) for pair in (data.get("defense") or [])],
-                goalies=_parse_goalies(data.get("goalies")),
-                power_play_units=power_play_units,
-                # penalty_kill_units / scratches: not carried by the feed (v1).
-                injuries=_parse_injuries(raw_injuries.get(slug)),
-            )
-
-        meta = raw.get("injuries_meta") or {}
-        injuries_status = InjuriesFreshness.UNAVAILABLE
-        if isinstance(meta, dict):
-            try:
-                injuries_status = InjuriesFreshness(meta.get("status"))
-            except ValueError:
-                injuries_status = InjuriesFreshness.UNAVAILABLE
-
-        return LinesFeed(
-            source=raw.get("source") or SOURCE,
-            updated_at=_parse_feed_timestamp(raw.get("updated_at")),
-            teams=teams,
-            injuries_status=injuries_status,
-            injuries_updated_at=_parse_feed_timestamp(
-                meta.get("updated_at") if isinstance(meta, dict) else None
-            ),
+        return TeamLines(
+            team_slug=combinations.get("teamSlug") or "",
+            team_abbr=combinations.get("teamAbbreviation") or None,
+            team_name=combinations.get("teamName") or None,
+            updated_at=_parse_iso_timestamp(combinations.get("updatedAt")),
+            forward_lines=_units_from_groups(even_strength, "f"),
+            defense_pairs=_units_from_groups(even_strength, "d"),
+            goalies=_parse_goalies(even_strength),
+            power_play_units=_units_from_groups(power_play, "pp"),
+            penalty_kill_units=_units_from_groups(penalty_kill, "pk"),
+            # scratches: the off-ice list is injuries only (see docstring).
+            injuries=_parse_injuries(players),
         )

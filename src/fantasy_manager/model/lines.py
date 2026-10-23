@@ -85,6 +85,8 @@ class TeamLines(BaseModel):
         team_abbr (Optional[str]):              Standard NHL abbreviation (for
                                                 the name-match team tiebreak).
         team_name (Optional[str]):              Human-readable team name.
+        updated_at (Optional[datetime]):        When this team's lines were last
+                                                refreshed (UTC), per the page.
         forward_lines (list[list[PlayerName]]): EV forward lines, line 1 first.
         defense_pairs (list[list[PlayerName]]): EV defense pairs, pair 1 first.
         goalies (list[GoalieSlot]):             Projected goalie slate, starter
@@ -98,6 +100,7 @@ class TeamLines(BaseModel):
     team_slug: str
     team_abbr: Optional[str] = None
     team_name: Optional[str] = None
+    updated_at: Optional[datetime] = None
     forward_lines: list[list[PlayerName]] = []
     defense_pairs: list[list[PlayerName]] = []
     goalies: list[GoalieSlot] = []
