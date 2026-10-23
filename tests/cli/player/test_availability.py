@@ -175,18 +175,19 @@ def test_rows_split_into_individual_entries():
     )
 
 
-def _run_with_fake_search(monkeypatch, argv, payload):
+def _run_with_fake_search(monkeypatch, argv, payload, ok=True):
     """Drive ``Availability`` end-to-end with the network search stubbed out.
 
     ``argv`` is parsed by the command's own docopt usage (so option spellings
     are exercised exactly as the real CLI would see them), and ``search_league``
-    is replaced with a canned ``(ok, payload)`` so ``run`` does no I/O.
+    is replaced with a canned ``(ok, payload)`` so ``run`` does no I/O. Pass
+    ``ok=False`` to simulate an unreadable league (stale/logged-out cookie).
     """
     monkeypatch.setattr(FantasyConfig, "YAHOO_COOKIE", "fake-cookie")
     monkeypatch.setattr(
         availability_module,
         "search_league",
-        lambda session, base, league_id, query: (True, payload),
+        lambda session, base, league_id, query: (ok, payload),
     )
     command = Availability()
     args = command.parse_args(["player", "availability"] + argv)
@@ -209,6 +210,7 @@ def test_run_threads_output_format_and_data_for_json(monkeypatch):
                     {
                         "id": "9",
                         "name": None,
+                        "readable": True,
                         "players": [
                             {
                                 "query": "McDavid",
@@ -219,6 +221,31 @@ def test_run_threads_output_format_and_data_for_json(monkeypatch):
                             }
                         ],
                     }
+                ]
+            }
+        ),
+    )
+
+
+def test_run_marks_unreadable_league_at_league_level(monkeypatch):
+    # A league that can't be read (stale cookie) is flagged by the league-level
+    # ``readable`` flag with an empty ``players`` list — the failure isn't tied
+    # to any one query, so no synthetic per-player entry is emitted. Multiple
+    # queries must not multiply (or arbitrarily pick) a player row.
+    result = _run_with_fake_search(
+        monkeypatch,
+        ["--leagues=9", "--output", "json", "McDavid", "Makar"],
+        payload=[],
+        ok=False,
+    )
+    assert_that(result.return_code, equal_to(1))
+    assert_that(result.output_format, equal_to(OutputFormat.JSON))
+    assert_that(
+        result.data,
+        equal_to(
+            {
+                "leagues": [
+                    {"id": "9", "name": None, "readable": False, "players": []}
                 ]
             }
         ),

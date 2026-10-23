@@ -2,11 +2,16 @@ from enum import Enum
 
 
 class AvailabilityStatus(Enum):
-    """Stable ownership status for a player in a league's availability report.
+    """Stable per-player ownership status in a league's availability report.
 
     The values are the machine-readable strings that land in structured
     (``--output json|yaml``) output, so they're intentionally terse and stable
     even as the human-readable text rendering evolves.
+
+    This describes an individual *player* result. A league that couldn't be read
+    at all (stale/logged-out cookie, failed request) is represented by the
+    league-level ``readable`` flag rather than a status here, since the failure
+    isn't tied to any one query.
     """
 
     ROSTERED = "ROSTERED"
@@ -16,5 +21,3 @@ class AvailabilityStatus(Enum):
     UNKNOWN = "UNKNOWN"
     # A query that returned no player rows at all.
     NO_MATCH = "NO_MATCH"
-    # The league itself couldn't be read (stale/logged-out cookie, failed request).
-    UNREADABLE = "UNREADABLE"

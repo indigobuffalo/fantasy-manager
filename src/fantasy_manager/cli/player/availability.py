@@ -130,9 +130,9 @@ def _player_entry(
 ) -> dict[str, Any]:
     """One row of a league's structured ``players`` list.
 
-    ``name``/``pid``/``owner`` are ``None`` for the query-level statuses
-    (``NO_MATCH``, ``UNREADABLE``) that don't correspond to a matched player.
-    ``status`` is serialized as its stable string value.
+    ``name``/``pid``/``owner`` are ``None`` for the ``NO_MATCH`` status, which
+    doesn't correspond to a matched player. ``status`` is serialized as its
+    stable string value.
     """
     return {
         "query": query,
@@ -255,17 +255,17 @@ class Availability(command.CliCommand):
                 header = f"{league_label(league_id)}  ({base}/{league_id}/players)"
                 STDOUT.info(f"\n{header}\n" + "=" * len(header))
 
+            readable = True
             players_data = []
             for qi, query in enumerate(players):
                 ok, payload = results[(league_id, qi)]
                 if not ok:
                     # ``ok is None`` => the request itself failed (payload is the
                     # exception); ``not ok`` => a stale/logged-out cookie. Either
-                    # way the whole league is unreadable, so record it and stop.
+                    # way the whole league is unreadable — flag it at the league
+                    # level (not against any one query) and stop searching it.
+                    readable = False
                     unreadable = True
-                    players_data.append(
-                        _player_entry(query, AvailabilityStatus.UNREADABLE)
-                    )
                     if is_text:
                         if ok is None:
                             STDOUT.info(
@@ -296,6 +296,7 @@ class Availability(command.CliCommand):
                 {
                     "id": league_id,
                     "name": FantasyConfig.AVAILABILITY_LEAGUE_NAMES.get(league_id),
+                    "readable": readable,
                     "players": players_data,
                 }
             )
