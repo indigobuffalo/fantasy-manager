@@ -1,4 +1,5 @@
 import pytest
+import requests
 from hamcrest import assert_that, equal_to, contains_inanyorder
 
 import fantasy_manager.cli.player.availability as availability_module
@@ -255,6 +256,55 @@ def test_run_marks_unreadable_league_at_league_level(monkeypatch):
         result.data,
         equal_to(
             {"leagues": [{"id": "9", "name": None, "readable": False, "players": []}]}
+        ),
+    )
+
+
+def test_run_marks_league_unreadable_but_keeps_earlier_players(monkeypatch):
+    # Each (league, query) is an independent request, so a *transient* failure on
+    # a later query (here ``Makar`` raising RequestException => ``ok is None``)
+    # can land after an earlier query (``McDavid``) already matched. The league is
+    # then flagged ``readable: False`` *and* keeps the player entries collected
+    # before the failure — the partial data is retained, with ``readable`` as the
+    # signal that it's incomplete. This mirrors what text mode prints (the matched
+    # rows plus the "Could not read league" line) for the same scenario.
+    monkeypatch.setattr(FantasyConfig, "YAHOO_COOKIE", "fake-cookie")
+
+    def fake_search(session, base, league_id, query):
+        if query == "Makar":
+            raise requests.RequestException("boom")
+        return True, [("6743", "Connor McDavid", AvailabilityStatus.FREE_AGENT, None)]
+
+    monkeypatch.setattr(availability_module, "search_league", fake_search)
+    command = Availability()
+    args = command.parse_args(
+        ["player", "availability", "--leagues=9", "--output", "json", "McDavid", "Makar"]
+    )
+    result = command.run(args)
+
+    assert_that(result.return_code, equal_to(1))
+    assert_that(result.output_format, equal_to(OutputFormat.JSON))
+    assert_that(
+        result.data,
+        equal_to(
+            {
+                "leagues": [
+                    {
+                        "id": "9",
+                        "name": None,
+                        "readable": False,
+                        "players": [
+                            {
+                                "query": "McDavid",
+                                "name": "Connor McDavid",
+                                "pid": "6743",
+                                "status": "FREE_AGENT",
+                                "owner": None,
+                            }
+                        ],
+                    }
+                ]
+            }
         ),
     )
 
