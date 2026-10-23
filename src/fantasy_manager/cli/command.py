@@ -1,44 +1,87 @@
 """Abstract base class for CLI commands
 Allows for some centralization of common logic"""
+
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
 import traceback
-from typing import NamedTuple, Optional
+from typing import Any, NamedTuple, Optional
 
 import docopt
 
+from fantasy_manager.util.output import OutputFormat
+
 
 class CommandResult(NamedTuple):
-    """Results of a Command run"""
+    """Results of a Command run.
+
+    ``data`` is an optional machine-readable payload (a plain dict/list) that the
+    top-level runner serializes when ``--output json|yaml`` is requested. It's
+    independent of ``message`` (the human-readable, stderr summary) and may be
+    present on both success and error results, so a command that returns an error
+    result (e.g. a league it couldn't read) can still hand structured consumers
+    the partial payload. An *unexpected* exception that escapes to the runner
+    produces a plain text error result with no payload — a clean, empty stdout
+    rather than half-built JSON.
+
+    ``output_format`` is the format the command parsed from its own ``--output``
+    option. Carrying it on the result (rather than re-deriving it at the top
+    level) keeps a single source of truth: the command's docopt parse is the
+    only place ``--output`` is interpreted, so the runner can't disagree with
+    the command about which format was requested.
+    """
 
     return_code: int
     message: str
     traceback: Optional[str] = None
+    data: Optional[Any] = None
+    output_format: OutputFormat = OutputFormat.TEXT
 
 
-def success_result(message: str) -> CommandResult:
+def success_result(
+    message: str,
+    data: Optional[Any] = None,
+    output_format: OutputFormat = OutputFormat.TEXT,
+) -> CommandResult:
     """Returns a successful (return code 0) Command Result"""
-    return CommandResult(return_code=0, message=message)
+    return CommandResult(
+        return_code=0, message=message, data=data, output_format=output_format
+    )
 
 
-def error_result(exception: Exception, message: str) -> CommandResult:
+def error_result(
+    exception: Exception,
+    message: str,
+    data: Optional[Any] = None,
+    output_format: OutputFormat = OutputFormat.TEXT,
+) -> CommandResult:
     """Returns a failed (return code 1) Command Result due to a 'hard' error"""
     return CommandResult(
-        return_code=1, message=message, traceback=traceback.format_exc()
+        return_code=1,
+        message=message,
+        traceback=traceback.format_exc(),
+        data=data,
+        output_format=output_format,
     )
 
 
-def not_permitted_result(exception: Exception, message: str) -> CommandResult:
-    """Returns a faield (return code 2) Command Result due to a business-logic driven error"""
-    return CommandResult(
-        return_code=2, message=message, traceback=traceback.format_exc()
-    )
-
-
-def run_subcommand(
-    action: "CliCommand", argv: list[str], label: str
+def not_permitted_result(
+    exception: Exception,
+    message: str,
+    data: Optional[Any] = None,
+    output_format: OutputFormat = OutputFormat.TEXT,
 ) -> CommandResult:
+    """Returns a failed (return code 2) Command Result due to a business-logic driven error"""
+    return CommandResult(
+        return_code=2,
+        message=message,
+        traceback=traceback.format_exc(),
+        data=data,
+        output_format=output_format,
+    )
+
+
+def run_subcommand(action: "CliCommand", argv: list[str], label: str) -> CommandResult:
     """Parse ``argv`` against a sub-action's usage and run it.
 
     Namespace commands (e.g. ``player``) dispatch to a sub-action by re-parsing the

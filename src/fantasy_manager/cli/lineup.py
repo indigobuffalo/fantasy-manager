@@ -17,7 +17,7 @@ def automate_lineup(
     start, end = (args["--start"], args["--end"])
     controller.automate_lineup(start, end)
     return command.success_result(
-        f"Succesfully set lineup for {controller.service.league.name}"
+        f"Successfully set lineup for {controller.service.league.name}"
     )
 
 
@@ -52,7 +52,7 @@ def set_lineup(
         start=start,
     )
     return command.success_result(
-        f"Succesfully set lineup for {controller.service.league.name} on {lineup_date}"
+        f"Successfully set lineup for {controller.service.league.name} on {lineup_date}"
     )
 
 

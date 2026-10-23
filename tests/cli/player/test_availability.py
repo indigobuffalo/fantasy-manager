@@ -1,17 +1,23 @@
 import pytest
+import requests
 from hamcrest import assert_that, equal_to, contains_inanyorder
 
+import fantasy_manager.cli.player.availability as availability_module
 from fantasy_manager.cli.player.availability import (
     _PLAYER_RE,
     _ROW_RE,
     Availability,
     league_label,
+    league_name,
     ownership,
+    ownership_label,
     resolve_league_ids,
     resolve_workers,
 )
 from fantasy_manager.config.config import FantasyConfig
 from fantasy_manager.exceptions import InputError
+from fantasy_manager.model.enums.availability_status import AvailabilityStatus
+from fantasy_manager.util.output import OutputFormat
 
 
 def test_league_label_uses_configured_name_when_known():
@@ -20,6 +26,13 @@ def test_league_label_uses_configured_name_when_known():
 
 def test_league_label_falls_back_to_id_when_unknown():
     assert_that(league_label("999999"), equal_to("League 999999"))
+
+
+def test_league_name_returns_configured_name_or_none():
+    # The single lookup shared by the text header and the structured payload:
+    # a configured ID resolves to its name, an unknown ID to ``None`` (not the ID).
+    assert_that(league_name("121128"), equal_to("T1 Sweden"))
+    assert_that(league_name("999999"), equal_to(None))
 
 
 def test_resolve_league_ids_falls_back_to_configured_default():
@@ -57,11 +70,14 @@ def test_resolve_workers_rejects_non_positive():
 
 def test_run_rejects_empty_leagues():
     # An all-blank --leagues resolves to zero leagues; that's a usage error, not
-    # a silent success that searches nothing.
-    with pytest.raises(InputError):
-        Availability().run(
-            {"<player>": ["McDavid"], "--leagues": " , ", "--workers": None}
-        )
+    # a silent success that searches nothing. The command surfaces it as a failed
+    # result (so a --output consumer still gets a structured error) rather than
+    # letting the exception escape — text mode still exits non-zero either way.
+    result = Availability().run(
+        {"<player>": ["McDavid"], "--leagues": " , ", "--workers": None}
+    )
+    assert_that(result.return_code, equal_to(1))
+    assert_that(result.data["error"]["type"], equal_to("InputError"))
 
 
 def _row(inner: str) -> str:
@@ -73,22 +89,77 @@ def test_ownership_rostered_unescapes_team_name():
         '<td><a href="/nhl/players/6743">Connor McDavid</a></td>'
         '<td><a href="/hockey/121128/4">North Vancouver &amp; Canucks</a></td>'
     )
-    assert_that(ownership(row), equal_to("ROSTERED — North Vancouver & Canucks"))
+    assert_that(
+        ownership(row),
+        equal_to((AvailabilityStatus.ROSTERED, "North Vancouver & Canucks")),
+    )
+
+
+# A minimal stand-in for Yahoo's player cell: the name link plus the
+# "ysf-player-detail" game-result link. ``last_game`` is the most recent result
+# text ("W, 4-0 vs FLA" for a win) rendered inside an <a>, which must NOT be read
+# as the owner cell.
+def _player_cell(last_game: str = "") -> str:
+    detail = (
+        f'<div class="ysf-player-detail"><span class="ysf-game-status">'
+        f'<a href="https://sports.yahoo.com/nhl/game">{last_game}</a></span></div>'
+        if last_game
+        else ""
+    )
+    return f'<td><a href="/nhl/players/1">A B</a>{detail}</td>'
+
+
+# The owner cell as Yahoo renders it: a bare <div> holding the token.
+def _owner_cell(token: str) -> str:
+    return f'<td><div style="overflow: hidden;">{token}</div></td>'
 
 
 def test_ownership_free_agent():
-    row = _row('<td><a href="/nhl/players/1">A B</a></td><td> FA </td>')
-    assert_that(ownership(row), equal_to("FREE AGENT"))
+    row = _row(_player_cell() + _owner_cell("FA"))
+    assert_that(ownership(row), equal_to((AvailabilityStatus.FREE_AGENT, None)))
 
 
-def test_ownership_waivers():
-    row = _row('<td><a href="/nhl/players/1">A B</a></td><td> W </td>')
-    assert_that(ownership(row), equal_to("WAIVERS"))
+def test_ownership_waivers_with_clear_date():
+    # On waivers Yahoo shows "W (<date>)", not a bare "W".
+    row = _row(_player_cell() + _owner_cell("W (Oct 23)"))
+    assert_that(ownership(row), equal_to((AvailabilityStatus.WAIVERS, None)))
+
+
+def test_ownership_free_agent_ignores_winning_game_result():
+    # Regression: a free agent whose last game was a win ("W, 4-0 vs FLA") must
+    # still read as FREE AGENT — the leading "W" of the game result previously
+    # got mistaken for a waiver "W".
+    row = _row(_player_cell("W, 4-0 vs FLA") + _owner_cell("FA"))
+    assert_that(ownership(row), equal_to((AvailabilityStatus.FREE_AGENT, None)))
+
+
+def test_ownership_waivers_ignores_winning_game_result():
+    row = _row(_player_cell("W, 4-0 vs FLA") + _owner_cell("W (Oct 23)"))
+    assert_that(ownership(row), equal_to((AvailabilityStatus.WAIVERS, None)))
+
+
+def test_ownership_free_agent_ignores_w_opponent_abbreviation():
+    # An opponent cell like "WPG" sits before the owner cell; its "W" must not
+    # be read as a waiver marker.
+    row = _row(_player_cell() + "<td><div>WPG</div></td>" + _owner_cell("FA"))
+    assert_that(ownership(row), equal_to((AvailabilityStatus.FREE_AGENT, None)))
 
 
 def test_ownership_unknown_when_no_markers():
-    row = _row('<td><a href="/nhl/players/1">A B</a></td><td></td>')
-    assert_that(ownership(row), equal_to("unknown"))
+    row = _row(_player_cell() + "<td><div></div></td>")
+    assert_that(ownership(row), equal_to((AvailabilityStatus.UNKNOWN, None)))
+
+
+def test_ownership_label_renders_text_for_each_status():
+    assert_that(
+        ownership_label(AvailabilityStatus.ROSTERED, "Team X"),
+        equal_to("ROSTERED — Team X"),
+    )
+    assert_that(
+        ownership_label(AvailabilityStatus.FREE_AGENT, None), equal_to("FREE AGENT")
+    )
+    assert_that(ownership_label(AvailabilityStatus.WAIVERS, None), equal_to("WAIVERS"))
+    assert_that(ownership_label(AvailabilityStatus.UNKNOWN, None), equal_to("UNKNOWN"))
 
 
 def test_player_regex_extracts_pid_and_name():
@@ -100,11 +171,230 @@ def test_player_regex_extracts_pid_and_name():
 
 def test_rows_split_into_individual_entries():
     page = (
-        '<table>'
-        '<tr><a href="/nhl/players/1">One Player</a> FA </tr>'
+        "<table>"
+        '<tr><a href="/nhl/players/1">One Player</a><td><div>FA</div></td></tr>'
         '<tr><a href="/nhl/players/2">Two Player</a><a href="/hockey/9/3">Team</a></tr>'
-        '</table>'
+        "</table>"
     )
     rows = _ROW_RE.findall(page)
     owners = [ownership(r) for r in rows]
-    assert_that(owners, contains_inanyorder("FREE AGENT", "ROSTERED — Team"))
+    assert_that(
+        owners,
+        contains_inanyorder(
+            (AvailabilityStatus.FREE_AGENT, None),
+            (AvailabilityStatus.ROSTERED, "Team"),
+        ),
+    )
+
+
+def _run_with_fake_search(monkeypatch, argv, payload, ok=True):
+    """Drive ``Availability`` end-to-end with the network search stubbed out.
+
+    ``argv`` is parsed by the command's own docopt usage (so option spellings
+    are exercised exactly as the real CLI would see them), and ``search_league``
+    is replaced with a canned ``(ok, payload)`` so ``run`` does no I/O. Pass
+    ``ok=False`` to simulate an unreadable league (stale/logged-out cookie).
+    """
+    monkeypatch.setattr(FantasyConfig, "YAHOO_COOKIE", "fake-cookie")
+    monkeypatch.setattr(
+        availability_module,
+        "search_league",
+        lambda session, base, league_id, query: (ok, payload),
+    )
+    command = Availability()
+    args = command.parse_args(["player", "availability"] + argv)
+    return command.run(args)
+
+
+def test_run_threads_output_format_and_data_for_json(monkeypatch):
+    result = _run_with_fake_search(
+        monkeypatch,
+        ["--leagues=9", "--output", "json", "McDavid"],
+        [("6743", "Connor McDavid", AvailabilityStatus.FREE_AGENT, None)],
+    )
+    assert_that(result.return_code, equal_to(0))
+    assert_that(result.output_format, equal_to(OutputFormat.JSON))
+    assert_that(
+        result.data,
+        equal_to(
+            {
+                "version": 1,
+                "leagues": [
+                    {
+                        "id": "9",
+                        "name": None,
+                        "readable": True,
+                        "players": [
+                            {
+                                "query": "McDavid",
+                                "name": "Connor McDavid",
+                                "pid": "6743",
+                                "status": "FREE_AGENT",
+                                "owner": None,
+                            }
+                        ],
+                    }
+                ],
+            }
+        ),
+    )
+
+
+def test_run_marks_unreadable_league_at_league_level(monkeypatch):
+    # A league that can't be read (stale cookie) is flagged by the league-level
+    # ``readable`` flag with an empty ``players`` list — the failure isn't tied
+    # to any one query, so no synthetic per-player entry is emitted. Multiple
+    # queries must not multiply (or arbitrarily pick) a player row. The payload
+    # keeps the stable shape: ``leagues`` plus a top-level ``error`` object.
+    result = _run_with_fake_search(
+        monkeypatch,
+        ["--leagues=9", "--output", "json", "McDavid", "Makar"],
+        payload=[],
+        ok=False,
+    )
+    assert_that(result.return_code, equal_to(1))
+    assert_that(result.output_format, equal_to(OutputFormat.JSON))
+    assert_that(
+        result.data,
+        equal_to(
+            {
+                "version": 1,
+                "leagues": [
+                    {"id": "9", "name": None, "readable": False, "players": []}
+                ],
+                "error": {
+                    "type": "FantasyAuthError",
+                    "message": "One or more leagues could not be read.",
+                },
+            }
+        ),
+    )
+
+
+def test_run_marks_league_unreadable_but_keeps_earlier_players(monkeypatch):
+    # Each (league, query) is an independent request, so a *transient* failure on
+    # a later query (here ``Makar`` raising RequestException => ``ok is None``)
+    # can land after an earlier query (``McDavid``) already matched. The league is
+    # then flagged ``readable: False`` *and* keeps the player entries collected
+    # before the failure — the partial data is retained, with ``readable`` as the
+    # signal that it's incomplete. This mirrors what text mode prints (the matched
+    # rows plus the "Could not read league" line) for the same scenario.
+    monkeypatch.setattr(FantasyConfig, "YAHOO_COOKIE", "fake-cookie")
+
+    def fake_search(session, base, league_id, query):
+        if query == "Makar":
+            raise requests.RequestException("boom")
+        return True, [("6743", "Connor McDavid", AvailabilityStatus.FREE_AGENT, None)]
+
+    monkeypatch.setattr(availability_module, "search_league", fake_search)
+    command = Availability()
+    args = command.parse_args(
+        ["player", "availability", "--leagues=9", "--output", "json", "McDavid", "Makar"]
+    )
+    result = command.run(args)
+
+    assert_that(result.return_code, equal_to(1))
+    assert_that(result.output_format, equal_to(OutputFormat.JSON))
+    assert_that(
+        result.data,
+        equal_to(
+            {
+                "version": 1,
+                "leagues": [
+                    {
+                        "id": "9",
+                        "name": None,
+                        "readable": False,
+                        "players": [
+                            {
+                                "query": "McDavid",
+                                "name": "Connor McDavid",
+                                "pid": "6743",
+                                "status": "FREE_AGENT",
+                                "owner": None,
+                            }
+                        ],
+                    }
+                ],
+                "error": {
+                    "type": "FantasyAuthError",
+                    "message": "One or more leagues could not be read.",
+                },
+            }
+        ),
+    )
+
+
+def test_run_honors_abbreviated_output_flag(monkeypatch):
+    # docopt accepts the unambiguous long-option prefix ``--out`` for
+    # ``--output``; the resolved format must still reach the result (a prior
+    # top-level argv scan missed ``--out`` and silently produced no output).
+    result = _run_with_fake_search(
+        monkeypatch,
+        ["--leagues=9", "--out", "json", "McDavid"],
+        [("6743", "Connor McDavid", AvailabilityStatus.FREE_AGENT, None)],
+    )
+    assert_that(result.output_format, equal_to(OutputFormat.JSON))
+
+
+def test_run_honors_short_output_flag(monkeypatch):
+    # The ``-o`` short alias of ``--output`` must resolve to the same format and
+    # reach the result, just like the long form.
+    result = _run_with_fake_search(
+        monkeypatch,
+        ["--leagues=9", "-o", "json", "McDavid"],
+        [("6743", "Connor McDavid", AvailabilityStatus.FREE_AGENT, None)],
+    )
+    assert_that(result.output_format, equal_to(OutputFormat.JSON))
+
+
+def test_run_defaults_to_text_format(monkeypatch):
+    result = _run_with_fake_search(
+        monkeypatch,
+        ["--leagues=9", "McDavid"],
+        [("6743", "Connor McDavid", AvailabilityStatus.FREE_AGENT, None)],
+    )
+    assert_that(result.output_format, equal_to(OutputFormat.TEXT))
+
+
+def test_run_emits_structured_error_for_expected_failure(monkeypatch):
+    # An expected failure that stops the command before it builds its normal
+    # payload (here: an empty --leagues) still yields the requested format plus
+    # the stable payload: an (empty) ``leagues`` list alongside a structured
+    # ``error`` object, not an empty stdout stream.
+    result = _run_with_fake_search(
+        monkeypatch,
+        ["--leagues", " , ", "--output", "json", "McDavid"],
+        payload=[],
+    )
+    assert_that(result.return_code, equal_to(1))
+    assert_that(result.output_format, equal_to(OutputFormat.JSON))
+    assert_that(result.data["leagues"], equal_to([]))
+    assert_that(result.data["error"]["type"], equal_to("InputError"))
+
+
+def test_run_emits_structured_error_when_cookie_missing(monkeypatch):
+    # The other expected hard failure: no YAHOO_COOKIE. Same contract — the
+    # format reaches the result and the payload is the structured error object.
+    monkeypatch.setattr(FantasyConfig, "YAHOO_COOKIE", "")
+    command = Availability()
+    args = command.parse_args(
+        ["player", "availability", "--leagues=9", "--output", "json", "McDavid"]
+    )
+    result = command.run(args)
+    assert_that(result.return_code, equal_to(1))
+    assert_that(result.output_format, equal_to(OutputFormat.JSON))
+    assert_that(result.data["leagues"], equal_to([]))
+    assert_that(result.data["error"]["type"], equal_to("FantasyAuthError"))
+
+
+def test_run_lets_bad_output_format_propagate(monkeypatch):
+    # A bad --output value can't be serialized to, so it must propagate (the
+    # runner frames it as plain text) rather than being wrapped as a structured
+    # error in a format we don't support.
+    command = Availability()
+    args = command.parse_args(
+        ["player", "availability", "--leagues=9", "--output", "xml", "McDavid"]
+    )
+    with pytest.raises(InputError):
+        command.run(args)
