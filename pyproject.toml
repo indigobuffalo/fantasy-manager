@@ -39,3 +39,10 @@ package-dir = {"" = "src"}
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.package-data]
+fantasy_manager = [
+    "config/data/**/*.json",
+    "config/data/**/*.yml",
+    "config/data/**/*.yaml",
+]
+
