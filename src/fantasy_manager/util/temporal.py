@@ -58,6 +58,28 @@ def upcoming_midnight_pacific() -> datetime:
     return datetime.combine(tomorrow_pacific, time(0), tzinfo=PACIFIC_TZ)
 
 
+def start_of_fantasy_week(reference: datetime | None = None) -> datetime:
+    """Midnight Pacific on the Monday that starts the current fantasy week.
+
+    Yahoo resets each manager's weekly acquisition count at the start of the
+    fantasy week, which for daily-lineup hockey leagues begins Monday. The
+    per-manager "used N of M adds this week" counter is measured from this
+    instant, so counting a team's add transactions since this boundary recovers
+    its moves-used-this-week. Anchored to Pacific because Yahoo rolls days and
+    weeks over in that zone (see ``PACIFIC_TZ``).
+
+    Args:
+        reference (datetime, optional): The moment to resolve the week for.
+            Defaults to the present Pacific time.
+
+    Returns:
+        datetime: Monday 00:00 of ``reference``'s week, in Pacific time.
+    """
+    now = reference or now_pacific()
+    monday = now.date() - timedelta(days=now.weekday())
+    return datetime.combine(monday, time(0), tzinfo=PACIFIC_TZ)
+
+
 def now_pacific() -> datetime:
     """Gets current datetime for the "America/Los_Angeles" timezone,
     which is the timezone Yahoo uses to determine EOD.

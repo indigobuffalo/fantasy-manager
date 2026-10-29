@@ -9,6 +9,7 @@ The available fantasy-manager commands are:
 roster         Change roster composition (e.g. add or drop players)
 lineup         Change lineup (e.g. sit/start decisions)
 player         Look up players (e.g. availability across leagues)
+league         League-wide reports (e.g. managers' weekly moves and FAAB)
 
 For more details, see 'fantasy-manager <command> --help'
 """
