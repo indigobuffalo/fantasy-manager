@@ -329,6 +329,8 @@ def test_run_threads_output_format_and_data_for_json(monkeypatch):
                     "week_start": "2026-10-12",
                     "weekly_add_limit": 4,
                     "total_adds_used": 4,
+                    # 3 left (Sharks) + 1 left (Beers) of the 4/week cap each.
+                    "total_adds_remaining": 4,
                     # Ordered most-free-to-act first: Sharks (3 left) before
                     # Beers (1 left), matching the text table.
                     "managers": [
@@ -371,6 +373,7 @@ def test_run_uncapped_league_reports_null_moves_left(monkeypatch):
         adds={"11": 2},  # keyed by team id
     )
     assert_that(result.data["league"]["weekly_add_limit"], is_(none()))
+    assert_that(result.data["league"]["total_adds_remaining"], is_(none()))
     assert_that(result.data["league"]["managers"][0]["moves_left"], is_(none()))
     assert_that(result.data["league"]["managers"][0]["adds_used"], equal_to(2))
 

@@ -547,8 +547,11 @@ class Moves(command.CliCommand):
         the league is uncapped (there's no limit to count down from).
         """
         managers = []
+        total_remaining = 0
         for t in ordered:
             used = adds.get(t.team_id, 0)
+            if limit is not None:
+                total_remaining += max(limit - used, 0)
             managers.append(
                 {
                     "team_id": t.team_id,
@@ -569,6 +572,11 @@ class Moves(command.CliCommand):
                 "week_start": f"{week_start:%Y-%m-%d}",
                 "weekly_add_limit": limit,
                 "total_adds_used": sum(adds.get(t.team_id, 0) for t in ordered),
+                # Leaguewide moves still available this week (each manager's
+                # remaining adds, summed). Null in an uncapped league, where
+                # there's no ceiling to count down from — mirroring the per-
+                # manager ``moves_left``.
+                "total_adds_remaining": total_remaining if limit is not None else None,
                 "managers": managers,
             },
         }
