@@ -165,10 +165,14 @@ def _cell_int(text: Optional[str]) -> Optional[int]:
     The Waiver Budget / Waiver Priority / Moves cells are numeric counts, so we
     emit them as ints (dropping the ``$`` on budget) rather than raw strings,
     keeping the structured payload's number fields consistently typed.
+
+    Currency/grouping punctuation is stripped before the match so a
+    thousands-separated budget (``$1,000`` in a high-FAAB league) reads as
+    ``1000`` rather than being truncated at the comma to ``1``.
     """
     if not text:
         return None
-    digits = re.search(r"\d+", text)
+    digits = re.search(r"\d+", text.replace(",", ""))
     return int(digits.group()) if digits else None
 
 

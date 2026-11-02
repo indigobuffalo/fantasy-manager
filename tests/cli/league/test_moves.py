@@ -16,6 +16,7 @@ import fantasy_manager.cli.league.moves as moves_module
 from fantasy_manager.cli.league.moves import (
     ManagerRow,
     Moves,
+    _cell_int,
     fetch_weekly_add_limit,
     league_label,
     moves_left,
@@ -69,9 +70,7 @@ SETTINGS_HTML_UNCAPPED = (
 )
 
 
-def _tx_row(
-    team: str, when: str, *, team_id: str, added: int, dropped: int = 0
-) -> str:
+def _tx_row(team: str, when: str, *, team_id: str, added: int, dropped: int = 0) -> str:
     icons = "".join(
         '<span class="F-icon" title="Added Player">&#xe035;</span>'
         for _ in range(added)
@@ -156,6 +155,17 @@ def test_parse_team_rows_maps_columns_by_header_not_position():
     assert_that(rows[0].faab, equal_to(50))
     assert_that(rows[0].season_moves, equal_to(7))
     assert_that(rows[0].waiver_priority, is_(none()))
+
+
+def test_cell_int_parses_values_and_strips_separators():
+    assert_that(_cell_int("$96"), equal_to(96))
+    assert_that(_cell_int("17"), equal_to(17))
+    # A high-FAAB league renders the budget with a thousands separator; it must
+    # read as 1000, not truncate at the comma to 1.
+    assert_that(_cell_int("$1,000"), equal_to(1000))
+    assert_that(_cell_int(""), is_(none()))
+    assert_that(_cell_int(None), is_(none()))
+    assert_that(_cell_int("—"), is_(none()))
 
 
 def test_parse_weekly_add_limit_reads_bold_number():
