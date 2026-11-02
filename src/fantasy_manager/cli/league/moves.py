@@ -41,6 +41,7 @@ from fantasy_manager.exceptions import (
     FantasyAuthError,
     FantasyManagerError,
     FantasyManagerSoftError,
+    FantasyUnknownError,
     InputError,
 )
 from fantasy_manager.model.enums.platform import Platform
@@ -508,9 +509,13 @@ class Moves(command.CliCommand):
             )
 
         if not teams:
-            raise FantasyAuthError(
-                f"Could not read teams for league {league_id} — stale/logged-out "
-                "cookie? Refresh YAHOO_COOKIE."
+            # ``fetch_team_rows`` already raises on a logged-out/unreadable page,
+            # so reaching here means the teams table *was* present but parsed to
+            # zero manager rows — a parser/markup-drift problem, not an auth one.
+            # Flag it as such rather than misdirecting to "refresh your cookie".
+            raise FantasyUnknownError(
+                f"Read the teams page for league {league_id} but found no manager "
+                "rows — the Yahoo markup may have changed."
             )
 
         ordered = order_managers(teams, adds, limit)

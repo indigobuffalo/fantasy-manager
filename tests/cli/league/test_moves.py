@@ -378,3 +378,19 @@ def test_run_emits_structured_error_when_cookie_missing(monkeypatch):
     assert_that(result.output_format, equal_to(OutputFormat.JSON))
     assert_that(result.data["league"], is_(none()))
     assert_that(result.data["error"]["type"], equal_to("FantasyAuthError"))
+
+
+@freeze_time("2026-10-16 18:00:00")
+def test_run_flags_readable_but_empty_teams_as_markup_drift(monkeypatch):
+    # A readable teams page that parses to zero rows is a parser/markup problem,
+    # not an auth one — surface it as such, not as "refresh your cookie".
+    result = _run_moves(
+        monkeypatch,
+        ["--league=121147", "--output", "json"],
+        teams=[],
+        limit=4,
+        adds={},
+    )
+    assert_that(result.return_code, equal_to(1))
+    assert_that(result.data["league"], is_(none()))
+    assert_that(result.data["error"]["type"], equal_to("FantasyUnknownError"))
