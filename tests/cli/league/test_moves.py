@@ -132,6 +132,32 @@ def test_parse_team_rows_keeps_long_team_name():
     assert_that(rows[0].team_name, equal_to(long_name))
 
 
+def test_parse_team_rows_maps_columns_by_header_not_position():
+    # A league that omits the Waiver Priority column: values are keyed off the
+    # header label, so "Moves" is still read from the Moves column rather than
+    # being shifted out of place (a positional read would mislabel it).
+    html_text = (
+        "<table><tr>"
+        "<th>Team Name</th><th>Manager</th>"
+        '<th class="Ta-end Phone-hidden">Waiver Budget</th>'
+        '<th class="Ta-end Phone-hidden">Moves</th>'
+        '<th class="Ta-end Phone-hidden">Trades</th></tr>'
+        '<tr class="team-7"><td>'
+        '<a class="Grid-u" href="/hockey/121147/7"><img alt="logo"></a>'
+        '<a href="/hockey/121147/7">No Priority FC</a></td>'
+        '<td><span class="user-id">'
+        '<a href="https://profiles.sports.yahoo.com/profile/x">Mgr</a></span></td>'
+        '<td class="Ta-end Phone-hidden">$50</td>'
+        '<td class="Ta-end Phone-hidden">7</td>'
+        '<td class="Ta-end Phone-hidden">0</td></tr></table>'
+    )
+    rows = parse_team_rows(html_text, "121147")
+    assert_that(len(rows), equal_to(1))
+    assert_that(rows[0].faab, equal_to(50))
+    assert_that(rows[0].season_moves, equal_to("7"))
+    assert_that(rows[0].waiver_priority, is_(none()))
+
+
 def test_parse_weekly_add_limit_reads_bold_number():
     assert_that(parse_weekly_add_limit(SETTINGS_HTML), equal_to(4))
 

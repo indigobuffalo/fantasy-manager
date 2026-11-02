@@ -93,7 +93,14 @@ _TEAM_LINK_RE = re.compile(r'/hockey/\d+/(\d+)">([^<]+)</a>')
 _MANAGER_RE = re.compile(r'/profile/[^"]+"[^>]*>([^<]+)</a>')
 # The numeric/budget cells (Waiver Budget, Waiver Priority, Moves, Trades) all
 # carry ``class="Ta-end ..."``; the trailing "Last Activity" cell does not, so
-# this selects exactly those four in order.
+# these select exactly those columns in order — ``_END_HEADER_RE`` from the
+# header row (``<th>``), ``_END_CELL_RE`` from each team row (``<td>``). We map
+# values to columns by matching the header label rather than a fixed position,
+# because which right-aligned columns a league renders — and in what order —
+# varies by league type (a non-FAAB league has no Waiver Budget column; a budget
+# league may drop Waiver Priority), and a positional read would then silently
+# mislabel one stat as another.
+_END_HEADER_RE = re.compile(r'<th class="Ta-end[^"]*"[^>]*>(.*?)</th>', re.S)
 _END_CELL_RE = re.compile(r'<td class="Ta-end[^"]*"[^>]*>(.*?)</td>', re.S)
 
 # --- /settings page -----------------------------------------------------
@@ -151,6 +158,18 @@ def league_label(league_id: str) -> str:
     return f"{name} ({league_id})" if name else f"League {league_id}"
 
 
+def _end_column_index(table: str) -> dict[str, int]:
+    """Map each right-aligned (``Ta-end``) column's header label to its index.
+
+    Lets :func:`parse_team_rows` pull a value by its header ("Waiver Budget",
+    "Moves", …) instead of a hard-coded position, so a league that omits or
+    reorders one of these columns doesn't shift every later stat into the wrong
+    field.
+    """
+    labels = [re.sub(r"<[^>]+>", "", h).strip() for h in _END_HEADER_RE.findall(table)]
+    return {label: i for i, label in enumerate(labels)}
+
+
 def parse_team_rows(html_text: str, league_id: str) -> list[ManagerRow]:
     """Parse the ``/teams`` table into one :class:`ManagerRow` per manager.
 
@@ -166,6 +185,13 @@ def parse_team_rows(html_text: str, league_id: str) -> list[ManagerRow]:
     end = html_text.find("</table>", idx)
     table = html_text[start:end] if start != -1 and end != -1 else html_text[idx:]
 
+    columns = _end_column_index(table)
+
+    def column(cells: list[str], label: str) -> Optional[str]:
+        """The right-aligned cell under header ``label``, or None if absent."""
+        i = columns.get(label)
+        return cells[i] if i is not None and i < len(cells) else None
+
     rows: list[ManagerRow] = []
     for row in _ROW_RE.findall(table):
         link = _TEAM_LINK_RE.search(row)
@@ -177,14 +203,14 @@ def parse_team_rows(html_text: str, league_id: str) -> list[ManagerRow]:
         mgr = _MANAGER_RE.search(row)
         manager = html.unescape(mgr.group(1)).strip() if mgr else ""
 
-        # [Waiver Budget, Waiver Priority, Moves, Trades] in column order.
         cells = [re.sub(r"<[^>]+>", "", c).strip() for c in _END_CELL_RE.findall(row)]
+        budget = column(cells, "Waiver Budget")
         faab = None
-        if cells:
-            digits = re.search(r"\d+", cells[0])
+        if budget:
+            digits = re.search(r"\d+", budget)
             faab = int(digits.group()) if digits else None
-        priority = cells[1] if len(cells) > 1 else None
-        season_moves = cells[2] if len(cells) > 2 else None
+        priority = column(cells, "Waiver Priority")
+        season_moves = column(cells, "Moves")
 
         rows.append(
             ManagerRow(
