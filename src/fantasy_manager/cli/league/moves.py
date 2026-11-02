@@ -82,8 +82,10 @@ _ROW_RE = re.compile(r"<tr[^>]*>.*?</tr>", re.S)
 # A team's own fantasy-page link carries its id and display name:
 #   <a ... href="https://.../hockey/121147/11">Nurse Sharks</a>
 # The sibling logo link (``.../11"><img ...>``) has no text, so requiring at
-# least one non-``<`` char after ``">`` selects the name link.
-_TEAM_LINK_RE = re.compile(r'/hockey/\d+/(\d+)">([^<]{1,60})</a>')
+# least one non-``<`` char after ``">`` selects the name link. ``[^<]+`` is
+# already bounded by the next tag, so we don't cap the length — a longer name
+# must not fail the match and silently drop the whole manager's row.
+_TEAM_LINK_RE = re.compile(r'/hockey/\d+/(\d+)">([^<]+)</a>')
 # The manager's Yahoo profile link; its text is the manager's display name.
 _MANAGER_RE = re.compile(r'/profile/[^"]+"[^>]*>([^<]{1,60})</a>')
 # The numeric/budget cells (Waiver Budget, Waiver Priority, Moves, Trades) all

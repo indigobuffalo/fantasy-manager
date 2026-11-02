@@ -107,6 +107,27 @@ def test_parse_team_rows_extracts_columns_and_skips_co_manager():
     assert_that(rows[1].faab, equal_to(72))
 
 
+def test_parse_team_rows_keeps_long_team_name():
+    # A name longer than the old 60-char cap must still parse (regression: the
+    # name pattern used to cap at 60 chars, silently dropping such managers).
+    long_name = "The " + "Really " * 12 + "Long Team Name"  # ~100 chars
+    html_text = (
+        "<table><tr><th>Waiver Budget</th></tr>"
+        '<tr class="team-7"><td>'
+        '<a class="Grid-u" href="/hockey/121147/7"><img alt="logo"></a>'
+        f'<a href="/hockey/121147/7">{long_name}</a></td>'
+        '<td><span class="user-id">'
+        '<a href="https://profiles.sports.yahoo.com/profile/x">Mgr</a></span></td>'
+        '<td class="Ta-end Phone-hidden">$10</td>'
+        '<td class="Ta-end Phone-hidden">1</td>'
+        '<td class="Ta-end Phone-hidden">2</td>'
+        '<td class="Ta-end Phone-hidden">0</td></tr></table>'
+    )
+    rows = parse_team_rows(html_text, "121147")
+    assert_that(len(rows), equal_to(1))
+    assert_that(rows[0].team_name, equal_to(long_name))
+
+
 def test_parse_weekly_add_limit_reads_bold_number():
     assert_that(parse_weekly_add_limit(SETTINGS_HTML), equal_to(4))
 
