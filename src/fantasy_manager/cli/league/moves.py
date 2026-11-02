@@ -87,7 +87,10 @@ _ROW_RE = re.compile(r"<tr[^>]*>.*?</tr>", re.S)
 # must not fail the match and silently drop the whole manager's row.
 _TEAM_LINK_RE = re.compile(r'/hockey/\d+/(\d+)">([^<]+)</a>')
 # The manager's Yahoo profile link; its text is the manager's display name.
-_MANAGER_RE = re.compile(r'/profile/[^"]+"[^>]*>([^<]{1,60})</a>')
+# ``[^<]+`` is already bounded by the next tag, so we don't cap the length — a
+# longer manager name must still match (an uncapped miss would blank the manager
+# field), the same reasoning as the team-name link above.
+_MANAGER_RE = re.compile(r'/profile/[^"]+"[^>]*>([^<]+)</a>')
 # The numeric/budget cells (Waiver Budget, Waiver Priority, Moves, Trades) all
 # carry ``class="Ta-end ..."``; the trailing "Last Activity" cell does not, so
 # this selects exactly those four in order.
