@@ -10,10 +10,13 @@ from zoneinfo import ZoneInfo
 from freezegun import freeze_time
 from hamcrest import assert_that, equal_to, is_, none
 
+import pytest
+
 import fantasy_manager.cli.league.moves as moves_module
 from fantasy_manager.cli.league.moves import (
     ManagerRow,
     Moves,
+    fetch_weekly_add_limit,
     league_label,
     moves_left,
     parse_team_rows,
@@ -22,6 +25,7 @@ from fantasy_manager.cli.league.moves import (
     parse_weekly_add_limit,
 )
 from fantasy_manager.config.config import FantasyConfig
+from fantasy_manager.exceptions import FantasyAuthError
 from fantasy_manager.util.output import OutputFormat
 from fantasy_manager.util.temporal import start_of_fantasy_week
 
@@ -134,6 +138,43 @@ def test_parse_weekly_add_limit_reads_bold_number():
 
 def test_parse_weekly_add_limit_none_when_uncapped():
     assert_that(parse_weekly_add_limit(SETTINGS_HTML_UNCAPPED), is_(none()))
+
+
+class _FakeResp:
+    """Minimal stand-in for a ``requests.Response`` the fetch helpers accept."""
+
+    def __init__(self, text: str, url: str = "https://x/hockey/121147/settings"):
+        self.text = text
+        self.url = url
+
+    def raise_for_status(self) -> None:
+        pass
+
+
+class _FakeSession:
+    def __init__(self, resp: _FakeResp):
+        self._resp = resp
+
+    def get(self, url: str, timeout: int = 0) -> _FakeResp:
+        return self._resp
+
+
+def test_fetch_weekly_add_limit_reads_capped_page():
+    # A normal logged-in settings page (carries a logout control + the setting
+    # label) parses to the capped number.
+    resp = _FakeResp("logout " + SETTINGS_HTML)
+    assert_that(
+        fetch_weekly_add_limit(_FakeSession(resp), "https://x", "121147"),
+        equal_to(4),
+    )
+
+
+def test_fetch_weekly_add_limit_errors_when_setting_absent():
+    # A logged-in page that nonetheless lacks the setting label is unreadable —
+    # it must not be silently misreported as uncapped (None).
+    resp = _FakeResp("logout <html>some other page, no setting here</html>")
+    with pytest.raises(FantasyAuthError):
+        fetch_weekly_add_limit(_FakeSession(resp), "https://x", "121147")
 
 
 def test_parse_transaction_datetime_assumes_current_year():

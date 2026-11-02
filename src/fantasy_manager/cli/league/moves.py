@@ -265,8 +265,15 @@ def _fetch(session: requests.Session, url: str) -> requests.Response:
 
 
 def _looks_logged_out(resp: requests.Response) -> bool:
-    """Whether the response bounced to Yahoo's login (stale/absent cookie)."""
-    return "login" in resp.url
+    """Whether the response isn't a normal logged-in Yahoo fantasy page.
+
+    A stale/absent cookie bounces to the login flow (``login`` in the final
+    URL). We also treat the absence of a ``logout`` control as logged-out: every
+    authenticated fantasy page carries one, so a soft-error or interstitial page
+    that returns 200 without bouncing is still caught here rather than being
+    parsed as if it were the page we asked for.
+    """
+    return "login" in resp.url or "logout" not in resp.text
 
 
 def fetch_team_rows(
@@ -287,7 +294,11 @@ def fetch_weekly_add_limit(
 ) -> Optional[int]:
     """Read the weekly add limit from the league ``/settings`` page."""
     resp = _fetch(session, f"{base}/{league_id}/settings")
-    if _looks_logged_out(resp):
+    # Require the setting's own label, not just a logged-in page: an uncapped
+    # league renders "Max Acquisitions per Week: No maximum" (parsed as None),
+    # so without this marker a page that merely lacks the setting would be
+    # silently misread as uncapped rather than flagged unreadable.
+    if _looks_logged_out(resp) or "Max Acquisitions per Week" not in resp.text:
         raise FantasyAuthError(
             f"Could not read settings for league {league_id} — stale/logged-out "
             "cookie? Refresh YAHOO_COOKIE."
