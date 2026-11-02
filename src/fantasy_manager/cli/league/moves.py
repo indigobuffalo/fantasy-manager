@@ -597,9 +597,16 @@ class Moves(command.CliCommand):
 
         total_used = sum(adds.get(t.team_id, 0) for t in ordered)
         cap = f"{limit} adds/manager/week" if limit is not None else "no weekly add cap"
+        # Mirror the payload's ``total_adds_remaining``: leaguewide moves still
+        # available this week, omitted when uncapped (no ceiling to subtract from).
+        if limit is not None:
+            total_remaining = sum(max(limit - adds.get(t.team_id, 0), 0) for t in ordered)
+            remaining = f", {total_remaining} remaining"
+        else:
+            remaining = ""
         STDOUT.info(
             f"Week of {week_start:%a %b %d} — {total_used} add(s) used "
-            f"leaguewide so far; {cap}\n"
+            f"leaguewide so far{remaining}; {cap}\n"
         )
 
         rows = [
