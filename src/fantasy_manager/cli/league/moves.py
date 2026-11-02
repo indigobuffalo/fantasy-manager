@@ -103,10 +103,14 @@ _WEEK_LIMIT_RE = re.compile(
 # Each add is an icon with this title; a combined add/drop row carries one of
 # each, so counting this title per row yields the row's add count.
 _ADDED_TITLE = 'title="Added Player"'
-# The team the transaction belongs to, and its timestamp (no year), e.g.
-#   <a class="Tst-team-name" href="...">Nurse Sharks</a>
+# The team the transaction belongs to (its id, taken from the team link's href)
+# and its timestamp (no year), e.g.
+#   <a class="Tst-team-name" href="/hockey/121147/11">Nurse Sharks</a>
 #   <span class="... F-timestamp ...">Oct 14, 8:39 pm</span>
-_TX_TEAM_RE = re.compile(r'Tst-team-name"[^>]*>([^<]+)</a>')
+# We key adds by the stable team *id* rather than the display name so a team that
+# renames itself mid-week still joins to its ``/teams`` row (a name join would
+# miss those adds and overstate the manager's remaining moves).
+_TX_TEAM_RE = re.compile(r'Tst-team-name"[^>]*/hockey/\d+/(\d+)"')
 _TX_TIME_RE = re.compile(r'F-timestamp[^"]*"[^>]*>([^<]+)</span>')
 
 
@@ -219,7 +223,7 @@ def parse_transaction_adds(
     """Count add transactions per team on one ``/transactions`` page.
 
     Returns ``(counts, reached_week_start, had_rows)`` where ``counts`` maps a
-    team name to the adds it made on/after ``week_start`` on this page,
+    team id to the adds it made on/after ``week_start`` on this page,
     ``reached_week_start`` is True once a transaction older than the week
     boundary is seen (the log is newest-first, so the caller can stop paging),
     and ``had_rows`` is True if the page had any timestamped transaction at all
@@ -246,8 +250,8 @@ def parse_transaction_adds(
         if when < week_start:
             reached = True
             continue
-        team = html.unescape(team_match.group(1)).strip()
-        counts[team] = counts.get(team, 0) + n_adds
+        team_id = team_match.group(1)
+        counts[team_id] = counts.get(team_id, 0) + n_adds
     return counts, reached, had_rows
 
 
@@ -314,8 +318,8 @@ def fetch_weekly_adds(
         page_counts, reached, had_rows = parse_transaction_adds(
             resp.text, week_start, now
         )
-        for team, count in page_counts.items():
-            counts[team] = counts.get(team, 0) + count
+        for team_id, count in page_counts.items():
+            counts[team_id] = counts.get(team_id, 0) + count
         if reached or not had_rows:
             break
     return counts
@@ -339,7 +343,7 @@ def order_managers(
     """
 
     def remaining(team: ManagerRow) -> int:
-        used = adds.get(team.team_name, 0)
+        used = adds.get(team.team_id, 0)
         return (limit - used) if limit is not None else -used
 
     return sorted(teams, key=lambda t: (remaining(t), t.faab or 0), reverse=True)
@@ -478,7 +482,7 @@ class Moves(command.CliCommand):
         """
         managers = []
         for t in ordered:
-            used = adds.get(t.team_name, 0)
+            used = adds.get(t.team_id, 0)
             managers.append(
                 {
                     "team_id": t.team_id,
@@ -498,7 +502,7 @@ class Moves(command.CliCommand):
                 "name": league_name(league_id),
                 "week_start": f"{week_start:%Y-%m-%d}",
                 "weekly_add_limit": limit,
-                "total_adds_used": sum(adds.get(t.team_name, 0) for t in ordered),
+                "total_adds_used": sum(adds.get(t.team_id, 0) for t in ordered),
                 "managers": managers,
             },
         }
@@ -517,7 +521,7 @@ class Moves(command.CliCommand):
         STDOUT.info(f"\n{header}")
         STDOUT.info("=" * len(header))
 
-        total_used = sum(adds.get(t.team_name, 0) for t in ordered)
+        total_used = sum(adds.get(t.team_id, 0) for t in ordered)
         cap = f"{limit} adds/manager/week" if limit is not None else "no weekly add cap"
         STDOUT.info(
             f"Week of {week_start:%a %b %d} — {total_used} add(s) used "
@@ -528,7 +532,7 @@ class Moves(command.CliCommand):
             (
                 t.manager or "—",
                 t.team_name,
-                moves_left(adds.get(t.team_name, 0), limit),
+                moves_left(adds.get(t.team_id, 0), limit),
                 f"${t.faab}" if t.faab is not None else "—",
                 t.season_moves or "—",
                 t.waiver_priority or "—",

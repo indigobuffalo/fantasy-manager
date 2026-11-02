@@ -65,7 +65,9 @@ SETTINGS_HTML_UNCAPPED = (
 )
 
 
-def _tx_row(team: str, when: str, *, added: int, dropped: int = 0) -> str:
+def _tx_row(
+    team: str, when: str, *, team_id: str, added: int, dropped: int = 0
+) -> str:
     icons = "".join(
         '<span class="F-icon" title="Added Player">&#xe035;</span>'
         for _ in range(added)
@@ -78,7 +80,7 @@ def _tx_row(team: str, when: str, *, added: int, dropped: int = 0) -> str:
         f'<td class="Ta-c">{icons}</td>'
         '<td colspan="2"><a href="/nhl/players/1">A Player</a></td>'
         '<td class="Ta-end"><span class="Grid-u">'
-        f'<a class="Tst-team-name" href="/hockey/121147/1">{team}</a>'
+        f'<a class="Tst-team-name" href="/hockey/121147/{team_id}">{team}</a>'
         f'<span class="Block F-timestamp Fz-xxs Nowrap">{when}</span>'
         "</span></td></tr>"
     )
@@ -135,21 +137,22 @@ def test_parse_transaction_adds_counts_adds_since_week_start():
     now = datetime(2026, 10, 16, 9, 0, tzinfo=PACIFIC)
     week_start = datetime(2026, 10, 13, 0, 0, tzinfo=PACIFIC)
     page = (
-        _tx_row("Nurse Sharks", "Oct 14, 8:39 pm", added=1)
-        + _tx_row("Beers United", "Oct 15, 3:45 pm", added=1, dropped=1)
-        + _tx_row("Beers United", "Oct 14, 7:07 am", added=1)
-        + _tx_row("Pasta Party", "Oct 13, 6:00 am", added=1, dropped=0)
+        _tx_row("Nurse Sharks", "Oct 14, 8:39 pm", team_id="11", added=1)
+        + _tx_row("Beers United", "Oct 15, 3:45 pm", team_id="3", added=1, dropped=1)
+        + _tx_row("Beers United", "Oct 14, 7:07 am", team_id="3", added=1)
+        + _tx_row("Pasta Party", "Oct 13, 6:00 am", team_id="5", added=1, dropped=0)
         # drop-only (no add) — ignored
-        + _tx_row("Pasta Party", "Oct 14, 1:00 pm", added=0, dropped=1)
+        + _tx_row("Pasta Party", "Oct 14, 1:00 pm", team_id="5", added=0, dropped=1)
         # before the week boundary — not counted, trips ``reached``
-        + _tx_row("Nurse Sharks", "Oct 12, 8:00 am", added=1)
+        + _tx_row("Nurse Sharks", "Oct 12, 8:00 am", team_id="11", added=1)
     )
     counts, reached, had_rows = parse_transaction_adds(page, week_start, now)
     assert_that(had_rows, is_(True))
     assert_that(reached, is_(True))
-    assert_that(counts.get("Nurse Sharks"), equal_to(1))
-    assert_that(counts.get("Beers United"), equal_to(2))
-    assert_that(counts.get("Pasta Party"), equal_to(1))
+    # Keyed by team id, so a mid-week rename can't orphan a team's adds.
+    assert_that(counts.get("11"), equal_to(1))
+    assert_that(counts.get("3"), equal_to(2))
+    assert_that(counts.get("5"), equal_to(1))
 
 
 def test_parse_transaction_adds_empty_page():
@@ -213,7 +216,7 @@ def test_run_threads_output_format_and_data_for_json(monkeypatch):
         ["--league=121147", "--output", "json"],
         teams=teams,
         limit=4,
-        adds={"Nurse Sharks": 1, "Beers United": 3},
+        adds={"11": 1, "3": 3},  # keyed by team id
     )
     assert_that(result.return_code, equal_to(0))
     assert_that(result.output_format, equal_to(OutputFormat.JSON))
@@ -267,7 +270,7 @@ def test_run_uncapped_league_reports_null_moves_left(monkeypatch):
         ["--league=121147", "--output", "json"],
         teams=[ManagerRow("11", "Nurse Sharks", "Stephen", 96, "3", "17")],
         limit=None,
-        adds={"Nurse Sharks": 2},
+        adds={"11": 2},  # keyed by team id
     )
     assert_that(result.data["league"]["weekly_add_limit"], is_(none()))
     assert_that(result.data["league"]["managers"][0]["moves_left"], is_(none()))
