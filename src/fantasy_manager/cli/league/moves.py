@@ -318,6 +318,12 @@ def fetch_weekly_adds(
     Pages newest-first via the ``count`` offset, stopping as soon as a
     transaction older than the week boundary is seen (or the log runs out), so a
     quiet week costs a single request and only a busy one pages further.
+
+    ``count`` is an absolute offset into a live log, so a transaction added
+    between page fetches shifts every later row down one, which can double-count
+    or skip a straddling add. The window is milliseconds between sequential
+    requests and the effect is at most off-by-one on a team's weekly tally, so we
+    accept it rather than snapshot the whole log up front.
     """
     counts: dict[str, int] = {}
     for page in range(_TX_MAX_PAGES):
