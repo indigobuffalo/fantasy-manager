@@ -104,8 +104,8 @@ def test_parse_team_rows_extracts_columns_and_skips_co_manager():
     assert_that(sharks.team_name, equal_to("Nurse Sharks"))
     assert_that(sharks.manager, equal_to("Stephen"))
     assert_that(sharks.faab, equal_to(96))
-    assert_that(sharks.waiver_priority, equal_to("3"))
-    assert_that(sharks.season_moves, equal_to("17"))
+    assert_that(sharks.waiver_priority, equal_to(3))
+    assert_that(sharks.season_moves, equal_to(17))
 
     assert_that(rows[1].team_name, equal_to("Beers United"))
     assert_that(rows[1].faab, equal_to(72))
@@ -154,7 +154,7 @@ def test_parse_team_rows_maps_columns_by_header_not_position():
     rows = parse_team_rows(html_text, "121147")
     assert_that(len(rows), equal_to(1))
     assert_that(rows[0].faab, equal_to(50))
-    assert_that(rows[0].season_moves, equal_to("7"))
+    assert_that(rows[0].season_moves, equal_to(7))
     assert_that(rows[0].waiver_priority, is_(none()))
 
 
@@ -296,8 +296,8 @@ def _run_moves(monkeypatch, argv, teams, limit, adds):
 @freeze_time("2026-10-16 18:00:00")  # Friday; week started Mon Oct 12 Pacific
 def test_run_threads_output_format_and_data_for_json(monkeypatch):
     teams = [
-        ManagerRow("11", "Nurse Sharks", "Stephen", 96, "3", "17"),
-        ManagerRow("3", "Beers United", "Marek", 72, "2", "11"),
+        ManagerRow("11", "Nurse Sharks", "Stephen", 96, 3, 17),
+        ManagerRow("3", "Beers United", "Marek", 72, 2, 11),
     ]
     result = _run_moves(
         monkeypatch,
@@ -329,8 +329,8 @@ def test_run_threads_output_format_and_data_for_json(monkeypatch):
                             "adds_used": 1,
                             "moves_left": 3,
                             "faab": 96,
-                            "season_moves": "17",
-                            "waiver_priority": "3",
+                            "season_moves": 17,
+                            "waiver_priority": 3,
                         },
                         {
                             "team_id": "3",
@@ -339,8 +339,8 @@ def test_run_threads_output_format_and_data_for_json(monkeypatch):
                             "adds_used": 3,
                             "moves_left": 1,
                             "faab": 72,
-                            "season_moves": "11",
-                            "waiver_priority": "2",
+                            "season_moves": 11,
+                            "waiver_priority": 2,
                         },
                     ],
                 },
@@ -356,7 +356,7 @@ def test_run_uncapped_league_reports_null_moves_left(monkeypatch):
     result = _run_moves(
         monkeypatch,
         ["--league=121147", "--output", "json"],
-        teams=[ManagerRow("11", "Nurse Sharks", "Stephen", 96, "3", "17")],
+        teams=[ManagerRow("11", "Nurse Sharks", "Stephen", 96, 3, 17)],
         limit=None,
         adds={"11": 2},  # keyed by team id
     )

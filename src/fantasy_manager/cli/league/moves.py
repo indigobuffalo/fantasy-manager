@@ -134,8 +134,8 @@ class ManagerRow:
     team_name: str
     manager: str
     faab: Optional[int]
-    waiver_priority: Optional[str]
-    season_moves: Optional[str]
+    waiver_priority: Optional[int]
+    season_moves: Optional[int]
 
 
 def league_name(league_id: str) -> Optional[str]:
@@ -156,6 +156,19 @@ def league_label(league_id: str) -> str:
     """
     name = league_name(league_id)
     return f"{name} ({league_id})" if name else f"League {league_id}"
+
+
+def _cell_int(text: Optional[str]) -> Optional[int]:
+    """First run of digits in a scraped cell as an int, or None if absent.
+
+    The Waiver Budget / Waiver Priority / Moves cells are numeric counts, so we
+    emit them as ints (dropping the ``$`` on budget) rather than raw strings,
+    keeping the structured payload's number fields consistently typed.
+    """
+    if not text:
+        return None
+    digits = re.search(r"\d+", text)
+    return int(digits.group()) if digits else None
 
 
 def _end_column_index(table: str) -> dict[str, int]:
@@ -204,13 +217,9 @@ def parse_team_rows(html_text: str, league_id: str) -> list[ManagerRow]:
         manager = html.unescape(mgr.group(1)).strip() if mgr else ""
 
         cells = [re.sub(r"<[^>]+>", "", c).strip() for c in _END_CELL_RE.findall(row)]
-        budget = column(cells, "Waiver Budget")
-        faab = None
-        if budget:
-            digits = re.search(r"\d+", budget)
-            faab = int(digits.group()) if digits else None
-        priority = column(cells, "Waiver Priority")
-        season_moves = column(cells, "Moves")
+        faab = _cell_int(column(cells, "Waiver Budget"))
+        priority = _cell_int(column(cells, "Waiver Priority"))
+        season_moves = _cell_int(column(cells, "Moves"))
 
         rows.append(
             ManagerRow(
@@ -582,8 +591,8 @@ class Moves(command.CliCommand):
                 t.team_name,
                 moves_left(adds.get(t.team_id, 0), limit),
                 f"${t.faab}" if t.faab is not None else "—",
-                t.season_moves or "—",
-                t.waiver_priority or "—",
+                str(t.season_moves) if t.season_moves is not None else "—",
+                str(t.waiver_priority) if t.waiver_priority is not None else "—",
             )
             for t in ordered
         ]
