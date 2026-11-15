@@ -120,6 +120,22 @@ fmgr roster read --league kkupfl              # or: --league pa
 # convenience shim, same thing: ./scripts/read_roster.sh kkupfl
 ```
 
+See every manager's remaining weekly moves and FAAB for a league, to gauge
+waiver competition before bidding:
+
+```
+fmgr league moves --league=121147
+```
+
+Works for any league you can view in a browser (it drives the cookie
+transport), reconstructing each manager's weekly moves-used from the league's
+transaction log since the start of the fantasy week. Add `--output json`
+(or `yaml`) to emit a machine-readable payload on stdout for piping to `jq`/`yq`:
+
+```
+fmgr league moves --league=121147 --output json | jq '.league.managers[0]'
+```
+
 ## Misc
 
 Update _current_leagues.py symbolic link each year to ensure current league data is used.
