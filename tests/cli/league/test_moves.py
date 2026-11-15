@@ -95,7 +95,7 @@ def test_league_label_known_and_unknown():
 
 
 def test_parse_team_rows_extracts_columns_and_skips_co_manager():
-    rows = parse_team_rows(TEAMS_HTML, "121147")
+    rows = parse_team_rows(TEAMS_HTML)
     assert_that(len(rows), equal_to(2))
 
     sharks = rows[0]
@@ -126,7 +126,7 @@ def test_parse_team_rows_keeps_long_team_name():
         '<td class="Ta-end Phone-hidden">2</td>'
         '<td class="Ta-end Phone-hidden">0</td></tr></table>'
     )
-    rows = parse_team_rows(html_text, "121147")
+    rows = parse_team_rows(html_text)
     assert_that(len(rows), equal_to(1))
     assert_that(rows[0].team_name, equal_to(long_name))
 
@@ -150,7 +150,7 @@ def test_parse_team_rows_maps_columns_by_header_not_position():
         '<td class="Ta-end Phone-hidden">7</td>'
         '<td class="Ta-end Phone-hidden">0</td></tr></table>'
     )
-    rows = parse_team_rows(html_text, "121147")
+    rows = parse_team_rows(html_text)
     assert_that(len(rows), equal_to(1))
     assert_that(rows[0].faab, equal_to(50))
     assert_that(rows[0].season_moves, equal_to(7))

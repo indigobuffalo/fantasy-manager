@@ -188,7 +188,7 @@ def _end_column_index(table: str) -> dict[str, int]:
     return {label: i for i, label in enumerate(labels)}
 
 
-def parse_team_rows(html_text: str, league_id: str) -> list[ManagerRow]:
+def parse_team_rows(html_text: str) -> list[ManagerRow]:
     """Parse the ``/teams`` table into one :class:`ManagerRow` per manager.
 
     Scopes the parse to the table carrying the "Waiver Budget" header so stray
@@ -329,7 +329,7 @@ def fetch_team_rows(
             f"Could not read teams for league {league_id} — stale/logged-out "
             "cookie? Refresh YAHOO_COOKIE."
         )
-    return parse_team_rows(resp.text, league_id)
+    return parse_team_rows(resp.text)
 
 
 def fetch_weekly_add_limit(
